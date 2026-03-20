@@ -9,7 +9,9 @@ import {
   Settings,
   Upload,
   X,
-  Heart
+  Heart,
+  ClipboardList,
+  Pill
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -24,6 +26,16 @@ const navigationItems = [
     title: 'Dashboard',
     href: '/',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Historial Médico',
+    href: '/historial',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Medicamentos',
+    href: '/medicamentos',
+    icon: Pill,
   },
   {
     title: 'Mis Registros',
