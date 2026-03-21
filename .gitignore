@@ -12,3 +12,7 @@ docs/
 
 # Dotenv file
 .env
+
+# Ignorados del sistema
+node_modules/
+dist/
