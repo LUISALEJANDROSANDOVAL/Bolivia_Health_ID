@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface WalletContextType {
   isConnected: boolean
@@ -20,16 +21,8 @@ const defaultValue: WalletContextType = {
 
 const WalletContext = createContext<WalletContextType>(defaultValue)
 
-function generateWalletAddress(): string {
-  const chars = '0123456789abcdef'
-  let address = '0x'
-  for (let i = 0; i < 40; i++) {
-    address += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return address
-}
-
-function formatAddress(address: string): string {
+function formatAddress(address: string | null): string {
+  if (!address) return ''
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
@@ -38,17 +31,45 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
 
-  const connect = useCallback(() => {
-    const address = generateWalletAddress()
-    setWalletAddress(address)
-    setUserName('María García')
-    setIsConnected(true)
+  useEffect(() => {
+    // Revisar sesión inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsConnected(true)
+        setUserName(session.user.user_metadata?.full_name || session.user.email || 'Usuario')
+      }
+    })
+
+    // Escuchar cambios (login, logout, refetch)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setIsConnected(true)
+        setUserName(session.user.user_metadata?.full_name || session.user.email || 'Usuario')
+      } else {
+        setIsConnected(false)
+        setUserName(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
-  const disconnect = useCallback(() => {
-    setWalletAddress(null)
-    setUserName(null)
+  const connect = useCallback(async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}` : 'http://localhost:3000'
+      }
+    })
+  }, [])
+
+  const disconnect = useCallback(async () => {
+    await supabase.auth.signOut()
     setIsConnected(false)
+    setUserName(null)
+    setWalletAddress(null)
   }, [])
 
   return (
