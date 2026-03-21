@@ -12,7 +12,7 @@ contract MedicalRecords is AccessControl {
     bytes32 public constant DOCTOR_ROLE = keccak256("DOCTOR_ROLE");
 
     struct Record {
-        string ipfsHash;    // Aquí se guarda el CID de Lighthouse
+        string ipfsHash; // Aquí se guarda el CID de Lighthouse
         uint256 timestamp;
         address doctor;
     }
@@ -35,18 +35,14 @@ contract MedicalRecords is AccessControl {
         require(patient != address(0), "Paciente invalido");
         require(bytes(ipfsHash).length > 0, "Hash vacio");
 
-        patientRecords[patient].push(Record({
-            ipfsHash: ipfsHash,
-            timestamp: block.timestamp,
-            doctor: msg.sender
-        }));
+        patientRecords[patient].push(Record({ipfsHash: ipfsHash, timestamp: block.timestamp, doctor: msg.sender}));
 
         emit RecordAdded(patient, msg.sender, ipfsHash);
     }
 
     /**
      * @dev Retorna los expedientes del paciente especificado.
-     * En el UI, Account Abstraction se asegurará de que sea consultado 
+     * En el UI, Account Abstraction se asegurará de que sea consultado
      * mediante la firma correcta.
      */
     function getRecords(address patient) external view returns (Record[] memory) {
