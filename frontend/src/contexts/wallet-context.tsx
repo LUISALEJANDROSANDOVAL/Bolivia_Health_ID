@@ -33,23 +33,24 @@ function formatAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
+import { useAccount, useDisconnect } from 'wagmi'
+import { useModal } from 'connectkit'
+
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [isConnected, setIsConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
-  const [userName, setUserName] = useState<string | null>(null)
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
+  const { setOpen } = useModal()
+
+  const walletAddress = address ? (address as string) : null
+  const userName = isConnected ? 'Doctor (MetaMask)' : null
 
   const connect = useCallback(() => {
-    const address = generateWalletAddress()
-    setWalletAddress(address)
-    setUserName('María García')
-    setIsConnected(true)
-  }, [])
+    setOpen(true)
+  }, [setOpen])
 
-  const disconnect = useCallback(() => {
-    setWalletAddress(null)
-    setUserName(null)
-    setIsConnected(false)
-  }, [])
+  const handleDisconnect = useCallback(() => {
+    disconnect()
+  }, [disconnect])
 
   return (
     <WalletContext.Provider
@@ -58,7 +59,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         walletAddress,
         userName,
         connect,
-        disconnect,
+        disconnect: handleDisconnect,
       }}
     >
       {children}
