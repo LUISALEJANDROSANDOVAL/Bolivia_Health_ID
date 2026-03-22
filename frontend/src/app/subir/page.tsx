@@ -17,6 +17,8 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { useWallet } from '@/contexts/wallet-context'
+import { useStorageStats } from '@/hooks/useStorageStats'
 
 const features = [
   {
@@ -49,34 +51,36 @@ const features = [
   },
 ]
 
-const stats = [
-  {
-    icon: Database,
-    label: 'Almacenamiento usado',
-    value: '2.4 GB',
-    total: 'de 10 GB',
-    progress: 24,
-    color: 'text-blue-500'
-  },
-  {
-    icon: TrendingUp,
-    label: 'Documentos subidos',
-    value: '24',
-    total: 'este mes',
-    trend: '+12%',
-    color: 'text-emerald-500'
-  },
-  {
-    icon: Clock,
-    label: 'Última subida',
-    value: 'Hace 2 días',
-    total: '15 Mar 2026',
-    color: 'text-purple-500'
-  }
-]
-
 export default function SubirPage() {
   const [uploadComplete, setUploadComplete] = useState(false)
+  const { walletAddress } = useWallet()
+  const { stats, loading } = useStorageStats(walletAddress)
+
+  const viewStats = [
+    {
+      icon: Database,
+      label: 'Almacenamiento usado',
+      value: loading ? '...' : (!walletAddress ? '--' : `${stats.usedGB} GB`),
+      total: !walletAddress ? '' : `de ${stats.totalGB} GB`,
+      progress: (!walletAddress || loading) ? 0 : (stats.usedGB / stats.totalGB) * 100,
+      color: 'text-blue-500'
+    },
+    {
+      icon: TrendingUp,
+      label: 'Documentos subidos',
+      value: loading ? '...' : (!walletAddress ? '--' : `${stats.monthUploads}`),
+      total: !walletAddress ? '' : 'este mes',
+      trend: stats.trend === '0%' ? '' : stats.trend,
+      color: 'text-emerald-500'
+    },
+    {
+      icon: Clock,
+      label: 'Última subida',
+      value: loading ? '...' : (!walletAddress ? '--' : (stats.lastUploadDate ? stats.lastUploadDate : 'Sin registros')),
+      total: !walletAddress ? '' : 'En la red',
+      color: 'text-purple-500'
+    }
+  ]
 
   return (
     <DashboardLayout>
@@ -96,16 +100,23 @@ export default function SubirPage() {
             </div>
           </div>
 
+          {!walletAddress && (
+             <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/30 text-amber-600 rounded-xl text-sm font-bold flex items-center gap-2">
+                 <Shield className="size-5" />
+                 Conecta tu wallet en la barra lateral para ver tus estadísticas de almacenamiento y activar la subida segura.
+             </div>
+          )}
+
           {/* Stats cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            {stats.map((stat, idx) => (
-              <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
+            {viewStats.map((stat, idx) => (
+              <Card key={idx} className={`card-premium p-4 transition-all ${!walletAddress ? 'opacity-60 saturate-50' : 'hover:border-azul-electrico/30'}`}>
                 <CardContent className="p-0">
                   <div className="flex items-start justify-between">
                     <div className={`rounded-xl p-2 ${stat.color} bg-opacity-10 bg-current`}>
                       <stat.icon className={`size-5 ${stat.color}`} />
                     </div>
-                    {stat.trend && (
+                    {stat.trend && walletAddress && (
                       <span className="text-xs text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
                         {stat.trend}
                       </span>
@@ -114,11 +125,11 @@ export default function SubirPage() {
                   <div className="mt-3">
                     <p className="text-2xl font-black text-foreground">{stat.value}</p>
                     <p className="text-xs text-foreground/50 mt-1">{stat.label}</p>
-                    {stat.total && (
+                    {stat.total && walletAddress && (
                       <p className="text-xs text-foreground/30 mt-0.5">{stat.total}</p>
                     )}
                   </div>
-                  {stat.progress && (
+                  {stat.progress !== undefined && walletAddress && (
                     <div className="mt-3">
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div 
@@ -132,6 +143,11 @@ export default function SubirPage() {
               </Card>
             ))}
           </div>
+        </div>
+
+        {/* Componente principal de subida */}
+        <div className={!walletAddress ? "opacity-50 pointer-events-none" : ""}>
+          <FileUpload onUploadComplete={() => setUploadComplete(true)} />
         </div>
 
         {/* Banner de seguridad */}
@@ -163,9 +179,6 @@ export default function SubirPage() {
           </div>
         </div>
 
-        {/* Componente principal de subida */}
-        <FileUpload onUploadComplete={() => setUploadComplete(true)} />
-
         {/* Características de IPFS */}
         <div>
           <h2 className="text-lg font-black text-foreground mb-4 flex items-center gap-2 tracking-tight">
@@ -190,7 +203,7 @@ export default function SubirPage() {
         </div>
 
         {/* Banner de recomendación */}
-        {uploadComplete && (
+        {uploadComplete && walletAddress && (
           <div className="bg-gradient-electric rounded-2xl p-6 text-white animate-slide-in">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <div className="flex items-start gap-3">

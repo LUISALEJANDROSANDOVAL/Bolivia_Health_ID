@@ -1,0 +1,153 @@
+{
+  "profile": {
+    "id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+    "wallet_address": "0xF0fc123456789abcdef123456789abcdef1265bc",
+    "full_name": "María García",
+    "role": "patient",
+    "avatar_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=Maria",
+    "created_at": "2026-03-21T20:06:29.365486+00:00"
+  },
+  "vitals": {
+    "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+    "blood_type": "O+",
+    "allergies": [
+      "Penicilina",
+      "Mariscos",
+      "Polen"
+    ],
+    "pulse": 72,
+    "blood_pressure": "120/80",
+    "weight": 68.5,
+    "updated_at": "2026-03-21T20:06:29.365486+00:00"
+  },
+  "medications": [
+    {
+      "id": "bbe68b95-470d-4032-ab6d-550eb1fa53a1",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "name": "Losartán",
+      "indication": "Control de hipertensión",
+      "dosage": "50mg",
+      "frequency": "Cada 12 horas",
+      "status": "active",
+      "start_date": "2024-01-15",
+      "end_date": null,
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "700946cc-24a3-4375-9dfb-b6713a33d7eb",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "name": "Vitamina C",
+      "indication": "Suplemento nutricional",
+      "dosage": "1000mg",
+      "frequency": "Cada 24 horas",
+      "status": "active",
+      "start_date": "2025-10-01",
+      "end_date": null,
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "9e1157d2-d54b-4dc8-8e45-7907b61e7bd4",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "name": "Amoxicilina",
+      "indication": "Tratamiento por infección",
+      "dosage": "500mg",
+      "frequency": "Cada 8 horas",
+      "status": "completed",
+      "start_date": "2023-05-10",
+      "end_date": null,
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ],
+  "medical_background": [
+    {
+      "id": "f2ff719c-c368-41f4-a9be-46789b4a2b83",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "category": "surgery",
+      "title": "Apendicectomía",
+      "description": "Cirugía de extracción de apéndice sin complicaciones",
+      "status_detail": "Recuperación total",
+      "date_recorded": "2015-08-22",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "e93c4222-19de-4504-b2f7-ce641343fb0e",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "category": "vaccine",
+      "title": "Vacuna COVID-19",
+      "description": "Tercera dosis de refuerzo (Pfizer)",
+      "status_detail": "Completada",
+      "date_recorded": "2022-11-10",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ],
+  "health_records": [
+    {
+      "id": "fe156560-6efa-4de5-b20b-b73458569987",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "title": "Análisis de sangre - Marzo 2026",
+      "category": "Laboratorio",
+      "file_size": "2.4 MB",
+      "pinata_cid": "QmZTrQe9q8zP4yKkF8vH...abc1",
+      "tx_hash": "0xabc123456789def0123...",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "c8a36753-5d8e-4020-a7a1-ff4b1a4da630",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "title": "Radiografía Tórax Frontal",
+      "category": "Imágenes",
+      "file_size": "5.1 MB",
+      "pinata_cid": "QmXTrQe9q8zP4yKkF8vH...xyz9",
+      "tx_hash": "0xdef0123456789abc012...",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ],
+  "activity_log": [
+    {
+      "id": "4c005a24-e701-43ac-8cd0-32b0c356dfa5",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "action_title": "Hospital Obrero accedió a tu historial",
+      "action_detail": "Consulta de emergencia - Área de cardiología",
+      "icon_type": "shield",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "74dc3a35-4501-4162-94bd-e930427ac483",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "action_title": "Archivo subido exitosamente",
+      "action_detail": "Análisis de sangre - Marzo 2026.pdf",
+      "icon_type": "upload",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "5938932c-48ce-4d2d-b6e7-7ddc5f6adfc8",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "action_title": "Nuevo registro médico añadido",
+      "action_detail": "Control de presión arterial",
+      "icon_type": "file",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ],
+  "access_permissions": [
+    {
+      "id": "b09cb29a-dc6e-4433-9121-68d31c49fb4d",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "authorized_entity": "Clínica del Sur",
+      "entity_wallet": "0xC3dc123456789abcdef123456789abcdef1265bc",
+      "access_type": "Solo lectura",
+      "status": "active",
+      "expires_at": "2026-09-21T20:06:29.365486+00:00",
+      "granted_at": "2026-03-21T20:06:29.365486+00:00"
+    },
+    {
+      "id": "7b35c20c-5ab7-4c80-82a7-0d184d835a2d",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "authorized_entity": "Dr. Roberto Mendoza",
+      "entity_wallet": "0xA1bc123456789abcdef123456789abcdef1265bc",
+      "access_type": "Lectura y Escritura",
+      "status": "active",
+      "expires_at": "2026-04-21T20:06:29.365486+00:00",
+      "granted_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ]
+}
