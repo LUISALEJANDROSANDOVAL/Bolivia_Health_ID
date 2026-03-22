@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { 
   User, 
@@ -42,7 +42,7 @@ import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { useWallet, formatAddress } from '@/contexts/wallet-context'
 import { useToast } from '@/hooks/use-toast'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ProfileSettings } from '@/components/profile-settings'
+import { ProfileSettings, ProfileSettingsRef } from '@/components/profile-settings'
 import { SecuritySettings } from '@/components/security-settings'
 import { NotificationSettings } from '@/components/notification-settings'
 import { PrivacySettings } from '@/components/privacy-settings'
@@ -85,6 +85,7 @@ const settingsStats = [
 ]
 
 export default function ConfiguracionPage() {
+  const profileRef = useRef<ProfileSettingsRef>(null)
   const { isConnected, walletAddress, userName } = useWallet()
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState('perfil')
@@ -106,13 +107,24 @@ export default function ConfiguracionPage() {
 
   const handleSaveAll = async () => {
     setIsSaving(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    setLastSaved(new Date())
-    setIsSaving(false)
-    toast({
-      title: 'Configuración guardada',
-      description: 'Todos los cambios han sido aplicados correctamente',
-    })
+    try {
+      if (profileRef.current) {
+        await profileRef.current.save()
+      }
+      setLastSaved(new Date())
+      toast({
+        title: 'Configuración guardada',
+        description: 'Todos los cambios han sido sincronizados con Supabase.',
+      })
+    } catch {
+      toast({
+        title: 'Error al guardar',
+        description: 'Hubo un problema al guardar los cambios.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -211,7 +223,7 @@ export default function ConfiguracionPage() {
           </TabsList>
 
           <TabsContent value="perfil">
-            <ProfileSettings userName={userName || undefined} />
+            <ProfileSettings ref={profileRef} userName={userName || undefined} />
           </TabsContent>
 
           <TabsContent value="seguridad">

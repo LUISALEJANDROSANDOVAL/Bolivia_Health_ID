@@ -11,6 +11,7 @@ export interface ProfileData {
   occupation: string;
   blood_type: string;
   allergies: string;
+  cedula_identidad: string;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
@@ -20,7 +21,8 @@ const DEFAULT_PROFILE: ProfileData = {
   address: '',
   occupation: '',
   blood_type: '',
-  allergies: ''
+  allergies: '',
+  cedula_identidad: ''
 };
 
 export function useProfile(walletAddress: string | null) {
@@ -79,6 +81,7 @@ export function useProfile(walletAddress: string | null) {
             phone: profileData?.phone || '',
             address: profileData?.address || '',
             occupation: profileData?.occupation || '',
+            cedula_identidad: profileData?.cedula_identidad || '',
             blood_type: vitalsData?.blood_type || '',
             allergies: vitalsData?.allergies || ''
           });
@@ -98,45 +101,101 @@ export function useProfile(walletAddress: string | null) {
   }, [walletAddress]);
 
   const updateProfile = async (dataToUpdate: Partial<ProfileData>) => {
-    if (!profile.id || !walletAddress) throw new Error('Usuario no conectado o sin perfil.');
+    if (!walletAddress) throw new Error('Conecta tu wallet para guardar cambios.');
     
-    // Separar datos de profile y vitals
+    // Si no tenemos ID (perfil nuevo), buscamos de nuevo por si acaso se creó en el background
+    let currentProfileId = profile.id;
+    if (!currentProfileId) {
+       const { data: existing } = await supabase
+         .from('profiles')
+         .select('id')
+         .eq('wallet_address', walletAddress.toLowerCase())
+         .single();
+       if (existing) currentProfileId = existing.id;
+    }
+
+    if (!currentProfileId) {
+      // Crear perfil directamente — id se auto-genera con gen_random_uuid()
+      const { data: created, error: createError } = await supabase
+        .from('profiles')
+        .insert([{ 
+          wallet_address: walletAddress.toLowerCase(),
+          full_name: dataToUpdate.full_name || `Paciente ${walletAddress.slice(0,6)}`,
+          email: dataToUpdate.email || '',
+          phone: dataToUpdate.phone || '',
+          address: dataToUpdate.address || '',
+          occupation: dataToUpdate.occupation || '',
+          cedula_identidad: dataToUpdate.cedula_identidad || null,
+          role: 'paciente'
+        }])
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      currentProfileId = created.id;
+    }
+    
+    // Preparar payloads
     const profilePayload = {
       full_name: dataToUpdate.full_name,
       email: dataToUpdate.email,
       phone: dataToUpdate.phone,
       address: dataToUpdate.address,
       occupation: dataToUpdate.occupation,
+      cedula_identidad: dataToUpdate.cedula_identidad,
+      updated_at: new Date().toISOString()
     };
 
     const vitalsPayload = {
-      patient_id: profile.id,
+      patient_id: currentProfileId,
       blood_type: dataToUpdate.blood_type,
       allergies: dataToUpdate.allergies,
       updated_at: new Date().toISOString()
     };
 
     try {
-      // 1. Upsert Profile
+      // 1. Update Profile (base info)
       const { error: profileError } = await supabase
         .from('profiles')
         .update(profilePayload)
-        .eq('id', profile.id);
+        .eq('id', currentProfileId);
 
       if (profileError) throw profileError;
 
-      // 2. Upsert Vitals (upsert porque podría no tener vitals previos)
-      const { error: vitalsError } = await supabase
+      // 2. Upsert Vitals (donde van tipo de sangre y alergias)
+      // Lo hacemos explícito por si el Constraint ON CONFLICT de la BD falla
+      const { data: existingVitals } = await supabase
         .from('patient_vitals')
-        .upsert(vitalsPayload, { onConflict: 'patient_id' });
+        .select('id')
+        .eq('patient_id', currentProfileId)
+        .single();
 
-      if (vitalsError) throw vitalsError;
+      if (existingVitals) {
+        // Si ya existen, actualizamos
+        const { error: vitalsError } = await supabase
+          .from('patient_vitals')
+          .update({
+            blood_type: vitalsPayload.blood_type,
+            allergies: vitalsPayload.allergies,
+            updated_at: vitalsPayload.updated_at
+          })
+          .eq('patient_id', currentProfileId);
+        
+        if (vitalsError) throw vitalsError;
+      } else {
+        // Si no existen, insertamos
+        const { error: vitalsError } = await supabase
+          .from('patient_vitals')
+          .insert([vitalsPayload]);
+        
+        if (vitalsError) throw vitalsError;
+      }
 
-      setProfile(prev => ({ ...prev, ...dataToUpdate }));
+      setProfile(prev => ({ ...prev, ...dataToUpdate, id: currentProfileId }));
       return true;
     } catch (err: any) {
       console.error('Error actualizando perfil:', err);
-      throw new Error('Fallo al actualizar el perfil en base de datos.');
+      throw new Error(err.message || 'Fallo al actualizar el perfil en base de datos.');
     }
   };
 
