@@ -1,6 +1,36 @@
 'use client'
 
+import { useState } from 'react'
 import { DashboardLayout } from '@/components/dashboard-layout'
+import { 
+  User, 
+  Bell, 
+  Shield, 
+  Smartphone, 
+  Moon, 
+  Globe, 
+  Key, 
+  Copy, 
+  Check,
+  Settings,
+  Database,
+  Lock,
+  CreditCard,
+  Fingerprint,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Save,
+  RefreshCw,
+  AlertCircle,
+  ChevronRight,
+  Download,
+  Trash2,
+  Eye,
+  Clock,
+  Activity
+} from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,226 +38,235 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { User, Bell, Shield, Smartphone, Moon, Globe, Key, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
-import { useWallet, formatAddress } from '@/contexts/wallet-context'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
+import { useWallet, formatAddress } from '@/contexts/wallet-context'
+import { useToast } from '@/hooks/use-toast'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ProfileSettings } from '@/components/profile-settings'
+import { SecuritySettings } from '@/components/security-settings'
+import { NotificationSettings } from '@/components/notification-settings'
+import { PrivacySettings } from '@/components/privacy-settings'
+import { BlockchainSettings } from '@/components/blockchain-settings'
+import { DataManagement } from '@/components/data-management'
+
+const settingsStats = [
+  {
+    icon: Shield,
+    label: 'Nivel de seguridad',
+    value: 'Alto',
+    description: '2FA activada',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50'
+  },
+  {
+    icon: Database,
+    label: 'Almacenamiento',
+    value: '2.4 GB',
+    description: 'de 10 GB',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50'
+  },
+  {
+    icon: Lock,
+    label: 'Cifrado',
+    value: 'AES-256',
+    description: 'End-to-end',
+    color: 'text-purple-500',
+    bg: 'bg-purple-50'
+  },
+  {
+    icon: CreditCard,
+    label: 'Wallet',
+    value: 'Conectada',
+    description: 'Red Ethereum',
+    color: 'text-amber-500',
+    bg: 'bg-amber-50'
+  }
+]
 
 export default function ConfiguracionPage() {
   const { isConnected, walletAddress, userName } = useWallet()
   const [copied, setCopied] = useState(false)
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: false,
-    accessAlerts: true,
-  })
+  const [activeTab, setActiveTab] = useState('perfil')
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const { toast } = useToast()
 
   const copyAddress = () => {
     if (walletAddress) {
       navigator.clipboard.writeText(walletAddress)
       setCopied(true)
+      toast({
+        title: 'Dirección copiada',
+        description: 'La dirección de wallet ha sido copiada al portapapeles',
+      })
       setTimeout(() => setCopied(false), 2000)
     }
   }
 
+  const handleSaveAll = async () => {
+    setIsSaving(true)
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    setLastSaved(new Date())
+    setIsSaving(false)
+    toast({
+      title: 'Configuración guardada',
+      description: 'Todos los cambios han sido aplicados correctamente',
+    })
+  }
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8 animate-slide-in">
+        
+        {/* Header con estadísticas */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Configuración</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestiona tu cuenta y preferencias de la aplicación
-          </p>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
-            {/* Profile Section */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <User className="size-5 text-primary" />
-                  <CardTitle>Perfil</CardTitle>
-                </div>
-                <CardDescription>Tu información personal</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <Avatar className="size-20">
-                    <AvatarImage src="/placeholder-avatar.jpg" />
-                    <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                      {userName?.split(' ').map(n => n[0]).join('') || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-foreground">{userName || 'Usuario'}</h3>
-                    <p className="text-sm text-muted-foreground">Paciente verificado</p>
-                    <Button variant="outline" size="sm" className="mt-2">
-                      Cambiar foto
-                    </Button>
-                  </div>
-                </div>
-                <Separator />
-                <FieldGroup className="gap-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel>Nombre completo</FieldLabel>
-                      <Input defaultValue={userName || ''} />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Correo electrónico</FieldLabel>
-                      <Input defaultValue="maria.garcia@email.com" type="email" />
-                    </Field>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel>Teléfono</FieldLabel>
-                      <Input defaultValue="+591 70123456" type="tel" />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Fecha de nacimiento</FieldLabel>
-                      <Input defaultValue="15/05/1990" type="text" />
-                    </Field>
-                  </div>
-                </FieldGroup>
-                <Button>Guardar cambios</Button>
-              </CardContent>
-            </Card>
-
-            {/* Notifications */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Bell className="size-5 text-primary" />
-                  <CardTitle>Notificaciones</CardTitle>
-                </div>
-                <CardDescription>Configura cómo quieres recibir alertas</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-foreground">Notificaciones por email</p>
-                    <p className="text-xs text-muted-foreground">Recibe actualizaciones en tu correo</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.email}
-                    onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, email: checked }))}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-foreground">Notificaciones push</p>
-                    <p className="text-xs text-muted-foreground">Recibe alertas en tu dispositivo</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.push}
-                    onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, push: checked }))}
-                  />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium text-foreground">Alertas de acceso</p>
-                    <p className="text-xs text-muted-foreground">Notifica cuando alguien acceda a tus datos</p>
-                  </div>
-                  <Switch 
-                    checked={notifications.accessAlerts}
-                    onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, accessAlerts: checked }))}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-electric">
+              <Settings className="size-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-azul-profundo">Configuración</h1>
+              <p className="text-sm text-gris-grafito">
+                Gestiona tu perfil, seguridad y preferencias de la plataforma
+              </p>
+            </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Wallet Info */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Key className="size-5 text-primary" />
-                  <CardTitle className="text-base">Wallet</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isConnected && walletAddress ? (
-                  <>
-                    <div className="rounded-lg bg-muted p-3">
-                      <p className="text-xs text-muted-foreground">Dirección</p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <code className="flex-1 truncate font-mono text-xs text-foreground">
-                          {formatAddress(walletAddress)}
-                        </code>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={copyAddress}>
-                          {copied ? (
-                            <Check className="size-4 text-success" />
-                          ) : (
-                            <Copy className="size-4" />
-                          )}
-                        </Button>
-                      </div>
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {settingsStats.map((stat, idx) => (
+              <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
+                <CardContent className="p-0">
+                  <div className="flex items-start justify-between">
+                    <div className={`rounded-xl p-2 ${stat.bg}`}>
+                      <stat.icon className={`size-5 ${stat.color}`} />
                     </div>
-                    <Badge variant="outline" className="w-full justify-center gap-2 py-2">
-                      <div className="size-2 rounded-full bg-success" />
-                      Conectado con Google
-                    </Badge>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No hay wallet conectada</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Quick Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Preferencias</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Moon className="size-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">Modo oscuro</span>
                   </div>
-                  <Switch />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Globe className="size-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">Idioma</span>
+                  <div className="mt-3">
+                    <p className="text-2xl font-bold text-azul-profundo">{stat.value}</p>
+                    <p className="text-xs text-gris-grafito mt-0.5">{stat.label}</p>
+                    <p className="text-xs text-gris-grafito/60 mt-0.5">{stat.description}</p>
                   </div>
-                  <Badge variant="secondary">ES</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="size-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">2FA</span>
-                  </div>
-                  <Badge className="bg-success/10 text-success border-0">Activo</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Security */}
-            <Card className="border-destructive/20">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Shield className="size-5 text-destructive" />
-                  <CardTitle className="text-base">Zona de peligro</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start text-destructive hover:bg-destructive hover:text-destructive-foreground">
-                  Descargar mis datos
-                </Button>
-                <Button variant="outline" className="w-full justify-start text-destructive hover:bg-destructive hover:text-destructive-foreground">
-                  Eliminar cuenta
-                </Button>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
+
+        {/* Banner de seguridad */}
+        <div className="bg-gradient-electric rounded-2xl p-5 text-white overflow-hidden relative">
+          <div className="absolute right-0 top-0 opacity-10">
+            <div className="text-9xl">🔒</div>
+          </div>
+          <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-white/20 rounded-2xl blur-lg" />
+                <div className="relative rounded-2xl p-4 bg-gradient-to-br from-white/20 to-white/10">
+                  <Fingerprint className="size-8 text-white" />
+                </div>
+              </div>
+              <div>
+                <h3 className="font-semibold text-xl">Protege tu cuenta</h3>
+                <p className="text-sm text-white/80 mt-1">
+                  Activa la autenticación de dos factores para mayor seguridad y control de acceso.
+                </p>
+              </div>
+            </div>
+            <Button className="bg-white text-azul-electrico hover:bg-white/90">
+              <Shield className="size-4 mr-2" />
+              Configurar 2FA
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs de configuración */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-6 gap-2 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="perfil" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <User className="size-4" />
+              <span className="hidden lg:inline">Perfil</span>
+            </TabsTrigger>
+            <TabsTrigger value="seguridad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Shield className="size-4" />
+              <span className="hidden lg:inline">Seguridad</span>
+            </TabsTrigger>
+            <TabsTrigger value="notificaciones" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Bell className="size-4" />
+              <span className="hidden lg:inline">Notificaciones</span>
+            </TabsTrigger>
+            <TabsTrigger value="privacidad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Lock className="size-4" />
+              <span className="hidden lg:inline">Privacidad</span>
+            </TabsTrigger>
+            <TabsTrigger value="blockchain" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Globe className="size-4" />
+              <span className="hidden lg:inline">Blockchain</span>
+            </TabsTrigger>
+            <TabsTrigger value="datos" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Database className="size-4" />
+              <span className="hidden lg:inline">Datos</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="perfil">
+            <ProfileSettings userName={userName || undefined} />
+          </TabsContent>
+
+          <TabsContent value="seguridad">
+            <SecuritySettings />
+          </TabsContent>
+
+          <TabsContent value="notificaciones">
+            <NotificationSettings />
+          </TabsContent>
+
+          <TabsContent value="privacidad">
+            <PrivacySettings />
+          </TabsContent>
+
+          <TabsContent value="blockchain">
+            <BlockchainSettings 
+              isConnected={isConnected}
+              walletAddress={walletAddress}
+              onCopyAddress={copyAddress}
+              copied={copied}
+            />
+          </TabsContent>
+
+          <TabsContent value="datos">
+            <DataManagement />
+          </TabsContent>
+        </Tabs>
+
+        {/* Barra de acciones */}
+        <div className="sticky bottom-6 flex items-center justify-end gap-3">
+          {lastSaved && (
+            <div className="flex items-center gap-2 text-xs text-gris-grafito bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
+              <RefreshCw className="size-3 text-emerald-500" />
+              Última sincronización: {lastSaved.toLocaleTimeString()}
+            </div>
+          )}
+          <Button
+            onClick={handleSaveAll}
+            disabled={isSaving}
+            className="btn-premium shadow-lg"
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw className="size-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="size-4 mr-2" />
+                Guardar todos los cambios
+              </>
+            )}
+          </Button>
+        </div>
+
       </div>
     </DashboardLayout>
   )

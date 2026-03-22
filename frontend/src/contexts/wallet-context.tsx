@@ -1,21 +1,27 @@
 'use client'
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useState, useEffect, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useAccount, useDisconnect } from 'wagmi'
+import { useModal } from 'connectkit'
 
 interface WalletContextType {
   isConnected: boolean
+  isDbConnected: boolean
   walletAddress: string | null
   userName: string | null
   connect: () => void
+  connectDb: () => void
   disconnect: () => void
 }
 
 const defaultValue: WalletContextType = {
   isConnected: false,
+  isDbConnected: false,
   walletAddress: null,
   userName: null,
   connect: () => {},
+  connectDb: () => {},
   disconnect: () => {},
 }
 
@@ -27,58 +33,86 @@ function formatAddress(address: string | null): string {
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [isConnected, setIsConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState<string | null>(null)
-  const [userName, setUserName] = useState<string | null>(null)
+  const { address, isConnected } = useAccount()
+  const { disconnect: wagmiDisconnect } = useDisconnect()
+  const { setOpen } = useModal()
 
-  useEffect(() => {
-    // Revisar sesión inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsConnected(true)
-        setUserName(session.user.user_metadata?.full_name || session.user.email || 'Usuario')
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  // Sync profile with Supabase based on wallet address
+  const syncProfile = useCallback(async (walletAddr: string) => {
+    setLoading(true)
+    try {
+      // 1. Check if profile exists
+      let { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', walletAddr.toLowerCase())
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        // 2. Create profile if it doesn't exist
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              wallet_address: walletAddr.toLowerCase(),
+              full_name: `Paciente ${walletAddr.slice(0, 6)}`,
+              role: 'patient'
+            }
+          ])
+          .select()
+          .single()
+
+        if (createError) throw createError
+        data = newProfile
+      } else if (error) {
+        throw error
       }
-    })
 
-    // Escuchar cambios (login, logout, refetch)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        setIsConnected(true)
-        setUserName(session.user.user_metadata?.full_name || session.user.email || 'Usuario')
-      } else {
-        setIsConnected(false)
-        setUserName(null)
-      }
-    })
-
-    return () => {
-      subscription.unsubscribe()
+      setProfile(data)
+    } catch (err) {
+      console.error('Error syncing profile:', err)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  const connect = useCallback(async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: typeof window !== 'undefined' ? `${window.location.origin}` : 'http://localhost:3000'
-      }
-    })
-  }, [])
+  useEffect(() => {
+    if (isConnected && address) {
+      syncProfile(address)
+    } else {
+      setProfile(null)
+    }
+  }, [isConnected, address, syncProfile])
+
+  const userName = profile?.full_name || (isConnected && address ? `Usuario (${address.slice(0, 4)})` : null)
+
+  const connect = useCallback(() => {
+    setOpen(true)
+  }, [setOpen])
 
   const disconnect = useCallback(async () => {
-    await supabase.auth.signOut()
-    setIsConnected(false)
-    setUserName(null)
-    setWalletAddress(null)
-  }, [])
+    try {
+      wagmiDisconnect()
+      setProfile(null)
+      // Note: We don't call signOut() since we're not using Supabase Auth (OAuth/Email)
+      // but instead using Wallet as the identity filter.
+    } catch (error) {
+      console.error('Error disconnecting:', error)
+    }
+  }, [wagmiDisconnect])
 
   return (
     <WalletContext.Provider
       value={{
-        isConnected,
-        walletAddress,
+        isConnected: !!isConnected,
+        isDbConnected: !!profile, // Profile presence acts as DB connection
+        walletAddress: address || null,
         userName,
         connect,
+        connectDb: connect, // Redundant now, both point to wallet connect
         disconnect,
       }}
     >

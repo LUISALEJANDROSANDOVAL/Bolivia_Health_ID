@@ -1,6 +1,6 @@
 'use client'
 
-import { Shield, ArrowRight } from 'lucide-react'
+import { Shield, ArrowRight, Sparkles, Activity, TrendingUp, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@/contexts/wallet-context'
 
@@ -9,58 +9,90 @@ export function WelcomeBanner() {
 
   if (!isConnected) {
     return (
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground lg:p-8">
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-electric p-8 lg:p-12 animate-slide-in shadow-xl shadow-cyan-500/10">
+        {/* Luces de fondo decorativas */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-2xl -ml-10 -mb-10" />
+        
         <div className="relative z-10">
-          <h1 className="text-2xl font-bold lg:text-3xl text-balance">
-            Bienvenido a Bolivia Health ID
+          <div className="flex items-center gap-2 mb-4">
+            <div className="bg-azul-profundo/10 p-2 rounded-lg backdrop-blur-md">
+              <Sparkles className="h-5 w-5 text-azul-profundo animate-pulse" />
+            </div>
+            <span className="text-xs font-black uppercase tracking-[0.2em] text-azul-profundo/60">
+              Blockchain Health Identity
+            </span>
+          </div>
+          
+          <h1 className="text-4xl lg:text-5xl font-black text-azul-profundo mb-6 leading-tight">
+            Bienvenido a <br />
+            <span className="opacity-90">Bolivia Health ID</span>
           </h1>
-          <p className="mt-2 max-w-xl text-sm text-primary-foreground/90 lg:text-base">
-            Tu identidad de salud descentralizada. Conecta tu cuenta para gestionar 
-            tus registros médicos de forma segura con tecnología blockchain.
+          
+          <p className="max-w-xl text-azul-profundo/80 text-lg font-bold leading-relaxed mb-10">
+            Tu identidad de salud descentralizada gestionada por tu propia Wallet. 
+            Seguridad inquebrantable para tus registros médicos.
           </p>
-          <Button
-            onClick={connect}
-            className="mt-4 bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-          >
-            <svg className="mr-2 size-4" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Conectar con Google
-            <ArrowRight className="ml-2 size-4" />
-          </Button>
+          
+          <div className="flex flex-wrap gap-5">
+            <Button
+              onClick={connect}
+              className="bg-foreground text-background hover:scale-105 px-10 py-7 text-lg font-black rounded-2xl shadow-2xl transition-all border-none"
+            >
+              <Wallet className="mr-3 size-6" />
+              Conectar Wallet
+              <ArrowRight className="ml-3 size-6" />
+            </Button>
+            
+            <Button variant="ghost" className="text-foreground font-black hover:bg-foreground/10 px-8 py-7 text-lg border-2 border-foreground/30 rounded-2xl">
+              <Shield className="mr-3 size-6" />
+              Saber más
+            </Button>
+          </div>
         </div>
-        <div className="absolute -right-8 -top-8 size-40 rounded-full bg-primary-foreground/10" />
-        <div className="absolute -bottom-12 -right-12 size-60 rounded-full bg-primary-foreground/5" />
       </div>
     )
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground lg:p-8">
-      <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold lg:text-3xl text-balance">
-            Hola, {userName?.split(' ')[0]}
+    <div className="relative overflow-hidden rounded-[2rem] bg-gradient-electric p-8 lg:p-10 animate-slide-in shadow-xl shadow-cyan-500/10">
+      <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-10">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="size-2 rounded-full bg-azul-profundo animate-pulse" />
+            <span className="text-xs font-black uppercase tracking-widest text-azul-profundo/60">Identidad Activa</span>
+          </div>
+          <h1 className="text-4xl lg:text-5xl font-black text-azul-profundo leading-tight">
+             Hola, <br />
+             <span className="opacity-90">{userName?.split(' ')[0] || 'Usuario'}</span>
           </h1>
-          <p className="mt-1 text-sm text-primary-foreground/90 lg:text-base">
-            Tu salud está protegida. Tienes el control total de tus datos médicos.
+          <p className="mt-6 text-azul-profundo/80 text-lg font-bold max-w-md">
+            Tu historial médico está sincronizado y protegido en la red Avalanche Fuji.
           </p>
         </div>
-        <div className="flex items-center gap-3 rounded-xl bg-primary-foreground/10 p-4 backdrop-blur-sm">
-          <div className="flex size-12 items-center justify-center rounded-full bg-primary-foreground/20">
-            <Shield className="size-6" />
+        
+        <div className="flex flex-wrap gap-4 shrink-0">
+          <div className="glass-dark rounded-2xl p-6 min-w-[200px] group border border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/10 rounded-lg">
+                <TrendingUp className="size-5 text-turquesa" />
+              </div>
+              <span className="text-xs font-black uppercase text-white/40 tracking-tighter">Cumplimiento</span>
+            </div>
+            <p className="text-4xl font-black text-white mt-3">98%</p>
           </div>
-          <div>
-            <p className="text-sm font-medium">Datos Cifrados</p>
-            <p className="text-xs text-primary-foreground/80">Almacenamiento IPFS</p>
+          
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 min-w-[200px] group border border-white/20">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/10 rounded-lg">
+                <Shield className="size-5 text-turquesa" />
+              </div>
+              <span className="text-xs font-black uppercase text-white/40 tracking-tighter">Seguridad</span>
+            </div>
+            <p className="text-4xl font-black text-white mt-3">Máxima</p>
           </div>
         </div>
       </div>
-      <div className="absolute -right-8 -top-8 size-40 rounded-full bg-primary-foreground/10" />
-      <div className="absolute -bottom-12 -right-12 size-60 rounded-full bg-primary-foreground/5" />
     </div>
   )
 }
