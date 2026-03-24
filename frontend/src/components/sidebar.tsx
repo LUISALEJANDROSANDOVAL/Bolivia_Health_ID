@@ -26,7 +26,7 @@ interface SidebarProps {
 }
 
 const navigationItems = [
-  { title: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { title: 'Historial Médico', href: '/historial', icon: ClipboardList },
   { title: 'Medicamentos', href: '/medicamentos', icon: Pill },
   { title: 'Mis Registros', href: '/registros', icon: FileText },
@@ -58,7 +58,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-electric opacity-20" />
           <div className="relative flex h-24 items-center justify-between border-b border-white/20 px-6">
-            <Link href="/" className="flex items-center gap-3 group">
+            <Link href="/dashboard" className="flex items-center gap-3 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-white/20 rounded-xl blur-lg group-hover:blur-xl transition-all" />
                 <div className="relative flex size-12 items-center justify-center rounded-xl bg-white/20">

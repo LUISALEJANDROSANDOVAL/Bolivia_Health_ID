@@ -19,6 +19,13 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 
@@ -184,16 +191,19 @@ export function MedicalRecords() {
         </div>
         
         <div className="flex gap-2">
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="bg-foreground/5 border border-border text-foreground rounded-md px-4 py-2 text-sm cursor-pointer outline-none focus:border-primary/50 transition-colors"
-          >
-            <option value="todos" className="bg-background">Todos los tipos</option>
-            <option value="laboratorio" className="bg-background">Laboratorio</option>
-            <option value="imagen" className="bg-background">Imágenes</option>
-            <option value="receta" className="bg-background">Recetas</option>
-          </select>
+          <div className="w-[180px] shrink-0">
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="h-10 bg-foreground/5 border-border text-foreground hover:border-primary/50 transition-colors">
+                <SelectValue placeholder="Todos los tipos" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border-border">
+                <SelectItem value="todos" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Todos los tipos</SelectItem>
+                <SelectItem value="laboratorio" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Laboratorio</SelectItem>
+                <SelectItem value="imagen" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Imágenes</SelectItem>
+                <SelectItem value="receta" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Recetas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           
           <Button className="bg-foreground text-background font-black rounded-xl px-6 py-2 shadow-lg hover:scale-105 transition-all">
             <Upload className="size-4 mr-2" />

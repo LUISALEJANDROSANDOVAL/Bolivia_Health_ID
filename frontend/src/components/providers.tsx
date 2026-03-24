@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConnectKitProvider, getDefaultConfig } from "connectkit";
 import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
+import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
 
 const queryClient = new QueryClient();
 
@@ -26,14 +27,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ConnectKitProvider>
           <WalletProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="dark"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-            </ThemeProvider>
+            <DoctorAuthProvider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="dark"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+              </ThemeProvider>
+            </DoctorAuthProvider>
           </WalletProvider>
         </ConnectKitProvider>
       </QueryClientProvider>
