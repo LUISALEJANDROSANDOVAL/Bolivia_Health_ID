@@ -40,40 +40,44 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
-  // Sync profile with Supabase based on wallet address
   const syncProfile = useCallback(async (walletAddr: string) => {
     setLoading(true)
     try {
-      // 1. Check if profile exists
-      let { data, error } = await supabase
+      const wallet = walletAddr.toLowerCase()
+
+      // 1. Buscar perfil existente por wallet_address
+      const { data: existing, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('wallet_address', walletAddr.toLowerCase())
+        .eq('wallet_address', wallet)
         .single()
 
-      if (error && error.code === 'PGRST116') {
-        // 2. Create profile if it doesn't exist
-        const { data: newProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert([
-            { 
-              wallet_address: walletAddr.toLowerCase(),
-              full_name: `Paciente ${walletAddr.slice(0, 6)}`,
-              role: 'patient'
-            }
-          ])
-          .select()
-          .single()
-
-        if (createError) throw createError
-        data = newProfile
-      } else if (error) {
-        throw error
+      if (!fetchError && existing) {
+        setProfile(existing)
+        return
       }
 
-      setProfile(data)
+      // Solo crear si el error es "not found" (PGRST116)
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError
+      }
+
+      // 2. Crear perfil — id se genera automáticamente (gen_random_uuid)
+      const { data: created, error: createError } = await supabase
+        .from('profiles')
+        .insert([{
+          wallet_address: wallet,
+          full_name: `Paciente ${walletAddr.slice(0, 6)}`,
+          role: 'paciente'
+        }])
+        .select()
+        .single()
+
+      if (createError) throw createError
+
+      setProfile(created)
     } catch (err) {
-      console.error('Error syncing profile:', err)
+      console.error('Error sincronizando perfil:', err)
     } finally {
       setLoading(false)
     }
@@ -87,20 +91,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [isConnected, address, syncProfile])
 
-  const userName = profile?.full_name || (isConnected && address ? `Usuario (${address.slice(0, 4)})` : null)
+  const userName = profile?.full_name || (isConnected && address ? `Paciente (${address.slice(0, 4)})` : null)
 
   const connect = useCallback(() => {
     setOpen(true)
   }, [setOpen])
 
-  const disconnect = useCallback(async () => {
+  const disconnect = useCallback(() => {
     try {
       wagmiDisconnect()
       setProfile(null)
-      // Note: We don't call signOut() since we're not using Supabase Auth (OAuth/Email)
-      // but instead using Wallet as the identity filter.
     } catch (error) {
-      console.error('Error disconnecting:', error)
+      console.error('Error al desconectar:', error)
     }
   }, [wagmiDisconnect])
 
@@ -108,11 +110,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     <WalletContext.Provider
       value={{
         isConnected: !!isConnected,
-        isDbConnected: !!profile, // Profile presence acts as DB connection
+        isDbConnected: !!profile,
         walletAddress: address || null,
         userName,
         connect,
-        connectDb: connect, // Redundant now, both point to wallet connect
+        connectDb: connect,
         disconnect,
       }}
     >

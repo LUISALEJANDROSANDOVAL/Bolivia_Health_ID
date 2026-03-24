@@ -13,7 +13,10 @@ export function RecentActivity() {
 
   useEffect(() => {
     async function fetchActivity() {
-      if (!walletAddress) return
+      if (!walletAddress) {
+        setActivities([])
+        return
+      }
       setLoading(true)
       try {
         const { data: profile } = await supabase
@@ -23,14 +26,24 @@ export function RecentActivity() {
           .single()
 
         if (profile) {
+           // Traemos las últimas subidas de archivos como actividad reciente principal
           const { data } = await supabase
-            .from('activity_log')
+            .from('health_records')
             .select('*')
             .eq('patient_id', profile.id)
             .order('created_at', { ascending: false })
             .limit(5)
           
-          setActivities(data || [])
+          if (data) {
+             const mappedActivity = data.map(record => ({
+                id: record.id,
+                action_title: 'Documento Subido',
+                action_detail: record.title,
+                icon_type: 'upload',
+                created_at: record.created_at
+             }))
+             setActivities(mappedActivity)
+          }
         }
       } catch (err) {
         console.error('Error fetching activity:', err)
@@ -58,10 +71,33 @@ export function RecentActivity() {
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
-    if (minutes < 60) return `Hace ${minutes} min`
+    if (minutes < 60) return `Hace ${minutes || 1} min`
     const hours = Math.floor(minutes / 60)
     if (hours < 24) return `Hace ${hours} h`
+    const days = Math.floor(hours / 24)
+    if (days < 7) return `Hace ${days} d`
     return date.toLocaleDateString()
+  }
+
+  if (!walletAddress) {
+     return (
+        <div className="animate-slide-in">
+           <div className="flex items-center justify-between mb-6">
+             <div>
+               <h2 className="text-2xl font-black text-foreground tracking-tight">Actividad Reciente</h2>
+               <p className="text-sm text-foreground/50 font-bold uppercase tracking-widest">Lo último en tu cuenta</p>
+             </div>
+           </div>
+           <div className="relative overflow-hidden bg-foreground/[0.03] backdrop-blur-xl rounded-3xl border border-border shadow-xl shadow-black/5 mt-2">
+             <div className="p-12 text-center">
+                 <div className="size-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10">
+                   <Clock className="size-6 text-white/10" />
+                 </div>
+                 <p className="text-sm text-foreground/30 font-black uppercase tracking-widest">Conecta tu wallet para ver actividad</p>
+             </div>
+           </div>
+        </div>
+     )
   }
 
   return (
@@ -83,8 +119,8 @@ export function RecentActivity() {
             <div className="p-8 text-center text-foreground/40 animate-pulse text-sm font-bold uppercase tracking-widest">Cargando actividad...</div>
           ) : activities.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="size-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10">
-                <Clock className="size-6 text-white/10" />
+              <div className="size-12 bg-foreground/5 rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
+                <Clock className="size-6 text-foreground/20" />
               </div>
               <p className="text-sm text-foreground/30 font-black uppercase tracking-widest">Sin actividad reciente</p>
             </div>
