@@ -1,17 +1,16 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
-import { 
-  Upload, 
-  FileText, 
-  Image, 
-  X, 
-  CheckCircle2, 
-  Lock, 
+import {
+  Upload,
+  FileText,
+  Image,
+  X,
+  CheckCircle2,
+  Lock,
   Cloud,
   AlertCircle,
   Loader2,
-  File,
   Eye,
   Trash2,
   ChevronRight,
@@ -99,7 +98,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                 : f
             )
           )
-          
+
           // Simulate encryption phase
           setTimeout(() => {
             const hash = `Qm${Math.random().toString(36).slice(2, 15)}${Math.random().toString(36).slice(2, 15)}`
@@ -319,7 +318,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                 </div>
               )}
             </div>
-            
+
             <div className="space-y-2">
               {uploadedFiles.map((file) => {
                 const FileIconConfig = getFileIcon(file.type)
@@ -334,7 +333,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                     <div className={`flex size-12 items-center justify-center rounded-xl ${FileIconConfig.bg} shrink-0`}>
                       <FileIcon className={`size-6 ${FileIconConfig.color}`} />
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
@@ -360,7 +359,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-1 shrink-0">
                           {file.status === 'complete' && (
                             <Button
@@ -398,20 +397,20 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                           <ChevronRight className="size-4 text-gris-grafito/40 group-hover:text-azul-electrico transition-colors" />
                         </div>
                       </div>
-                      
+
                       {file.status !== 'complete' && file.status !== 'error' && (
                         <div className="mt-2">
                           <Progress value={file.progress} className="h-1.5" />
                         </div>
                       )}
-                      
+
                       {file.error && (
                         <div className="mt-2 flex items-center gap-1 text-xs text-red-500">
                           <AlertCircle className="size-3" />
                           <span>{file.error}</span>
                         </div>
                       )}
-                      
+
                       <div className="mt-2 flex items-center gap-3 text-xs text-gris-grafito/60">
                         <div className="flex items-center gap-1">
                           <Calendar className="size-3" />
