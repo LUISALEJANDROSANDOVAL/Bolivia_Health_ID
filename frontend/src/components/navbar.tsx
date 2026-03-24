@@ -16,6 +16,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
 
   useEffect(() => setMounted(true), [])
 
+  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
+
   if (!mounted) return null
 
   return (
@@ -25,7 +27,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500"
+            className="lg:hidden h-11 w-11 text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all"
             onClick={onMenuClick}
           >
             <Menu className="h-5 w-5" />
@@ -35,23 +37,36 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </h2>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500"
+            className="h-11 w-11 min-w-[44px] text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all flex items-center justify-center"
           >
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
           
-          <Button variant="ghost" size="icon" className="relative text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500">
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="relative h-11 w-11 min-w-[44px] text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all flex items-center justify-center"
+          >
+            <Bell className="size-5" />
+            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
           </Button>
           
-          <div className="ml-2 flex items-center gap-2">
-            <ConnectKitButton />
+          <div className="flex items-center">
+            <ConnectKitButton.Custom>
+              {({ isConnected, isConnecting, show, address, ensName }) => (
+                <Button 
+                  onClick={show} 
+                  className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
+                >
+                  {isConnected ? (ensName ?? formatAddress(address!)) : "Connect Wallet"}
+                </Button>
+              )}
+            </ConnectKitButton.Custom>
           </div>
         </div>
       </div>
