@@ -7,9 +7,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL or Anon Key is missing from environment variables.');
 }
 
-<<<<<<< HEAD
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-=======
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
     // Disable realtime subscriptions — not used in this app
@@ -17,4 +14,3 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     params: { eventsPerSecond: 0 }
   }
 });
->>>>>>> develop
