@@ -9,12 +9,23 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { Stethoscope, Lock, Smartphone, Mail, ArrowLeft } from 'lucide-react'
+import { useModal } from 'connectkit'
+import { useAccount } from 'wagmi'
+import { useEffect } from 'react'
 
 export default function DoctorLoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [loginMethod, setLoginMethod] = useState<'email' | 'wallet'>('email')
   const router = useRouter()
-  const { doctorConnect } = useDoctorAuth()
+  const { isDoctorAuthenticated } = useDoctorAuth()
+  const { setOpen } = useModal()
+  const { isConnected } = useAccount()
+
+  useEffect(() => {
+    if (isDoctorAuthenticated) {
+      router.push('/doctor')
+    }
+  }, [isDoctorAuthenticated, router])
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -31,17 +42,14 @@ export default function DoctorLoginPage() {
     e.preventDefault()
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
-    doctorConnect()
+    // Nota: El login por email es tradicional, pero el dashboard
+    // ahora depende de la wallet. Redirigimos de todos modos.
     router.push('/doctor')
     setIsLoading(false)
   }
 
   const handleWalletConnect = async () => {
-    setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    doctorConnect()
-    router.push('/doctor')
-    setIsLoading(false)
+    setOpen(true)
   }
 
   return (

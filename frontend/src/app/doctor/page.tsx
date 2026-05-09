@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { StatCard } from '@/components/ui/stat-card'
 
 export default function DoctorDashboard() {
-  const { doctorName } = useDoctorAuth()
+  const { doctorName, doctorWallet } = useDoctorAuth()
 
   const stats = [
     {
@@ -96,12 +96,12 @@ export default function DoctorDashboard() {
               <h3 className="text-lg font-black text-foreground mb-4">Estado de Red</h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-foreground/5 border border-border/50">
-                  <div className="size-3 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                  <div className={`size-3 ${doctorWallet ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'} rounded-full animate-pulse`} />
                   <span className="text-sm font-black text-foreground/80">Polygon m-PoS L2</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-foreground/5 border border-border/50">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/40 mb-2">Smart Contract Address</p>
-                  <p className="font-mono text-xs text-foreground/70 truncate">0x2d7f4f2910776b45b88e00a3caa9d448</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/40 mb-2">Connected Wallet</p>
+                  <p className="font-mono text-xs text-foreground/70 truncate">{doctorWallet || '0x... no conectado'}</p>
                 </div>
                 <Button className="w-full bg-foreground/10 hover:bg-foreground/20 text-foreground font-black rounded-2xl border-none h-12">
                    Protocol Health: OK

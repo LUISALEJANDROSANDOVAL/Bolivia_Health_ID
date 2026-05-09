@@ -1,14 +1,16 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { useAccount } from 'wagmi'
+import { supabase } from '@/lib/supabase'
 
 interface DoctorAuthContextType {
   isDoctorAuthenticated: boolean
   doctorWallet: string | null
   doctorName: string | null
   doctorLicense: string | null
-  doctorConnect: () => void
-  doctorDisconnect: () => void
+  loading: boolean
+  refreshProfile: () => Promise<void>
 }
 
 const defaultValue: DoctorAuthContextType = {
@@ -16,75 +18,65 @@ const defaultValue: DoctorAuthContextType = {
   doctorWallet: null,
   doctorName: null,
   doctorLicense: null,
-  doctorConnect: () => {},
-  doctorDisconnect: () => {},
+  loading: false,
+  refreshProfile: async () => {},
 }
 
 const DoctorAuthContext = createContext<DoctorAuthContextType>(defaultValue)
 
-function generateDoctorWallet(): string {
-  const chars = '0123456789abcdef'
-  let address = '0x'
-  for (let i = 0; i < 40; i++) {
-    address += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return address
-}
-
 export function DoctorAuthProvider({ children }: { children: ReactNode }) {
-  const [isDoctorAuthenticated, setIsDoctorAuthenticated] = useState(false)
-  const [doctorWallet, setDoctorWallet] = useState<string | null>(null)
+  const { address, isConnected } = useAccount()
   const [doctorName, setDoctorName] = useState<string | null>(null)
   const [doctorLicense, setDoctorLicense] = useState<string | null>(null)
+  const [isDoctorAuthenticated, setIsDoctorAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    const savedDoctorWallet = localStorage.getItem('doctorWallet')
-    const savedDoctorName = localStorage.getItem('doctorName')
-    const savedDoctorLicense = localStorage.getItem('doctorLicense')
+  const fetchDoctorProfile = useCallback(async (walletAddr: string) => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', walletAddr.toLowerCase())
+        .single()
 
-    if (savedDoctorWallet && savedDoctorName) {
-      setDoctorWallet(savedDoctorWallet)
-      setDoctorName(savedDoctorName)
-      setDoctorLicense(savedDoctorLicense || '')
-      setIsDoctorAuthenticated(true)
+      if (data && data.role === 'medico') {
+        setDoctorName(data.full_name)
+        // Usamos la cédula o un campo de licencia si existe, si no, uno por defecto
+        setDoctorLicense(data.cedula_identidad || 'LIC-BOL-ACTIVA')
+        setIsDoctorAuthenticated(true)
+      } else {
+        setIsDoctorAuthenticated(false)
+        setDoctorName(null)
+        setDoctorLicense(null)
+      }
+    } catch (err) {
+      console.error('Error al verificar perfil de doctor:', err)
+      setIsDoctorAuthenticated(false)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  const doctorConnect = useCallback(() => {
-    const wallet = generateDoctorWallet()
-    const name = 'Dr. Luis Fernández'
-    const license = 'LIC-BOL-2024-00815'
-
-    setDoctorWallet(wallet)
-    setDoctorName(name)
-    setDoctorLicense(license)
-    setIsDoctorAuthenticated(true)
-
-    localStorage.setItem('doctorWallet', wallet)
-    localStorage.setItem('doctorName', name)
-    localStorage.setItem('doctorLicense', license)
-  }, [])
-
-  const doctorDisconnect = useCallback(() => {
-    setDoctorWallet(null)
-    setDoctorName(null)
-    setDoctorLicense(null)
-    setIsDoctorAuthenticated(false)
-
-    localStorage.removeItem('doctorWallet')
-    localStorage.removeItem('doctorName')
-    localStorage.removeItem('doctorLicense')
-  }, [])
+  useEffect(() => {
+    if (isConnected && address) {
+      fetchDoctorProfile(address)
+    } else {
+      setIsDoctorAuthenticated(false)
+      setDoctorName(null)
+      setDoctorLicense(null)
+    }
+  }, [isConnected, address, fetchDoctorProfile])
 
   return (
     <DoctorAuthContext.Provider
       value={{
         isDoctorAuthenticated,
-        doctorWallet,
+        doctorWallet: address || null,
         doctorName,
         doctorLicense,
-        doctorConnect,
-        doctorDisconnect,
+        loading,
+        refreshProfile: async () => { if (address) await fetchDoctorProfile(address) }
       }}
     >
       {children}

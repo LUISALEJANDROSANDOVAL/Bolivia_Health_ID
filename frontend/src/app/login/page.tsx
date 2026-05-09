@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Badge } from '@/components/ui/badge'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { useModal } from 'connectkit'
+import { useAccount } from 'wagmi'
+import { useEffect } from 'react'
 import {
   Heart,
   Stethoscope,
@@ -24,7 +27,19 @@ type LoginMethod = 'email' | 'wallet'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { doctorConnect } = useDoctorAuth()
+  const { isDoctorAuthenticated } = useDoctorAuth()
+  const { setOpen } = useModal()
+  const { isConnected } = useAccount()
+
+  // Redirigir automáticamente si ya está autenticado como doctor o paciente
+  useEffect(() => {
+    if (isDoctorAuthenticated) {
+      router.push('/doctor')
+    } else if (isConnected && !isDoctorAuthenticated) {
+      // Si está conectado pero no es doctor, asumimos que puede ir al dashboard de paciente
+      // o quedarse aquí para elegir rol.
+    }
+  }, [isDoctorAuthenticated, isConnected, router])
 
   const [selectedRole, setSelectedRole] = useState<Role>(null)
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('email')
@@ -39,9 +54,8 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 1200))
-
+    
     if (selectedRole === 'doctor') {
-      doctorConnect()
       router.push('/doctor')
     } else {
       localStorage.setItem('patientSession', 'true')
@@ -51,17 +65,7 @@ export default function LoginPage() {
   }
 
   const handleWalletLogin = async () => {
-    setIsLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 1200))
-
-    if (selectedRole === 'doctor') {
-      doctorConnect()
-      router.push('/doctor')
-    } else {
-      localStorage.setItem('patientSession', 'true')
-      router.push('/dashboard')
-    }
-    setIsLoading(false)
+    setOpen(true)
   }
 
   return (
