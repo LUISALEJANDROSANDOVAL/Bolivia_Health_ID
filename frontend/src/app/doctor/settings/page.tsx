@@ -6,171 +6,257 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Settings, 
   Shield, 
-  HardDrive, 
+  Database, 
   Lock, 
-  Wallet, 
+  CreditCard, 
   Bell,
   User,
   Globe,
-  Database,
   Save,
-  ShieldCheck
+  Fingerprint,
+  RefreshCw
 } from 'lucide-react'
 
-const tabs = [
-  { id: 'perfil', label: 'Perfil', icon: User },
-  { id: 'seguridad', label: 'Seguridad', icon: Shield },
-  { id: 'notificaciones', label: 'Notificaciones', icon: Bell },
-  { id: 'privacidad', label: 'Privacidad', icon: Lock },
-  { id: 'blockchain', label: 'Blockchain', icon: Globe },
-  { id: 'datos', label: 'Datos', icon: Database },
+const settingsStats = [
+  {
+    icon: Shield,
+    label: 'Nivel de seguridad',
+    value: 'Alto',
+    description: '2FA activada',
+    color: 'text-emerald-500',
+    bg: 'bg-emerald-50'
+  },
+  {
+    icon: Database,
+    label: 'Almacenamiento',
+    value: '5.2 GB',
+    description: 'de 20 GB',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50'
+  },
+  {
+    icon: Lock,
+    label: 'Cifrado',
+    value: 'AES-256',
+    description: 'End-to-end',
+    color: 'text-purple-500',
+    bg: 'bg-purple-50'
+  },
+  {
+    icon: CreditCard,
+    label: 'Wallet',
+    value: 'Conectada',
+    description: 'Red Ethereum',
+    color: 'text-amber-500',
+    bg: 'bg-amber-50'
+  }
 ]
 
 export default function DoctorSettingsPage() {
   const [activeTab, setActiveTab] = useState('perfil')
-  const [walletConnected] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const walletConnected = true
+
+  const handleSaveAll = () => {
+    setIsSaving(true)
+    setTimeout(() => {
+      setIsSaving(false)
+      setLastSaved(new Date())
+    }, 1000)
+  }
 
   return (
     <DoctorLayout>
-      <div className="space-y-6 p-6">
-        {/* Header */}
-        <div className="flex items-start gap-4">
-          <div className="rounded-xl bg-primary/10 p-3">
-            <Settings className="size-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Configuración</h1>
-            <p className="text-muted-foreground">Gestiona tu perfil, seguridad y preferencias de la plataforma</p>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card><CardContent className="p-4">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10">
-              <Shield className="size-5 text-primary" />
-            </div>
-            <p className="text-xl font-bold text-foreground">Alto</p>
-            <p className="text-xs text-muted-foreground">Nivel de seguridad</p>
-            <p className="text-xs text-muted-foreground">2FA activada</p>
-          </CardContent></Card>
-
-          <Card><CardContent className="p-4">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10">
-              <HardDrive className="size-5 text-primary" />
-            </div>
-            <p className="text-xl font-bold text-primary">2.4 GB</p>
-            <p className="text-xs text-muted-foreground">Almacenamiento</p>
-            <p className="text-xs text-muted-foreground">de 10 GB</p>
-          </CardContent></Card>
-
-          <Card><CardContent className="p-4">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-orange-500/10">
-              <Lock className="size-5 text-orange-500" />
-            </div>
-            <p className="text-xl font-bold text-foreground">AES-256</p>
-            <p className="text-xs text-muted-foreground">Cifrado</p>
-            <p className="text-xs text-muted-foreground">End-to-end</p>
-          </CardContent></Card>
-
-          <Card><CardContent className="p-4">
-            <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-pink-500/10">
-              <Wallet className="size-5 text-pink-500" />
-            </div>
-            <p className="text-xl font-bold text-foreground">{walletConnected ? 'Conectada' : 'Desconectada'}</p>
-            <p className="text-xs text-muted-foreground">Wallet</p>
-            <p className="text-xs text-muted-foreground">{walletConnected ? 'Red Ethereum' : 'Sin conexión'}</p>
-          </CardContent></Card>
-        </div>
-
-        {/* 2FA Banner */}
-        <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-primary to-primary/80 p-4 text-primary-foreground">
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-white/20 p-3">
-              <ShieldCheck className="size-6" />
+      <div className="space-y-8 animate-slide-in p-6">
+        
+        {/* Header con estadísticas */}
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-electric">
+              <Settings className="size-6 text-white" />
             </div>
             <div>
-              <p className="font-semibold">Protege tu cuenta</p>
-              <p className="text-sm opacity-80">Activa la autenticación de dos factores para mayor seguridad y control de acceso.</p>
+              <h1 className="text-2xl lg:text-3xl font-bold text-azul-profundo">Configuración de Médico</h1>
+              <p className="text-sm text-gris-grafito">
+                Gestiona tu perfil profesional, seguridad y preferencias de la plataforma
+              </p>
             </div>
           </div>
-          <Button variant="outline" className="border-white bg-white text-primary hover:bg-white/90">
-            <Shield className="mr-2 size-4" />
-            Configurar 2FA
-          </Button>
+
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            {settingsStats.map((stat, idx) => (
+              <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
+                <CardContent className="p-0">
+                  <div className="flex items-start justify-between">
+                    <div className={`rounded-xl p-2 ${stat.bg}`}>
+                      <stat.icon className={`size-5 ${stat.color}`} />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-2xl font-bold text-azul-profundo">{stat.value}</p>
+                    <p className="text-xs text-gris-grafito mt-0.5">{stat.label}</p>
+                    <p className="text-xs text-gris-grafito/60 mt-0.5">{stat.description}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b overflow-x-auto">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Tab Content */}
-        <Card className="border border-dashed">
-          <CardContent className="flex min-h-[300px] flex-col items-center justify-center p-12">
-            {!walletConnected ? (
-              <>
-                <div className="mb-4 flex size-20 items-center justify-center rounded-full bg-primary/10">
-                  <User className="size-10 text-primary/50" />
+        {/* Banner de seguridad */}
+        <div className="bg-gradient-electric rounded-2xl p-5 text-white overflow-hidden relative">
+          <div className="absolute right-0 top-0 opacity-10">
+            <div className="text-9xl">🔒</div>
+          </div>
+          <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-white/20 rounded-2xl blur-lg" />
+                <div className="relative rounded-2xl p-4 bg-gradient-to-br from-white/20 to-white/10">
+                  <Fingerprint className="size-8 text-white" />
                 </div>
-                <p className="text-lg font-semibold text-foreground">Wallet no conectada</p>
-                <p className="text-center text-sm text-muted-foreground">
-                  Conecta tu wallet para ver y editar tu<br />información personal.
+              </div>
+              <div>
+                <h3 className="font-semibold text-xl">Protege tu cuenta profesional</h3>
+                <p className="text-sm text-white/80 mt-1">
+                  Activa la autenticación de dos factores para mayor seguridad y control de acceso.
                 </p>
+              </div>
+            </div>
+            <Button className="bg-white text-azul-electrico hover:bg-white/90">
+              <Shield className="size-4 mr-2" />
+              Configurar 2FA
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs de configuración */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-6 gap-2 bg-muted/50 p-1 rounded-xl">
+            <TabsTrigger value="perfil" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <User className="size-4" />
+              <span className="hidden lg:inline">Perfil Médico</span>
+            </TabsTrigger>
+            <TabsTrigger value="seguridad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Shield className="size-4" />
+              <span className="hidden lg:inline">Seguridad</span>
+            </TabsTrigger>
+            <TabsTrigger value="notificaciones" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Bell className="size-4" />
+              <span className="hidden lg:inline">Notificaciones</span>
+            </TabsTrigger>
+            <TabsTrigger value="privacidad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Lock className="size-4" />
+              <span className="hidden lg:inline">Privacidad</span>
+            </TabsTrigger>
+            <TabsTrigger value="blockchain" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Globe className="size-4" />
+              <span className="hidden lg:inline">Blockchain</span>
+            </TabsTrigger>
+            <TabsTrigger value="datos" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
+              <Database className="size-4" />
+              <span className="hidden lg:inline">Datos</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="perfil">
+            <Card className="card-premium border-none shadow-sm">
+              <CardContent className="p-6">
+                {!walletConnected ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="mb-4 flex size-20 items-center justify-center rounded-full bg-primary/10">
+                      <User className="size-10 text-primary/50" />
+                    </div>
+                    <p className="text-lg font-semibold text-foreground">Wallet no conectada</p>
+                    <p className="text-center text-sm text-muted-foreground">
+                      Conecta tu wallet para ver y editar tu<br />información profesional.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-w-2xl space-y-6">
+                    <h3 className="text-xl font-semibold text-azul-profundo mb-4">Información Profesional</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-gris-grafito">Nombre Completo</Label>
+                        <Input defaultValue="Dr. Luis Fernández" className="focus-visible:ring-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gris-grafito">Licencia Médica</Label>
+                        <Input defaultValue="LIC-BOL-2024-00815" readOnly className="bg-muted text-muted-foreground" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gris-grafito">Especialidad</Label>
+                        <Input defaultValue="Medicina General" className="focus-visible:ring-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gris-grafito">Email Profesional</Label>
+                        <Input defaultValue="dr.fernandez@boliviahealth.id" className="focus-visible:ring-primary" />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label className="text-gris-grafito">Hospital / Clínica Principal</Label>
+                        <Input defaultValue="Hospital de Clínicas, La Paz" className="focus-visible:ring-primary" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="seguridad">
+            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Opciones de seguridad en construcción...</p></CardContent></Card>
+          </TabsContent>
+          
+          <TabsContent value="notificaciones">
+            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Preferencias de notificaciones en construcción...</p></CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="privacidad">
+            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Ajustes de privacidad en construcción...</p></CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="blockchain">
+            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Configuración de red y gas en construcción...</p></CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="datos">
+            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Exportación de datos en construcción...</p></CardContent></Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Barra de acciones inferior */}
+        <div className="sticky bottom-6 flex items-center justify-end gap-3 z-20">
+          {lastSaved && (
+            <div className="flex items-center gap-2 text-xs text-gris-grafito bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
+              <RefreshCw className="size-3 text-emerald-500" />
+              Última sincronización: {lastSaved.toLocaleTimeString()}
+            </div>
+          )}
+          <Button
+            onClick={handleSaveAll}
+            disabled={isSaving}
+            className="btn-premium shadow-lg"
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw className="size-4 mr-2 animate-spin" />
+                Guardando...
               </>
             ) : (
-              <div className="w-full max-w-md space-y-4">
-                {activeTab === 'perfil' && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Nombre Completo</Label>
-                      <Input defaultValue="Dr. Luis Fernández" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Licencia Médica</Label>
-                      <Input defaultValue="LIC-BOL-2024-00815" readOnly className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Especialidad</Label>
-                      <Input defaultValue="Medicina General" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Email</Label>
-                      <Input defaultValue="dr.fernandez@boliviahealth.id" />
-                    </div>
-                  </>
-                )}
-              </div>
+              <>
+                <Save className="size-4 mr-2" />
+                Guardar todos los cambios
+              </>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Floating Save Button */}
-        <div className="fixed bottom-6 right-6">
-          <Button>
-            <Save className="mr-2 size-4" />
-            Guardar todos los cambios
           </Button>
         </div>
+
       </div>
     </DoctorLayout>
   )

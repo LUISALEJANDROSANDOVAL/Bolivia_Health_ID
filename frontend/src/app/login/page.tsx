@@ -41,7 +41,8 @@ export default function LoginPage() {
     }
   }, [isDoctorAuthenticated, isConnected, router])
 
-  const [selectedRole, setSelectedRole] = useState<Role>(null)
+  const [selectedRole, setSelectedRole] = useState<Role>('paciente')
+  const [showAuth, setShowAuth] = useState(false)
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('email')
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -95,41 +96,71 @@ export default function LoginPage() {
         </div>
 
         {/* Role Selection */}
-        {!selectedRole ? (
+        {!showAuth ? (
           <div className="space-y-4">
             <p className="text-center text-sm font-medium text-muted-foreground">
-              ¿Cómo deseas ingresar?
+              Selecciona tu perfil para continuar
             </p>
             <div className="grid grid-cols-2 gap-4">
               {/* Paciente */}
               <button
                 onClick={() => setSelectedRole('paciente')}
-                className="group flex flex-col items-center gap-4 rounded-2xl border-2 border-border bg-card p-6 transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10 focus:outline-none"
+                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-6 transition-all focus:outline-none ${
+                  selectedRole === 'paciente'
+                    ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+                    : 'border-border bg-card hover:border-primary/50'
+                }`}
               >
-                <div className="rounded-xl bg-blue-500/10 p-4 transition-colors group-hover:bg-blue-500/20">
+                <div className={`rounded-xl p-4 transition-colors ${selectedRole === 'paciente' ? 'bg-blue-500/20' : 'bg-blue-500/10 group-hover:bg-blue-500/20'}`}>
                   <User className="size-8 text-blue-500" />
                 </div>
                 <div className="text-center">
                   <p className="font-semibold text-foreground">Soy Paciente</p>
                   <p className="text-xs text-muted-foreground mt-1">Accede a tu historial y datos</p>
                 </div>
-                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
               </button>
 
               {/* Doctor */}
               <button
                 onClick={() => setSelectedRole('doctor')}
-                className="group flex flex-col items-center gap-4 rounded-2xl border-2 border-border bg-card p-6 transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10 focus:outline-none"
+                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-6 transition-all focus:outline-none ${
+                  selectedRole === 'doctor'
+                    ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+                    : 'border-border bg-card hover:border-primary/50'
+                }`}
               >
-                <div className="rounded-xl bg-green-500/10 p-4 transition-colors group-hover:bg-green-500/20">
+                <div className={`rounded-xl p-4 transition-colors ${selectedRole === 'doctor' ? 'bg-green-500/20' : 'bg-green-500/10 group-hover:bg-green-500/20'}`}>
                   <Stethoscope className="size-8 text-green-500" />
                 </div>
                 <div className="text-center">
                   <p className="font-semibold text-foreground">Soy Doctor</p>
                   <p className="text-xs text-muted-foreground mt-1">Panel médico profesional</p>
                 </div>
-                <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
               </button>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-4">
+              <Button 
+                size="lg" 
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => setShowAuth(true)}
+              >
+                Iniciar Sesión
+              </Button>
+              <Button 
+                variant="outline" 
+                size="lg" 
+                className="w-full h-12 text-base font-semibold"
+                onClick={() => {
+                  if (selectedRole === 'doctor') {
+                    router.push('/register?role=medico')
+                  } else {
+                    router.push('/register?role=paciente')
+                  }
+                }}
+              >
+                Crear Cuenta
+              </Button>
             </div>
           </div>
         ) : (
@@ -137,7 +168,7 @@ export default function LoginPage() {
             {/* Back / Role indicator */}
             <div className="flex items-center justify-between">
               <button
-                onClick={() => setSelectedRole(null)}
+                onClick={() => setShowAuth(false)}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 ← Cambiar rol
