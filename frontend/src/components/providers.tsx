@@ -12,13 +12,14 @@ import React, { useState, useEffect } from 'react';
 
 const queryClient = new QueryClient();
 
+// Configure Wagmi with Alchemy RPC and Avalanche Fuji
 export const config = createConfig(
   getDefaultConfig({
     chains: [avalancheFuji],
     transports: {
-      [avalancheFuji.id]: http("https://api.avax-test.network/ext/bc/C/rpc"),
+      [avalancheFuji.id]: http(`https://avax-fuji.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`),
     },
-    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3fcc6b4468bd93cb50976d31954a6d09", // ID de prueba público
+    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "1234567890abcdef1234567890abcdef", 
     appName: "Bolivia Health ID",
   }),
 );
@@ -30,7 +31,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   if (!mounted) {
     return <>{children}</>;
   }
-
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>

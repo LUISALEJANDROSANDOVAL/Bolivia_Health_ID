@@ -47,6 +47,7 @@ function formatAddress(address: string | null): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
+
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
   const { disconnect: wagmiDisconnect } = useDisconnect()
