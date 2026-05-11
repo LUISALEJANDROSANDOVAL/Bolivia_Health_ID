@@ -20,6 +20,13 @@ import {
   Fingerprint,
   RefreshCw
 } from 'lucide-react'
+import { useWallet, formatAddress } from '@/contexts/wallet-context'
+import { useToast } from '@/hooks/use-toast'
+import { SecuritySettings } from '@/components/security-settings'
+import { NotificationSettings } from '@/components/notification-settings'
+import { PrivacySettings } from '@/components/privacy-settings'
+import { BlockchainSettings } from '@/components/blockchain-settings'
+import { DataManagement } from '@/components/data-management'
 
 const settingsStats = [
   {
@@ -60,7 +67,21 @@ export default function DoctorSettingsPage() {
   const [activeTab, setActiveTab] = useState('perfil')
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const walletConnected = true
+  const { isConnected, walletAddress } = useWallet()
+  const [copied, setCopied] = useState(false)
+  const { toast } = useToast()
+
+  const copyAddress = () => {
+    if (walletAddress) {
+      navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      toast({
+        title: 'Dirección copiada',
+        description: 'La dirección de wallet ha sido copiada al portapapeles',
+      })
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   const handleSaveAll = () => {
     setIsSaving(true)
@@ -168,7 +189,7 @@ export default function DoctorSettingsPage() {
           <TabsContent value="perfil">
             <Card className="card-premium border-none shadow-sm">
               <CardContent className="p-6">
-                {!walletConnected ? (
+                {!isConnected ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="mb-4 flex size-20 items-center justify-center rounded-full bg-primary/10">
                       <User className="size-10 text-primary/50" />
@@ -210,23 +231,28 @@ export default function DoctorSettingsPage() {
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Opciones de seguridad en construcción...</p></CardContent></Card>
+            <SecuritySettings />
           </TabsContent>
           
           <TabsContent value="notificaciones">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Preferencias de notificaciones en construcción...</p></CardContent></Card>
+            <NotificationSettings />
           </TabsContent>
 
           <TabsContent value="privacidad">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Ajustes de privacidad en construcción...</p></CardContent></Card>
+            <PrivacySettings />
           </TabsContent>
 
           <TabsContent value="blockchain">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Configuración de red y gas en construcción...</p></CardContent></Card>
+            <BlockchainSettings 
+              isConnected={isConnected}
+              walletAddress={walletAddress}
+              onCopyAddress={copyAddress}
+              copied={copied}
+            />
           </TabsContent>
 
           <TabsContent value="datos">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Exportación de datos en construcción...</p></CardContent></Card>
+            <DataManagement />
           </TabsContent>
         </Tabs>
 
