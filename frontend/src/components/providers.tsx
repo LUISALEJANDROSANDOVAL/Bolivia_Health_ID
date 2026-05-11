@@ -8,27 +8,33 @@ import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 const queryClient = new QueryClient();
 
-export const config = createConfig(
-  getDefaultConfig({
-    chains: [avalancheFuji],
-    transports: {
-      [avalancheFuji.id]: http("https://api.avax-test.network/ext/bc/C/rpc"),
-    },
-    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3fcc6b4468bd93cb50976d31954a6d09", // ID de prueba público
-    appName: "Bolivia Health ID",
-  }),
-);
-
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Creamos la configuración solo en el cliente para evitar errores de SSR
+  const config = useMemo(() => {
+    return createConfig(
+      getDefaultConfig({
+        chains: [avalancheFuji],
+        transports: {
+          [avalancheFuji.id]: http("https://api.avax-test.network/ext/bc/C/rpc"),
+        },
+        walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3fcc6b4468bd93cb50976d31954a6d09",
+        appName: "Bolivia Health ID",
+      }),
+    );
+  }, []);
 
   if (!mounted) {
-    return <>{children}</>;
+    return <div style={{ visibility: 'hidden' }}>{children}</div>;
   }
 
   return (

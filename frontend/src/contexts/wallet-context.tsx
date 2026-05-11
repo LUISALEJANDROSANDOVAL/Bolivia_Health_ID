@@ -9,15 +9,29 @@ import { ParticleProvider } from '@particle-network/provider'
 
 let particle: ParticleNetwork | null = null;
 let particleProvider: ParticleProvider | null = null;
+
+// Inicialización segura de Particle
 if (typeof window !== 'undefined') {
-  particle = new ParticleNetwork({
-    projectId: process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID!,
-    clientKey: process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY!,
-    appId: process.env.NEXT_PUBLIC_PARTICLE_APP_ID!,
-    chainName: 'Avalanche',
-    chainId: 43113,
-  });
-  particleProvider = new ParticleProvider(particle.auth);
+  const projectId = process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID;
+  const clientKey = process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY;
+  const appId = process.env.NEXT_PUBLIC_PARTICLE_APP_ID;
+
+  if (projectId && clientKey && appId) {
+    try {
+      particle = new ParticleNetwork({
+        projectId,
+        clientKey,
+        appId,
+        chainName: 'Avalanche',
+        chainId: 43113,
+      });
+      particleProvider = new ParticleProvider(particle.auth);
+    } catch (err) {
+      console.error('Error al inicializar Particle Network:', err);
+    }
+  } else {
+    console.warn('Particle Network no configurado: Faltan variables de entorno.');
+  }
 }
 
 interface WalletContextType {
@@ -63,7 +77,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const wallet = walletAddr.toLowerCase()
 
-      // 1. Buscar perfil existente por wallet_address
       const { data: existing, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -71,7 +84,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (!fetchError && existing) {
-        // Actualizar datos de Google si no estaban en la base de datos
         let needsUpdate = false;
         const updates: any = {};
         if (!existing.email && email) {
@@ -93,12 +105,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Solo crear si el error es "not found" (PGRST116)
       if (fetchError && fetchError.code !== 'PGRST116') {
         throw fetchError
       }
 
-      // 2. Crear perfil — id se genera automáticamente (gen_random_uuid)
       const newFullName = name || `Paciente ${walletAddr.slice(0, 6)}`;
       const { data: created, error: createError } = await supabase
         .from('profiles')
@@ -121,7 +131,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Effect to check if already logged in via Particle on mount
   useEffect(() => {
     if (particle && particleProvider && particle.auth.isLogin()) {
       particleProvider.request({ method: 'eth_accounts' }).then((accounts: any) => {
