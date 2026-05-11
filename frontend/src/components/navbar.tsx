@@ -1,59 +1,70 @@
 'use client'
 
-import { Menu, Bell, ChevronDown, LogOut } from 'lucide-react'
-import { ConnectKitButton } from 'connectkit'
+import { Menu, Bell, Settings, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useWallet, formatAddress } from '@/contexts/wallet-context'
+import { useTheme } from 'next-themes'
+import { useState, useEffect } from 'react'
+import { useWallet } from '@/contexts/wallet-context'
 
 interface NavbarProps {
   onMenuClick: () => void
 }
 
 export function Navbar({ onMenuClick }: NavbarProps) {
-  const { isConnected, walletAddress, userName, connect, disconnect } = useWallet()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  const { isConnected, walletAddress, userName, connect } = useWallet()
+
+  useEffect(() => setMounted(true), [])
+
+  const formatAddress = (addr: string | null) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : ''
+
+  if (!mounted) return null
 
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          onClick={onMenuClick}
-        >
-          <Menu className="size-5" />
-          <span className="sr-only">Abrir menú</span>
-        </Button>
-        <div className="flex items-center gap-2 lg:hidden">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">BH</span>
-          </div>
-          <span className="font-semibold text-foreground">Bolivia Health ID</span>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        {isConnected && (
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="size-5" />
-            <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-              3
-            </span>
-            <span className="sr-only">Notificaciones</span>
+    <header className="sticky top-0 z-30 border-b border-foreground/10 bg-background/80 backdrop-blur-sm">
+      <div className="flex h-16 items-center justify-between px-4 lg:px-6">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden h-11 w-11 text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-5 w-5" />
           </Button>
-        )}
+          <h2 className="text-lg font-black text-foreground tracking-tight">
+            Panel de <span className="text-cyan-500">Control</span>
+          </h2>
+        </div>
 
-        {/* Standard Web3 Connect Button */}
-        <div className="ml-2">
-          <ConnectKitButton />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="h-11 w-11 min-w-[44px] text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all flex items-center justify-center"
+          >
+            {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="relative h-11 w-11 min-w-[44px] text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all flex items-center justify-center"
+          >
+            <Bell className="size-5" />
+            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
+          </Button>
+          
+          <div className="flex items-center">
+            <Button 
+              onClick={connect} 
+              className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
+            >
+              {isConnected ? (userName ?? formatAddress(walletAddress)) : "Conectar con Google"}
+            </Button>
+          </div>
         </div>
       </div>
     </header>

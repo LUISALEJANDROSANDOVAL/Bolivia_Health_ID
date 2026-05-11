@@ -12,7 +12,11 @@ docs/
 
 # Dotenv file
 .env
+<<<<<<< HEAD
 
 # Ignorados del sistema
 node_modules/
 dist/
+=======
+node_modules
+>>>>>>> develop
