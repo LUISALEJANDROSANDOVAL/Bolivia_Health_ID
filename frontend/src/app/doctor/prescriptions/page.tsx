@@ -122,10 +122,10 @@ export default function DoctorPrescriptionsPage() {
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Recetas Hoy', value: '12', icon: Calendar, color: 'text-primary', bg: 'bg-primary/5' },
-            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-50' },
-            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'Recetas Hoy', value: '12', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10' },
+            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-500/10' },
+            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
           ].map((stat, i) => (
             <Card key={i} className="card-premium border-none shadow-sm overflow-hidden">
               <CardContent className="p-5">
@@ -212,7 +212,7 @@ export default function DoctorPrescriptionsPage() {
                               className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-muted/50"
                             >
                               <div className="flex items-center gap-4">
-                                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${patient.gender === 'F' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'}`}>
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${patient.gender === 'F' ? 'bg-pink-500/20 text-pink-500' : 'bg-blue-500/20 text-blue-500'}`}>
                                   {patient.name.charAt(0)}
                                 </div>
                                 <div>
@@ -257,7 +257,7 @@ export default function DoctorPrescriptionsPage() {
                       </div>
                       
                       {selectedPatient.allergies.length > 0 && (
-                        <div className="mt-6 flex items-center gap-3 rounded-xl bg-red-500/10 p-4 text-red-700 border border-red-200">
+                        <div className="mt-6 flex items-center gap-3 rounded-xl bg-red-500/10 p-4 text-red-600 dark:text-red-400 border border-red-500/20">
                           <AlertTriangle className="h-6 w-6 animate-pulse" />
                           <div>
                             <p className="text-sm font-black uppercase tracking-tight">Alerta Médica: Alergias Detectadas</p>
@@ -449,7 +449,7 @@ export default function DoctorPrescriptionsPage() {
             <div className="lg:col-span-4 space-y-6">
               {/* Prescription Live Summary */}
               <div className="sticky top-8 space-y-6">
-                <Card className="card-premium border-none shadow-xl overflow-hidden glass-dark text-white">
+                <Card className="border-none shadow-xl overflow-hidden glass-dark text-white">
                   <div className="bg-gradient-premium p-6 pb-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
