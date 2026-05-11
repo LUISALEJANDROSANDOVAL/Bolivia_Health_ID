@@ -123,9 +123,9 @@ export default function DoctorPrescriptionsPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: 'Recetas Hoy', value: '12', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10' },
-            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-500/10' },
-            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10' },
+            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-500/10' },
+            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
           ].map((stat, i) => (
             <Card key={i} className="card-premium border-none shadow-sm overflow-hidden">
               <CardContent className="p-5">
@@ -449,7 +449,7 @@ export default function DoctorPrescriptionsPage() {
             <div className="lg:col-span-4 space-y-6">
               {/* Prescription Live Summary */}
               <div className="sticky top-8 space-y-6">
-                <Card className="border-none shadow-xl overflow-hidden glass-dark text-white">
+                <Card className="border-none shadow-xl overflow-hidden bg-azul-profundo text-white">
                   <div className="bg-gradient-premium p-6 pb-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
@@ -462,7 +462,7 @@ export default function DoctorPrescriptionsPage() {
                     <h3 className="text-xl font-black">Resumen de la Receta</h3>
                     <p className="text-white/60 text-xs mt-1 uppercase tracking-widest font-bold">Registro Blockchain Health ID</p>
                   </div>
-                  <CardContent className="p-6 space-y-6 bg-white/5 backdrop-blur-sm">
+                  <CardContent className="p-6 space-y-6 bg-white/10 backdrop-blur-sm">
                     <div className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Paciente</p>

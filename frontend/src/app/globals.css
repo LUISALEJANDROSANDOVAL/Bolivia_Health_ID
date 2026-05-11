@@ -228,6 +228,7 @@
   }
   
   /* Colores personalizados */
+  .bg-azul-profundo { background-color: var(--color-azul-profundo) !important; }
   .text-azul-electrico { color: var(--color-azul-electrico); }
   .text-azul-profundo { color: var(--color-azul-profundo); }
   .text-turquesa { color: var(--color-turquesa); }
