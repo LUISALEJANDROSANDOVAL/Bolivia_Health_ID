@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import { useAccount } from 'wagmi'
+import { useWallet } from '@/contexts/wallet-context'
 import { supabase } from '@/lib/supabase'
 
 interface DoctorAuthContextType {
@@ -25,7 +25,7 @@ const defaultValue: DoctorAuthContextType = {
 const DoctorAuthContext = createContext<DoctorAuthContextType>(defaultValue)
 
 export function DoctorAuthProvider({ children }: { children: ReactNode }) {
-  const { address, isConnected } = useAccount()
+  const { walletAddress: address, isConnected } = useWallet()
   const [doctorName, setDoctorName] = useState<string | null>(null)
   const [doctorLicense, setDoctorLicense] = useState<string | null>(null)
   const [isDoctorAuthenticated, setIsDoctorAuthenticated] = useState(false)

@@ -4,6 +4,21 @@ import { createContext, useContext, useCallback, useState, useEffect, type React
 import { supabase } from '@/lib/supabase'
 import { useAccount, useDisconnect } from 'wagmi'
 import { useModal } from 'connectkit'
+import { ParticleNetwork } from '@particle-network/auth'
+import { ParticleProvider } from '@particle-network/provider'
+
+let particle: ParticleNetwork | null = null;
+let particleProvider: ParticleProvider | null = null;
+if (typeof window !== 'undefined') {
+  particle = new ParticleNetwork({
+    projectId: process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID!,
+    clientKey: process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY!,
+    appId: process.env.NEXT_PUBLIC_PARTICLE_APP_ID!,
+    chainName: 'Avalanche',
+    chainId: 43113,
+  });
+  particleProvider = new ParticleProvider(particle.auth);
+}
 
 interface WalletContextType {
   isConnected: boolean
@@ -39,8 +54,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [particleAddress, setParticleAddress] = useState<string | null>(null)
+  const [particleConnected, setParticleConnected] = useState(false)
+  const [particleUserInfo, setParticleUserInfo] = useState<{email?: string, name?: string} | null>(null)
 
-  const syncProfile = useCallback(async (walletAddr: string) => {
+  const syncProfile = useCallback(async (walletAddr: string, email?: string, name?: string) => {
     setLoading(true)
     try {
       const wallet = walletAddr.toLowerCase()
@@ -53,6 +71,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (!fetchError && existing) {
+        // Actualizar datos de Google si no estaban en la base de datos
+        let needsUpdate = false;
+        const updates: any = {};
+        if (!existing.email && email) {
+          updates.email = email;
+          existing.email = email;
+          needsUpdate = true;
+        }
+        if (name && existing.full_name?.startsWith('Paciente 0x')) {
+          updates.full_name = name;
+          existing.full_name = name;
+          needsUpdate = true;
+        }
+        
+        if (needsUpdate) {
+          await supabase.from('profiles').update(updates).eq('id', existing.id);
+        }
+
         setProfile(existing)
         return
       }
@@ -63,11 +99,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       // 2. Crear perfil — id se genera automáticamente (gen_random_uuid)
+      const newFullName = name || `Paciente ${walletAddr.slice(0, 6)}`;
       const { data: created, error: createError } = await supabase
         .from('profiles')
         .insert([{
           wallet_address: wallet,
-          full_name: `Paciente ${walletAddr.slice(0, 6)}`,
+          full_name: newFullName,
+          email: email || null,
           role: 'paciente'
         }])
         .select()
@@ -83,35 +121,82 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Effect to check if already logged in via Particle on mount
   useEffect(() => {
-    if (isConnected && address) {
-      syncProfile(address)
+    if (particle && particleProvider && particle.auth.isLogin()) {
+      particleProvider.request({ method: 'eth_accounts' }).then((accounts: any) => {
+        if (accounts && accounts.length > 0) {
+          const userInfo: any = particle!.auth.getUserInfo();
+          if (userInfo) {
+            setParticleUserInfo({
+              email: userInfo.google_email || userInfo.email || null,
+              name: userInfo.name || null
+            });
+          }
+          setParticleAddress(accounts[0]);
+          setParticleConnected(true);
+        }
+      }).catch(console.error);
+    }
+  }, []);
+
+  const activeAddress = particleAddress || address;
+  const activeIsConnected = particleConnected || isConnected;
+
+  useEffect(() => {
+    if (activeIsConnected && activeAddress) {
+      syncProfile(activeAddress, particleUserInfo?.email, particleUserInfo?.name)
     } else {
       setProfile(null)
     }
-  }, [isConnected, address, syncProfile])
+  }, [activeIsConnected, activeAddress, syncProfile, particleUserInfo])
 
-  const userName = profile?.full_name || (isConnected && address ? `Paciente (${address.slice(0, 4)})` : null)
+  const userName = profile?.full_name || (activeIsConnected && activeAddress ? `Paciente (${activeAddress.slice(0, 4)})` : null)
 
-  const connect = useCallback(() => {
-    setOpen(true)
+  const connect = useCallback(async () => {
+    if (particle && particleProvider) {
+      try {
+        const userInfo: any = await particle.auth.login({ preferredAuthType: 'google' });
+        const accounts: any = await particleProvider.request({ method: 'eth_accounts' });
+        if (accounts && accounts.length > 0) {
+          if (userInfo) {
+            setParticleUserInfo({
+              email: userInfo.google_email || userInfo.email || null,
+              name: userInfo.name || null
+            });
+          }
+          setParticleAddress(accounts[0]);
+          setParticleConnected(true);
+        }
+      } catch (error) {
+        console.error('Error logging in with Particle:', error);
+      }
+    } else {
+      setOpen(true);
+    }
   }, [setOpen])
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     try {
+      if (particle && particleConnected) {
+        await particle.auth.logout();
+        setParticleConnected(false);
+        setParticleAddress(null);
+        setParticleUserInfo(null);
+      }
       wagmiDisconnect()
       setProfile(null)
     } catch (error) {
       console.error('Error al desconectar:', error)
     }
-  }, [wagmiDisconnect])
+  }, [wagmiDisconnect, particleConnected])
 
   return (
     <WalletContext.Provider
       value={{
-        isConnected: !!isConnected,
+        isConnected: !!activeIsConnected,
         isDbConnected: !!profile,
-        walletAddress: address || null,
+        walletAddress: activeAddress || null,
         userName,
         connect,
         connectDb: connect,
