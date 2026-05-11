@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useWallet } from '@/contexts/wallet-context'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,9 +33,8 @@ export default function RegisterPage() {
   // But we can just use a simple state for role selection:
   const [role, setRole] = useState<Role | null>(null)
   
+  const { isConnected, walletAddress, connect, disconnect } = useWallet()
   const [isLoading, setIsLoading] = useState(false)
-  const [walletConnected, setWalletConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState('')
 
   const [formData, setFormData] = useState({
     nombreCompleto: '',
@@ -67,40 +68,60 @@ export default function RegisterPage() {
   }
 
   const handleConnectWallet = async () => {
-    setIsLoading(true)
-    // Simula abrir MetaMask / Particle Network y firmar
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    setWalletAddress('0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-    setWalletConnected(true)
-    setIsLoading(false)
+    connect()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!walletConnected) {
-      alert("Por favor, conecta tu billetera primero.")
+    if (!isConnected || !walletAddress) {
+      alert("Por favor, conecta tu cuenta de Google/Wallet primero.")
       return
     }
 
     setIsLoading(true)
-    // Aquí iría la lógica de Supabase: supabase.from('profiles').insert({...})
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Guardar sesión base para demostración frontend
-    localStorage.setItem('walletAddress', walletAddress)
-    localStorage.setItem('userRole', role || 'paciente')
-    localStorage.setItem('userName', formData.nombreCompleto)
-    
-    if (role === 'medico') {
-      localStorage.setItem('doctorLicense', formData.licenciaMedica)
-      localStorage.setItem('doctorSpecialty', formData.especialidad)
-      router.push('/doctor')
-    } else {
-      localStorage.setItem('patientSession', 'true')
-      router.push('/dashboard')
+    try {
+      const updates: any = {
+        full_name: formData.nombreCompleto,
+        cedula_identidad: formData.cedula,
+        phone: formData.telefono,
+        address: formData.direccion,
+        role: role
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('wallet_address', walletAddress.toLowerCase())
+
+      if (error) {
+        console.error("Supabase error detail:", error)
+        alert(`Error desde Supabase: ${error.message || JSON.stringify(error)}`)
+        throw error
+      }
+
+      // Guardar sesión base para demostración frontend
+      localStorage.setItem('walletAddress', walletAddress)
+      localStorage.setItem('userRole', role || 'paciente')
+      localStorage.setItem('userName', formData.nombreCompleto)
+
+      if (role === 'medico') {
+        localStorage.setItem('doctorLicense', formData.licenciaMedica)
+        localStorage.setItem('doctorSpecialty', formData.especialidad)
+        router.push('/doctor')
+      } else {
+        localStorage.setItem('patientSession', 'true')
+        router.push('/dashboard')
+      }
+    } catch (err: any) {
+      console.error('Error actualizando perfil:', err)
+      // La alerta específica ya se lanzó arriba si fue error de Supabase,
+      // esto es solo un respaldo general.
+      if (!err.message) {
+        alert("Hubo un error al guardar tus datos.")
+      }
+    } finally {
+      setIsLoading(false)
     }
-    
-    setIsLoading(false)
   }
 
   return (
@@ -123,7 +144,7 @@ export default function RegisterPage() {
             <CardHeader className="text-center pb-2">
               <CardTitle>¿Cuál es tu perfil?</CardTitle>
               <CardDescription>
-                Selecciona tu rol para crear tu identidad en la blockchain
+                Selecciona tu rol para crear tu identidad médica de forma segura
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 flex flex-col sm:flex-row gap-4">
@@ -167,7 +188,7 @@ export default function RegisterPage() {
                     Perfil de {role === 'paciente' ? 'Paciente' : 'Médico Profesional'}
                   </CardTitle>
                   <CardDescription>
-                    Paso obligatorio: Vincula tu billetera digital y completa tus datos.
+                    Paso obligatorio: Vincula tu cuenta de Google y completa tus datos.
                   </CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setRole(null)} className="text-xs text-muted-foreground">
@@ -182,30 +203,35 @@ export default function RegisterPage() {
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-foreground flex items-center gap-2">
-                      <Wallet className="size-4 text-primary" />
-                      1. Llave de Acceso (Wallet)
+                      <Smartphone className="size-4 text-primary" />
+                      1. Cuenta de Google
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {walletConnected 
-                        ? "Billetera conectada exitosamente. Ésta será tu llave de acceso única." 
-                        : "Conecta tu billetera para firmar y crear tu entidad criptográfica."}
+                      {isConnected 
+                        ? "Cuenta conectada exitosamente." 
+                        : "Conecta tu cuenta de Google para crear tu perfil de salud seguro."}
                     </p>
                   </div>
-                  {!walletConnected ? (
+                  {!isConnected ? (
                     <Button onClick={handleConnectWallet} disabled={isLoading} className="whitespace-nowrap">
                       <Smartphone className="size-4 mr-2" />
-                      {isLoading ? 'Conectando...' : 'Conectar Billetera'}
+                      {isLoading ? 'Conectando...' : 'Continuar con Google'}
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="border-primary/50 text-primary bg-primary/10 py-1.5 px-3 font-mono">
-                      {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="border-primary/50 text-primary bg-primary/10 py-1.5 px-3 font-mono">
+                        {walletAddress && `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`}
+                      </Badge>
+                      <Button variant="ghost" size="sm" onClick={disconnect} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                        Cambiar cuenta
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
 
               {/* PASO 2: Formulario (Solo se habilita si hay wallet) */}
-              <div className={`transition-opacity duration-300 ${!walletConnected ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+              <div className={`transition-opacity duration-300 ${!isConnected ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                 <h3 className="font-semibold text-foreground mb-4">2. Datos de tu Carnet Médico (Supabase)</h3>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <FieldGroup>
@@ -330,11 +356,11 @@ export default function RegisterPage() {
                   <div className="pt-4">
                     <Button
                       type="submit"
-                      disabled={isLoading || !walletConnected}
+                      disabled={isLoading || !isConnected}
                       size="lg"
                       className="w-full text-base h-12"
                     >
-                      {isLoading ? 'Registrando en la red...' : 'Crear Identidad Médica Mía'}
+                      {isLoading ? 'Guardando información...' : 'Crear Identidad Médica Mía'}
                     </Button>
                   </div>
                 </form>

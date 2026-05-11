@@ -14,8 +14,7 @@ import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
-
-import { ConnectKitButton } from 'connectkit'
+import { useWallet } from '@/contexts/wallet-context'
 
 interface DoctorNavbarProps {
   onMenuClick: () => void
@@ -23,13 +22,14 @@ interface DoctorNavbarProps {
 
 export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
   const { doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
+  const { isConnected, walletAddress, userName, connect } = useWallet()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => setMounted(true), [])
 
-  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
+  const formatAddress = (addr: string | null) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : ''
 
   const handleLogout = () => {
     doctorDisconnect()
@@ -77,16 +77,12 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
           </Button>
           
           <div className="hidden sm:block">
-            <ConnectKitButton.Custom>
-              {({ isConnected, isConnecting, show, address, ensName }) => (
-                <Button 
-                  onClick={show} 
-                  className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5"
-                >
-                  {isConnected ? (ensName ?? formatAddress(address!)) : "Connect Wallet"}
-                </Button>
-              )}
-            </ConnectKitButton.Custom>
+            <Button 
+              onClick={connect} 
+              className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
+            >
+              {isConnected ? (userName ?? formatAddress(walletAddress)) : "Conectar con Google"}
+            </Button>
           </div>
 
           <DropdownMenu>

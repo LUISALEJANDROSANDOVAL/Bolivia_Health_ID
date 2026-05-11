@@ -8,8 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Badge } from '@/components/ui/badge'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
-import { useModal } from 'connectkit'
-import { useAccount } from 'wagmi'
+import { useWallet } from '@/contexts/wallet-context'
 import { useEffect } from 'react'
 import {
   Heart,
@@ -18,28 +17,18 @@ import {
   Mail,
   Lock,
   Smartphone,
-  ArrowRight,
   ShieldCheck,
 } from 'lucide-react'
 
 type Role = 'paciente' | 'doctor' | null
-type LoginMethod = 'email' | 'wallet'
+type LoginMethod = 'email' | 'google'
 
 export default function LoginPage() {
   const router = useRouter()
   const { isDoctorAuthenticated } = useDoctorAuth()
-  const { setOpen } = useModal()
-  const { isConnected } = useAccount()
+  const { isConnected, connect } = useWallet()
 
-  // Redirigir automáticamente si ya está autenticado como doctor o paciente
-  useEffect(() => {
-    if (isDoctorAuthenticated) {
-      router.push('/doctor')
-    } else if (isConnected && !isDoctorAuthenticated) {
-      // Si está conectado pero no es doctor, asumimos que puede ir al dashboard de paciente
-      // o quedarse aquí para elegir rol.
-    }
-  }, [isDoctorAuthenticated, isConnected, router])
+  // La redirección automática se ha eliminado para que el usuario pueda elegir explícitamente cuándo entrar.
 
   const [selectedRole, setSelectedRole] = useState<Role>('paciente')
   const [showAuth, setShowAuth] = useState(false)
@@ -66,7 +55,19 @@ export default function LoginPage() {
   }
 
   const handleWalletLogin = async () => {
-    setOpen(true)
+    setIsLoading(true)
+    if (selectedRole === 'paciente') {
+      localStorage.setItem('patientSession', 'true')
+    }
+    await connect() // Dispara el login de Google con Particle
+    
+    // Redirección manual solo después de interactuar con el botón
+    if (selectedRole === 'doctor') {
+      router.push('/doctor')
+    } else {
+      router.push('/dashboard')
+    }
+    setIsLoading(false)
   }
 
   return (
@@ -90,7 +91,7 @@ export default function LoginPage() {
               Blockchain Seguro
             </Badge>
             <Badge variant="outline" className="text-xs">
-              🌐 Red Polygon
+              🌐 Red Avalanche
             </Badge>
           </div>
         </div>
@@ -145,7 +146,7 @@ export default function LoginPage() {
                 className="w-full h-12 text-base font-semibold"
                 onClick={() => setShowAuth(true)}
               >
-                Iniciar Sesión
+                Ingresar como Usuario Existente
               </Button>
               <Button 
                 variant="outline" 
@@ -159,7 +160,7 @@ export default function LoginPage() {
                   }
                 }}
               >
-                Crear Cuenta
+                Crear Usuario Nuevo
               </Button>
             </div>
           </div>
@@ -194,13 +195,13 @@ export default function LoginPage() {
                 Email
               </Button>
               <Button
-                variant={loginMethod === 'wallet' ? 'default' : 'outline'}
-                onClick={() => setLoginMethod('wallet')}
+                variant={loginMethod === 'google' ? 'default' : 'outline'}
+                onClick={() => setLoginMethod('google')}
                 className="flex-1"
                 size="sm"
               >
                 <Smartphone className="mr-2 size-4" />
-                Billetera
+                Google
               </Button>
             </div>
 
@@ -213,12 +214,12 @@ export default function LoginPage() {
                   ) : (
                     <User className="size-5 text-primary" />
                   )}
-                  {loginMethod === 'email' ? 'Iniciar Sesión' : 'Conectar Billetera'}
+                  {loginMethod === 'email' ? 'Iniciar Sesión' : 'Conectar con Google'}
                 </CardTitle>
                 <CardDescription>
                   {loginMethod === 'email'
                     ? 'Ingresa con tu correo y contraseña'
-                    : 'Auténticate con MetaMask o Trust Wallet'}
+                    : 'Autentícate de forma segura con tu cuenta de Google'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -267,10 +268,10 @@ export default function LoginPage() {
                       className="w-full h-12 text-base"
                     >
                       <Smartphone className="mr-2 size-5" />
-                      {isLoading ? 'Conectando...' : 'Conectar con MetaMask'}
+                      {isLoading ? 'Conectando...' : 'Continuar con Google'}
                     </Button>
                     <p className="text-xs text-center text-muted-foreground">
-                      Asegúrate de estar en la red Polygon o Arbitrum
+                      Inicio de sesión rápido y seguro mediante tu cuenta de Google.
                     </p>
                   </div>
                 )}
@@ -281,7 +282,7 @@ export default function LoginPage() {
             {selectedRole === 'doctor' && (
               <p className="text-center text-sm text-muted-foreground">
                 ¿No tienes cuenta médica?{' '}
-                <a href="/doctor/register" className="text-primary hover:underline">
+                <a href="/register?role=medico" className="text-primary hover:underline">
                   Crear cuenta
                 </a>
               </p>

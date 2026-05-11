@@ -4,7 +4,7 @@ import { Menu, Bell, Settings, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
-import { ConnectKitButton } from 'connectkit'
+import { useWallet } from '@/contexts/wallet-context'
 
 interface NavbarProps {
   onMenuClick: () => void
@@ -13,10 +13,11 @@ interface NavbarProps {
 export function Navbar({ onMenuClick }: NavbarProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const { isConnected, walletAddress, userName, connect } = useWallet()
 
   useEffect(() => setMounted(true), [])
 
-  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
+  const formatAddress = (addr: string | null) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : ''
 
   if (!mounted) return null
 
@@ -57,16 +58,12 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           </Button>
           
           <div className="flex items-center">
-            <ConnectKitButton.Custom>
-              {({ isConnected, isConnecting, show, address, ensName }) => (
-                <Button 
-                  onClick={show} 
-                  className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
-                >
-                  {isConnected ? (ensName ?? formatAddress(address!)) : "Connect Wallet"}
-                </Button>
-              )}
-            </ConnectKitButton.Custom>
+            <Button 
+              onClick={connect} 
+              className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
+            >
+              {isConnected ? (userName ?? formatAddress(walletAddress)) : "Conectar con Google"}
+            </Button>
           </div>
         </div>
       </div>
