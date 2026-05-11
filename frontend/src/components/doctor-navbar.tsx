@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, Bell, Search, Moon, Sun } from 'lucide-react'
+import { Menu, Bell, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -56,15 +55,7 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
           </h2>
         </div>
 
-        <div className="hidden md:flex flex-1 max-w-md mx-4">
-          <div className="relative w-full group">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-cyan-500 transition-colors" />
-            <Input
-              placeholder="Buscar paciente (CI, Health ID o Wallet)"
-              className="pl-10 bg-foreground/5 border-border/50 focus:border-cyan-500/50 rounded-xl"
-            />
-          </div>
-        </div>
+
 
         <div className="flex items-center gap-3">
           <Button

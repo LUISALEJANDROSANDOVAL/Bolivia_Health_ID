@@ -5,8 +5,27 @@ import { DoctorLayout } from '@/components/doctor-layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Search, Eye, Filter, User, Calendar, Shield } from 'lucide-react'
+import { Search, Eye, Filter, User, Calendar, Shield, Plus, Check, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 const mockPatients = [
   {
@@ -44,13 +63,54 @@ const mockPatients = [
 ]
 
 export default function DoctorPatientsPage() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Activo' | 'Inactivo'>('Todos')
+  const [isNewConsultOpen, setIsNewConsultOpen] = useState(false)
+  const [newConsultCI, setNewConsultCI] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
+
+  const handleNewConsultSearch = async () => {
+    if (!newConsultCI) {
+      toast.error('Por favor ingrese un CI o Health ID')
+      return
+    }
+
+    setIsSearching(true)
+    
+    // Simular búsqueda en blockchain/DB
+    await new Promise(resolve => setTimeout(resolve, 1200))
+
+    const patient = mockPatients.find(
+      p => p.ci === newConsultCI || p.healthId === newConsultCI || p.healthId.includes(newConsultCI)
+    )
+
+    setIsSearching(false)
+
+    if (patient) {
+      toast.success('Paciente encontrado', {
+        description: `Abriendo historia clínica de ${patient.name}`
+      })
+      setIsNewConsultOpen(false)
+      router.push(`/doctor/patients/${patient.id}`)
+    } else {
+      toast.error('No se encontró el paciente', {
+        description: 'Verifique el CI o el Health ID ingresado.'
+      })
+    }
+  }
 
   const filteredPatients = mockPatients.filter(
-    (patient) =>
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.ci.includes(searchTerm) ||
-      patient.healthId.includes(searchTerm)
+    (patient) => {
+      const matchesSearch = 
+        patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.ci.includes(searchTerm) ||
+        patient.healthId.includes(searchTerm)
+      
+      const matchesStatus = statusFilter === 'Todos' || patient.status === statusFilter
+      
+      return matchesSearch && matchesStatus
+    }
   )
 
   return (
@@ -63,13 +123,74 @@ export default function DoctorPatientsPage() {
             <p className="text-sm text-foreground/50 font-bold uppercase tracking-widest mt-1">Directorio con acceso autorizado</p>
           </div>
           <div className="flex gap-2">
-             <Button variant="ghost" className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10">
-               <Filter className="size-4 mr-2" />
-               Filtrar
-             </Button>
-             <Button className="bg-gradient-electric text-azul-profundo font-black rounded-2xl h-12 px-8 border-none hover:scale-105 transition-all">
-               Nueva Consulta
-             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10 border border-border/50">
+                  <Filter className="size-4 mr-2" />
+                  Filtrar {statusFilter !== 'Todos' && `(${statusFilter})`}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 p-2 rounded-2xl bg-background/95 backdrop-blur-xl border-border shadow-2xl">
+                <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-foreground/40 px-3 py-2">Estado del Paciente</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-border/50" />
+                <DropdownMenuItem onClick={() => setStatusFilter('Todos')} className="rounded-xl h-11 font-bold focus:bg-cyan-500/10 focus:text-cyan-500 flex justify-between items-center">
+                  Todos
+                  {statusFilter === 'Todos' && <Check className="size-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('Activo')} className="rounded-xl h-11 font-bold focus:bg-cyan-500/10 focus:text-cyan-500 flex justify-between items-center">
+                  Activo
+                  {statusFilter === 'Activo' && <Check className="size-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('Inactivo')} className="rounded-xl h-11 font-bold focus:bg-cyan-500/10 focus:text-cyan-500 flex justify-between items-center">
+                  Inactivo
+                  {statusFilter === 'Inactivo' && <Check className="size-4" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Dialog open={isNewConsultOpen} onOpenChange={setIsNewConsultOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-electric text-azul-profundo font-black rounded-2xl h-12 px-8 border-none hover:scale-105 transition-all shadow-lg shadow-cyan-500/20">
+                  <Plus className="size-4 mr-2" />
+                  Nueva Consulta
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md rounded-[2rem] bg-background/95 backdrop-blur-xl border-border">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-black">Iniciar Nueva Consulta</DialogTitle>
+                  <DialogDescription className="font-bold text-foreground/40">
+                    Ingrese el CI o Health ID del paciente para acceder a su historial.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-6">
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground group-focus-within:text-cyan-500 transition-colors" />
+                    <Input
+                      placeholder="CI o Wallet Address..."
+                      value={newConsultCI}
+                      onChange={(e) => setNewConsultCI(e.target.value)}
+                      className="pl-12 h-14 rounded-2xl bg-foreground/[0.03] border-border/50 focus:border-cyan-500/50 text-base"
+                    />
+                  </div>
+                </div>
+                <DialogFooter className="sm:justify-start">
+                  <Button 
+                    className="w-full bg-gradient-electric text-azul-profundo font-black rounded-2xl h-14 border-none hover:scale-[1.02] transition-all disabled:opacity-50"
+                    onClick={handleNewConsultSearch}
+                    disabled={isSearching}
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Buscando en Red...
+                      </>
+                    ) : (
+                      'Buscar y Abrir Historia'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
