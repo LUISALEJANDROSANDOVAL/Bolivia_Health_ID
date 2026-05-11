@@ -47,8 +47,6 @@ function formatAddress(address: string | null): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-import { useAccount, useDisconnect } from 'wagmi'
-import { useModal } from 'connectkit'
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
