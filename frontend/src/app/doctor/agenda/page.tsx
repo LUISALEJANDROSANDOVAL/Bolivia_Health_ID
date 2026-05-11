@@ -122,10 +122,10 @@ export default function DoctorAgendaPage() {
         {/* Day Overview Cards */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Total Citas', value: '12', icon: CalendarIcon, color: 'text-primary', bg: 'bg-primary/5' },
-            { label: 'Pacientes', value: '8', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Completadas', value: '4', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-            { label: 'Próximas', value: '3', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50' },
+            { label: 'Total Citas', value: '12', icon: CalendarIcon, color: 'text-primary', bg: 'bg-primary/10' },
+            { label: 'Pacientes', value: '8', icon: Users, color: 'text-blue-600', bg: 'bg-blue-500/10' },
+            { label: 'Completadas', value: '4', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+            { label: 'Próximas', value: '3', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
           ].map((stat, i) => (
             <Card key={i} className="card-premium border-none shadow-sm overflow-hidden">
               <CardContent className="p-5">
@@ -182,7 +182,7 @@ export default function DoctorAgendaPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex gap-4">
                           <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black ${
-                            apt.id % 2 === 0 ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'
+                            apt.id % 2 === 0 ? 'bg-blue-500/10 text-blue-600' : 'bg-indigo-500/10 text-indigo-600'
                           }`}>
                             {apt.patient.charAt(0)}
                           </div>
@@ -235,7 +235,7 @@ export default function DoctorAgendaPage() {
 
           {/* Sidebar Section */}
           <div className="lg:col-span-4 space-y-6">
-            <Card className="card-premium border-none shadow-lg overflow-hidden glass-dark text-white">
+            <Card className="border-none shadow-lg overflow-hidden glass-dark text-white">
               <div className="bg-gradient-premium p-6 pb-4">
                 <CardTitle className="text-xl font-black">Mi Calendario</CardTitle>
                 <CardDescription className="text-white/60 text-xs mt-1">Marzo 2024</CardDescription>
@@ -251,7 +251,7 @@ export default function DoctorAgendaPage() {
                       key={i} 
                       className={`h-8 w-full rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
                         i + 1 === currentDate.getDate() 
-                          ? 'bg-white text-primary shadow-lg' 
+                          ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110' 
                           : 'hover:bg-white/10'
                       } ${[23, 24, 25, 26].includes(i+1) ? 'relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-primary after:rounded-full' : ''}`}
                     >
@@ -270,18 +270,18 @@ export default function DoctorAgendaPage() {
                 <CardTitle className="text-sm font-bold">Recordatorios</CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-orange-50 border border-orange-100">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
                   <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
                   <div>
-                    <p className="text-xs font-bold text-orange-700">Completar Historial</p>
-                    <p className="text-[10px] text-orange-600/80">Paciente: Carlos Mendoza</p>
+                    <p className="text-xs font-bold text-orange-600 dark:text-orange-400">Completar Historial</p>
+                    <p className="text-[10px] text-orange-600/80 dark:text-orange-400/60">Paciente: Carlos Mendoza</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
+                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
                   <Users className="h-5 w-5 text-blue-500 mt-0.5" />
                   <div>
-                    <p className="text-xs font-bold text-blue-700">Junta Médica</p>
-                    <p className="text-[10px] text-blue-600/80">16:30 - Sala de Conferencias</p>
+                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400">Junta Médica</p>
+                    <p className="text-[10px] text-blue-600/80 dark:text-blue-400/60">16:30 - Sala de Conferencias</p>
                   </div>
                 </div>
               </CardContent>

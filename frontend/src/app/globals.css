@@ -172,9 +172,9 @@
   }
   
   .glass-dark {
-    background: color-mix(in srgb, var(--color-azul-profundo) 80%, transparent);
+    background: color-mix(in srgb, var(--color-azul-profundo) 95%, transparent) !important;
     backdrop-filter: blur(16px);
-    border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent) !important;
   }
   
   /* Botones premium */
