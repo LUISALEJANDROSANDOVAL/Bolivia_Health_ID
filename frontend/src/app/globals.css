@@ -22,6 +22,8 @@
   --border: #CBD5E1;
   --input: #CBD5E1;
   --ring: #2D7FF9;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F2B3D;
   --radius: 1rem;
 
   /* Colores de lujo (Lux) */
@@ -61,6 +63,8 @@
   --border: #1e293b;
   --input: #1e293b;
   --ring: #00bcd4;
+  --popover: #0f172a;
+  --popover-foreground: #ffffff;
   
   /* Overrides para colores premium en modo oscuro */
   --color-azul-profundo: #0f172a;
@@ -88,6 +92,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-azul-profundo: var(--color-azul-profundo);
   --color-azul-medianoche: var(--color-azul-medianoche);
   --color-azul-electrico: var(--color-azul-electrico);
@@ -166,9 +172,9 @@
   }
   
   .glass-dark {
-    background: color-mix(in srgb, var(--color-azul-profundo) 80%, transparent);
+    background: color-mix(in srgb, var(--color-azul-profundo) 95%, transparent) !important;
     backdrop-filter: blur(16px);
-    border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--foreground) 15%, transparent) !important;
   }
   
   /* Botones premium */
