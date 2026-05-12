@@ -10,13 +10,10 @@ out/
 # Docs
 docs/
 
-# Dotenv file
+# Dotenv and Dependencies
 .env
-<<<<<<< HEAD
-
-# Ignorados del sistema
+.env.local
+.env.*.local
 node_modules/
 dist/
-=======
-node_modules
->>>>>>> develop
+.next/
