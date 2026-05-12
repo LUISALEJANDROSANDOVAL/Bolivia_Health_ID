@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,11 +51,7 @@ interface Medication {
   instructions: string
 }
 
-const mockPatients: Patient[] = [
-  { id: '1', name: 'María García López', ci: '4523698', age: 45, allergies: ['Penicilina'], gender: 'F' },
-  { id: '2', name: 'Carlos Mendoza R.', ci: '6587412', age: 32, allergies: [], gender: 'M' },
-  { id: '3', name: 'Ana Quispe Mamani', ci: '7896541', age: 28, allergies: ['Aspirina', 'Ibuprofeno'], gender: 'F' },
-]
+// Eliminamos mockPatients estáticos para usar Supabase
 
 export default function DoctorPrescriptionsPage() {
   const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>('nueva')
@@ -73,10 +70,46 @@ export default function DoctorPrescriptionsPage() {
     instructions: ''
   })
 
-  const filteredPatients = mockPatients.filter(p => 
-    p.name.toLowerCase().includes(searchPatient.toLowerCase()) ||
-    p.ci.includes(searchPatient)
-  )
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      if (!searchPatient || searchPatient.length < 2) {
+        setPatients([])
+        return
+      }
+
+      setIsSearching(true)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'paciente')
+        .or(`full_name.ilike.%${searchPatient}%,cedula_identidad.ilike.%${searchPatient}%`)
+        .limit(5)
+
+      if (error) {
+        console.error('Error buscando pacientes:', error)
+      } else if (data) {
+        const mappedPatients: Patient[] = data.map(p => ({
+          id: p.id,
+          name: p.full_name || 'Sin nombre',
+          ci: p.cedula_identidad || 'Sin CI',
+          age: 0, // No disponible en profiles
+          allergies: [], // No disponible en profiles
+          gender: 'M' // Por defecto
+        }))
+        setPatients(mappedPatients)
+      }
+      setIsSearching(false)
+    }
+
+    const timer = setTimeout(() => {
+      fetchPatients()
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [searchPatient])
 
   const addMedication = () => {
     if (newMed.name && newMed.dose && newMed.frequency) {
@@ -200,9 +233,14 @@ export default function DoctorPrescriptionsPage() {
                         />
                       </div>
                       
-                      {searchPatient && (
+                      { (searchPatient || isSearching) && (
                         <div className="mt-4 divide-y divide-muted rounded-2xl border border-muted bg-card shadow-xl animate-in fade-in slide-in-from-top-4 overflow-hidden">
-                          {filteredPatients.length > 0 ? filteredPatients.map((patient) => (
+                          {isSearching ? (
+                            <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-3">
+                              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              Buscando en la base de datos...
+                            </div>
+                          ) : patients.length > 0 ? patients.map((patient) => (
                             <button
                               key={patient.id}
                               onClick={() => {
@@ -217,16 +255,16 @@ export default function DoctorPrescriptionsPage() {
                                 </div>
                                 <div>
                                   <p className="font-bold text-foreground">{patient.name}</p>
-                                  <p className="text-sm text-muted-foreground">CI: {patient.ci} • {patient.age} años</p>
+                                  <p className="text-sm text-muted-foreground">CI: {patient.ci}</p>
                                 </div>
                               </div>
                               <ChevronRight className="h-5 w-5 text-muted-foreground" />
                             </button>
-                          )) : (
+                          )) : searchPatient.length >= 2 ? (
                             <div className="p-8 text-center text-muted-foreground">
                               No se encontraron pacientes con ese criterio.
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </div>
