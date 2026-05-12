@@ -2,10 +2,17 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { PermissionsTable } from '@/components/permissions-table'
+import { GrantPermissionModal } from '@/components/grant-permission-modal'
 import { Shield, Plus, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useState } from 'react'
 
 export default function PermisosPage() {
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const handleRefresh = () => {
+    setRefreshTrigger(prev => prev + 1)
+  }
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-slide-in">
@@ -24,14 +31,11 @@ export default function PermisosPage() {
                 </p>
               </div>
             </div>
-            <Button className="bg-foreground text-background hover:scale-105 px-8 py-6 text-lg font-black rounded-2xl shadow-2xl transition-all border-none">
-              <Plus className="size-5 mr-3" />
-              Nuevo Permiso
-            </Button>
+            <GrantPermissionModal onPermissionGranted={handleRefresh} />
           </div>
         </div>
 
-        <PermissionsTable />
+        <PermissionsTable refreshTrigger={refreshTrigger} />
 
         {/* Info adicional */}
         <div className="rounded-2xl border border-border bg-foreground/5 p-6 shadow-sm">

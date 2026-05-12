@@ -116,10 +116,10 @@ export default function ConfiguracionPage() {
         title: 'Configuración guardada',
         description: 'Todos los cambios han sido sincronizados con Supabase.',
       })
-    } catch {
+    } catch (err: any) {
       toast({
         title: 'Error al guardar',
-        description: 'Hubo un problema al guardar los cambios.',
+        description: err?.message || 'Hubo un problema al guardar los cambios.',
         variant: 'destructive'
       })
     } finally {

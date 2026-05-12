@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Bell, 
   Mail, 
@@ -19,6 +19,8 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { useProfile } from '@/hooks/useProfile'
+import { useWallet } from '@/contexts/wallet-context'
 
 // Definir tipos para las categorías
 type NotificationCategory = 'medicalUpdates' | 'appointments' | 'securityAlerts' | 'sharingRequests' | 'promotions'
@@ -35,49 +37,62 @@ interface NotificationSettings {
 }
 
 export function NotificationSettings() {
-  const [notifications, setNotifications] = useState<NotificationSettings>({
+  const { walletAddress } = useWallet()
+  const { profile, updateProfile } = useProfile(walletAddress)
+  const { toast } = useToast()
+
+  const defaultNotifications: NotificationSettings = {
     email: {
       enabled: true,
-      categories: {
-        medicalUpdates: true,
-        appointments: true,
-        securityAlerts: true,
-        sharingRequests: true,
-        promotions: false
-      }
+      categories: { medicalUpdates: true, appointments: true, securityAlerts: true, sharingRequests: true, promotions: false }
     },
     push: {
       enabled: false,
-      categories: {
-        medicalUpdates: true,
-        appointments: true,
-        securityAlerts: true,
-        sharingRequests: true,
-        promotions: false
-      }
+      categories: { medicalUpdates: true, appointments: true, securityAlerts: true, sharingRequests: true, promotions: false }
     },
     inApp: {
       enabled: true,
-      categories: {
-        medicalUpdates: true,
-        appointments: true,
-        securityAlerts: true,
-        sharingRequests: true,
-        promotions: false
-      }
+      categories: { medicalUpdates: true, appointments: true, securityAlerts: true, sharingRequests: true, promotions: false }
     }
-  })
+  }
 
-  const { toast } = useToast()
+  const [notifications, setNotifications] = useState<NotificationSettings>(defaultNotifications)
+
+  useEffect(() => {
+    if (profile?.preferences?.notifications) {
+      setNotifications(profile.preferences.notifications)
+    }
+  }, [profile?.preferences?.notifications])
+
+  const saveToDatabase = async (newNotifications: NotificationSettings) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          notifications: newNotifications
+        }
+      })
+    } catch (err) {
+      console.error('Error saving notifications:', err)
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudieron guardar las preferencias en la base de datos.',
+        variant: 'destructive'
+      })
+    }
+  }
 
   const handleToggleChannel = (channel: keyof NotificationSettings) => {
-    setNotifications(prev => ({
-      ...prev,
+    const newNotifications = {
+      ...notifications,
       [channel]: {
-        ...prev[channel],
-        enabled: !prev[channel].enabled
+        ...notifications[channel],
+        enabled: !notifications[channel].enabled
       }
-    }))
+    }
+    setNotifications(newNotifications)
+    saveToDatabase(newNotifications)
+    
     toast({
       title: `${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'In-App'} ${!notifications[channel].enabled ? 'activado' : 'desactivado'}`,
       description: `Las notificaciones por ${channel === 'email' ? 'correo' : channel === 'push' ? 'push' : 'dentro de la app'} han sido ${!notifications[channel].enabled ? 'activadas' : 'desactivadas'}`,
@@ -85,16 +100,18 @@ export function NotificationSettings() {
   }
 
   const handleToggleCategory = (channel: keyof NotificationSettings, category: NotificationCategory) => {
-    setNotifications(prev => ({
-      ...prev,
+    const newNotifications = {
+      ...notifications,
       [channel]: {
-        ...prev[channel],
+        ...notifications[channel],
         categories: {
-          ...prev[channel].categories,
-          [category]: !prev[channel].categories[category]
+          ...notifications[channel].categories,
+          [category]: !notifications[channel].categories[category]
         }
       }
-    }))
+    }
+    setNotifications(newNotifications)
+    saveToDatabase(newNotifications)
   }
 
   const notificationCategories = [

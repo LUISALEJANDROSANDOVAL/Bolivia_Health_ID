@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Shield, 
   Lock, 
@@ -22,8 +22,12 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
+import { useProfile } from '@/hooks/useProfile'
+import { useWallet } from '@/contexts/wallet-context'
 
 export function SecuritySettings() {
+  const { walletAddress } = useWallet()
+  const { profile, updateProfile } = useProfile(walletAddress)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -32,6 +36,34 @@ export function SecuritySettings() {
   const [sessionActive, setSessionActive] = useState(true)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (profile?.preferences?.security) {
+      setTwoFAEnabled(profile.preferences.security.twoFAEnabled ?? true)
+      setBiometricEnabled(profile.preferences.security.biometricEnabled ?? false)
+    }
+  }, [profile?.preferences?.security])
+
+  const saveToDatabase = async (newSecurity: any) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          security: {
+            ...(profile.preferences?.security || {}),
+            ...newSecurity
+          }
+        }
+      })
+    } catch (err) {
+      console.error('Error saving security settings:', err)
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudieron guardar las configuraciones de seguridad.',
+        variant: 'destructive'
+      })
+    }
+  }
 
   const handleChangePassword = () => {
     setIsChangingPassword(true)
@@ -45,13 +77,20 @@ export function SecuritySettings() {
   }
 
   const handleToggle2FA = () => {
-    setTwoFAEnabled(!twoFAEnabled)
+    const newState = !twoFAEnabled
+    setTwoFAEnabled(newState)
+    saveToDatabase({ twoFAEnabled: newState })
     toast({
-      title: twoFAEnabled ? '2FA desactivada' : '2FA activada',
-      description: twoFAEnabled 
-        ? 'La autenticación de dos factores ha sido desactivada'
-        : 'La autenticación de dos factores ha sido activada',
+      title: newState ? '2FA activada' : '2FA desactivada',
+      description: newState 
+        ? 'La autenticación de dos factores ha sido activada'
+        : 'La autenticación de dos factores ha sido desactivada',
     })
+  }
+
+  const handleToggleBiometric = (newState: boolean) => {
+    setBiometricEnabled(newState)
+    saveToDatabase({ biometricEnabled: newState })
   }
 
   const sessions = [
@@ -194,7 +233,7 @@ export function SecuritySettings() {
             </div>
             <Switch 
               checked={biometricEnabled} 
-              onCheckedChange={setBiometricEnabled} 
+              onCheckedChange={handleToggleBiometric} 
             />
           </div>
         </CardContent>

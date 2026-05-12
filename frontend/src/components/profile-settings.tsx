@@ -12,6 +12,13 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export interface ProfileSettingsRef {
   save: () => Promise<void>
@@ -239,7 +246,24 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
                 <FieldLabel className={labelClass}>
                   <Heart className="size-4 text-red-400" /> Tipo de sangre
                 </FieldLabel>
-                <Input value={formData.blood_type} onChange={e => handleChange('blood_type', e.target.value)} className={inputClass} maxLength={3} placeholder="Ej: O+" />
+                <Select 
+                  value={formData.blood_type} 
+                  onValueChange={value => handleChange('blood_type', value)}
+                >
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="A+">A+</SelectItem>
+                    <SelectItem value="A-">A-</SelectItem>
+                    <SelectItem value="B+">B+</SelectItem>
+                    <SelectItem value="B-">B-</SelectItem>
+                    <SelectItem value="AB+">AB+</SelectItem>
+                    <SelectItem value="AB-">AB-</SelectItem>
+                    <SelectItem value="O+">O+</SelectItem>
+                    <SelectItem value="O-">O-</SelectItem>
+                  </SelectContent>
+                </Select>
               </Field>
               <Field>
                 <FieldLabel className={labelClass}>
