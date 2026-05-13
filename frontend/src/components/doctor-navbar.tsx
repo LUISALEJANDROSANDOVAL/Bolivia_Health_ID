@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { NotificationPanel } from '@/components/notification-panel'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -22,7 +23,7 @@ interface DoctorNavbarProps {
 }
 
 export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
-  const { doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
+  const { doctorId, doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
   const { isConnected, walletAddress, userName, connect } = useWallet()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -76,14 +77,7 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
             {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative h-11 w-11 text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all"
-          >
-            <Bell className="size-5" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-          </Button>
+          <NotificationPanel userId={doctorId} />
           
           <div className="hidden sm:block">
             <Button 

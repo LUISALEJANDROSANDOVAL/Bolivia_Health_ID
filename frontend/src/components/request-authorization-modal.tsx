@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useToast } from '@/hooks/use-toast'
+import { sendNotification } from '@/lib/notifications'
 
 interface Patient {
   id: string
@@ -38,7 +39,7 @@ interface RequestAuthorizationModalProps {
 }
 
 export function RequestAuthorizationModal({ onRequestSent }: RequestAuthorizationModalProps) {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName } = useDoctorAuth()
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -109,6 +110,7 @@ export function RequestAuthorizationModal({ onRequestSent }: RequestAuthorizatio
           description: `Ya tienes una solicitud ${existing.status === 'active' ? 'activa' : 'pendiente'} con este paciente.`,
           variant: 'destructive'
         })
+        setIsSending(false)
         return
       }
 
@@ -124,6 +126,20 @@ export function RequestAuthorizationModal({ onRequestSent }: RequestAuthorizatio
       if (requestError) {
         console.error('Error insertando permiso:', requestError)
         throw requestError
+      }
+
+      // Enviar notificación al paciente (con try/catch para no bloquear el flujo principal)
+      try {
+        await sendNotification({
+          recipientId: patient.id,
+          senderId: doctorId,
+          title: 'Nueva solicitud de acceso',
+          message: `El Dr. ${doctorName} desea acceder a su historial médico.`,
+          type: 'request',
+          link: '/permisos'
+        })
+      } catch (notifyErr) {
+        console.warn('No se pudo enviar la notificación, pero el permiso fue creado:', notifyErr)
       }
 
       toast({
