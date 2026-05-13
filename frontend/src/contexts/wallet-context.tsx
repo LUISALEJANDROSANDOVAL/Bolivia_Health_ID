@@ -77,7 +77,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     try {
       const wallet = walletAddr.toLowerCase()
 
-      // 1. Buscar perfil existente por wallet_address
       const { data: existing, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -85,7 +84,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (!fetchError && existing) {
-        // Actualizar datos de Google si no estaban en la base de datos
         let needsUpdate = false;
         const updates: any = {};
         if (!existing.email && email) {
@@ -107,12 +105,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Solo crear si el error es "not found" (PGRST116)
       if (fetchError && fetchError.code !== 'PGRST116') {
         throw fetchError
       }
 
-      // 2. Crear perfil — id se genera automáticamente (gen_random_uuid)
       const newFullName = name || `Paciente ${walletAddr.slice(0, 6)}`;
       const { data: created, error: createError } = await supabase
         .from('profiles')
@@ -135,7 +131,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Effect to check if already logged in via Particle on mount
   useEffect(() => {
     if (particle && particleProvider && particle.auth.isLogin()) {
       particleProvider.request({ method: 'eth_accounts' }).then((accounts: any) => {

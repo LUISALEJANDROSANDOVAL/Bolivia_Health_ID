@@ -70,6 +70,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
       setIsDoctorAuthenticated(false)
       setDoctorName(null)
       setDoctorLicense(null)
+      setDoctorId(null)
     }
   }, [isConnected, address, fetchDoctorProfile])
 
