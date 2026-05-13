@@ -10,11 +10,24 @@ import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { RequestAuthorizationModal } from '@/components/request-authorization-modal'
+
+interface Authorization {
+  id: string
+  patient: {
+    full_name: string
+    wallet_address: string
+  }
+  status: string
+  created_at: string
+  expires_at: string | null
+}
 
 export default function DoctorAuthorizationsPage() {
   const { doctorId } = useDoctorAuth()
-  const [authorizations, setAuthorizations] = useState<any[]>([])
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [stats, setStats] = useState({
     total: 0,
     approved: 0,
@@ -29,13 +42,14 @@ export default function DoctorAuthorizationsPage() {
     }
     setLoading(true)
     try {
-      // Consultamos los permisos de acceso para este doctor
-      // Incluimos los datos del perfil del paciente mediante el join automático de Supabase
       const { data, error } = await supabase
         .from('access_permissions')
         .select(`
-          *,
-          patient:profiles!patient_id(full_name, wallet_address)
+          id,
+          status,
+          created_at,
+          expires_at,
+          patient:profiles!patient_id (full_name, wallet_address)
         `)
         .eq('doctor_id', doctorId)
         .order('created_at', { ascending: false })
@@ -43,21 +57,23 @@ export default function DoctorAuthorizationsPage() {
       if (error) throw error
 
       if (data) {
-        setAuthorizations(data)
+        const mapped = data as any[]
+        setAuthorizations(mapped)
         
-        // Calcular estadísticas básicas
-        const s = data.reduce((acc: any, curr: any) => {
+        // Calcular estadísticas
+        const s = mapped.reduce((acc: any, curr: any) => {
           acc.total++
-          if (curr.status === 'approved' || curr.status === 'Aprobado') acc.approved++
-          else if (curr.status === 'pending' || curr.status === 'Pendiente') acc.pending++
-          else if (curr.status === 'rejected' || curr.status === 'Rechazado') acc.rejected++
+          const status = curr.status?.toLowerCase()
+          if (status === 'active' || status === 'approved' || status === 'aprobado') acc.approved++
+          else if (status === 'pending' || status === 'pendiente') acc.pending++
+          else if (status === 'rejected' || status === 'rechazado') acc.rejected++
           return acc
         }, { total: 0, approved: 0, pending: 0, rejected: 0 })
         
         setStats(s)
       }
     } catch (err) {
-      console.error('Error al cargar autorizaciones:', err)
+      console.error('Error fetching authorizations:', err)
     } finally {
       setLoading(false)
     }
@@ -65,9 +81,32 @@ export default function DoctorAuthorizationsPage() {
 
   useEffect(() => {
     fetchAuthorizations()
-  }, [fetchAuthorizations])
 
-  const authStats = [
+    if (!doctorId) return
+
+    // Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'access_permissions',
+          filter: `doctor_id=eq.${doctorId}`
+        },
+        () => {
+          fetchAuthorizations()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAuthorizations, doctorId, refreshTrigger])
+
+  const statsDisplay = [
     {
       icon: Users,
       label: 'Total Solicitudes',
@@ -88,7 +127,7 @@ export default function DoctorAuthorizationsPage() {
       icon: Clock,
       label: 'Pendientes',
       value: stats.pending.toString(),
-      description: 'En espera de respuesta',
+      description: 'En espera',
       color: 'text-amber-500',
       bg: 'bg-amber-50'
     },
@@ -106,7 +145,7 @@ export default function DoctorAuthorizationsPage() {
     <DoctorLayout>
       <div className="space-y-8 animate-slide-in p-6">
         
-        {/* Header con icono y gradiente */}
+        {/* Header */}
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-electric">
@@ -122,7 +161,7 @@ export default function DoctorAuthorizationsPage() {
 
           {/* Stats cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            {authStats.map((stat, idx) => (
+            {statsDisplay.map((stat, idx) => (
               <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
                 <CardContent className="p-0">
                   <div className="flex items-start justify-between">
@@ -157,14 +196,11 @@ export default function DoctorAuthorizationsPage() {
               <div>
                 <h3 className="font-semibold text-xl">Acceso Seguro a Historiales</h3>
                 <p className="text-sm text-white/80 mt-1">
-                  Pide acceso a nuevos pacientes. Cada aprobación queda registrada de forma permanente para máxima transparencia.
+                  Pide acceso a nuevos pacientes. Cada aprobación queda registrada de forma transparente.
                 </p>
               </div>
             </div>
-            <Button className="bg-white text-azul-electrico hover:bg-white/90 shadow-lg">
-              <Send className="size-4 mr-2" />
-              Nueva Solicitud
-            </Button>
+            <RequestAuthorizationModal onRequestSent={() => setRefreshTrigger(prev => prev + 1)} />
           </div>
         </div>
 
@@ -191,7 +227,7 @@ export default function DoctorAuthorizationsPage() {
                 </div>
                 <h3 className="text-lg font-medium text-azul-profundo">Conexión Requerida</h3>
                 <p className="text-sm text-gris-grafito max-w-xs mt-2 mb-6">
-                  Debes conectar tu cuenta de Google para gestionar tus autorizaciones de acceso Web3.
+                  Debes conectar tu cuenta de Google para gestionar tus autorizaciones.
                 </p>
                 <Button className="btn-premium" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                   Ir a Conectar
@@ -206,7 +242,7 @@ export default function DoctorAuthorizationsPage() {
                 </div>
                 <h3 className="text-lg font-medium text-azul-profundo">No hay solicitudes</h3>
                 <p className="text-sm text-gris-grafito max-w-xs mt-2">
-                  Aún no has solicitado acceso a ningún historial o no tienes permisos asignados.
+                  Aún no has solicitado acceso a ningún historial.
                 </p>
               </CardContent>
             </Card>
@@ -243,7 +279,7 @@ export default function DoctorAuthorizationsPage() {
                           <Clock className="size-3 mr-1" /> Pendiente
                         </Badge>
                       )}
-                      {(auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
+                      {(auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
                         <Badge className="bg-emerald-100/50 text-emerald-700 border-emerald-200">
                           <CheckCircle className="size-3 mr-1" /> Aprobado
                         </Badge>
@@ -260,7 +296,7 @@ export default function DoctorAuthorizationsPage() {
                           <Button size="sm" className="btn-premium py-1 h-8 text-xs">Recordar</Button>
                         </div>
                       )}
-                      {(auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
+                      {(auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
                         <Button size="sm" className="btn-outline-premium py-1 h-8 text-xs">Ver Historial</Button>
                       )}
                     </div>

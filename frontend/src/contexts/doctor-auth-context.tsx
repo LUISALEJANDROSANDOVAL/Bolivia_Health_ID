@@ -8,6 +8,7 @@ interface DoctorAuthContextType {
   isDoctorAuthenticated: boolean
   doctorWallet: string | null
   doctorName: string | null
+  doctorLicense: string | null
   doctorId: string | null
   loading: boolean
   refreshProfile: () => Promise<void>
@@ -44,15 +45,15 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
 
       if (data && data.role === 'medico') {
         setDoctorName(data.full_name)
+        setDoctorId(data.id)
         // Usamos la cédula o un campo de licencia si existe, si no, uno por defecto
         setDoctorLicense(data.cedula_identidad || 'LIC-BOL-ACTIVA')
-        setDoctorId(data.id)
         setIsDoctorAuthenticated(true)
       } else {
         setIsDoctorAuthenticated(false)
         setDoctorName(null)
-        setDoctorLicense(null)
         setDoctorId(null)
+        setDoctorLicense(null)
       }
     } catch (err) {
       console.error('Error al verificar perfil de doctor:', err)

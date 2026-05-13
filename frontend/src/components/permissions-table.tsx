@@ -10,7 +10,11 @@ import {
   Clock,
   ChevronRight,
   Eye,
-  Lock
+  Lock,
+  Stethoscope,
+  BadgeCheck,
+  User,
+  GraduationCap
 } from 'lucide-react'
 import {
   Table,
@@ -35,9 +39,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
+import { useProfile } from '@/hooks/useProfile'
+import { sendNotification } from '@/lib/notifications'
 
 interface Permission {
   id: string
+  doctorId: string
   hospitalName: string
   accessDate: string
   expirationDate: string
@@ -74,15 +81,31 @@ const statusConfig = {
     borderColor: 'border-border',
     badgeBg: 'bg-foreground/5',
     badgeText: 'text-foreground/40'
+  },
+  pending: { 
+    icon: Clock, 
+    color: 'text-amber-400', 
+    bg: 'bg-amber-400/10', 
+    label: 'Pendiente',
+    borderColor: 'border-amber-400/20',
+    badgeBg: 'bg-amber-400/10',
+    badgeText: 'text-amber-400'
   }
 }
 
-export function PermissionsTable() {
+interface PermissionsTableProps {
+  refreshTrigger?: number
+}
+
+export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
   const { isDbConnected, walletAddress } = useWallet()
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [loading, setLoading] = useState(false)
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
+  const [viewDoctorOpen, setViewDoctorOpen] = useState(false)
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null)
+  const [doctorDetails, setDoctorDetails] = useState<any>(null)
+  const [loadingDoctor, setLoadingDoctor] = useState(false)
 
   useEffect(() => {
     async function fetchPermissions() {
@@ -103,6 +126,7 @@ export function PermissionsTable() {
               status,
               created_at,
               expires_at,
+              doctor_id,
               profiles!doctor_id (full_name)
             `)
             .eq('patient_id', profile.id)
@@ -110,6 +134,7 @@ export function PermissionsTable() {
           
           const mapped: Permission[] = (data || []).map((p: any) => ({
             id: p.id,
+            doctorId: p.doctor_id, // Keep doctor ID
             hospitalName: p.profiles?.full_name || 'Médico Autorizado',
             accessDate: new Date(p.created_at).toLocaleDateString(),
             expirationDate: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'N/A',
@@ -130,11 +155,32 @@ export function PermissionsTable() {
     if (isDbConnected) {
       fetchPermissions()
     }
-  }, [isDbConnected, walletAddress])
+  }, [isDbConnected, walletAddress, refreshTrigger])
 
   const handleRevokeClick = (permission: Permission) => {
     setSelectedPermission(permission)
     setRevokeDialogOpen(true)
+  }
+
+  const handleViewDoctor = async (permission: Permission) => {
+    setSelectedPermission(permission)
+    setViewDoctorOpen(true)
+    setLoadingDoctor(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', permission.doctorId)
+        .single()
+      
+      if (!error) {
+        setDoctorDetails(data)
+      }
+    } catch (err) {
+      console.error('Error fetching doctor details:', err)
+    } finally {
+      setLoadingDoctor(false)
+    }
   }
 
   const handleRevokeConfirm = async () => {
@@ -156,6 +202,51 @@ export function PermissionsTable() {
     }
     setRevokeDialogOpen(false)
     setSelectedPermission(null)
+  }
+
+  const handleApprove = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({ status: 'active' })
+        .eq('id', id)
+      if (!error) {
+        setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'active' } : p))
+        
+        // Notificar al doctor (con try/catch para no bloquear)
+        try {
+          const perm = permissions.find(p => p.id === id)
+          if (perm) {
+            await sendNotification({
+              recipientId: perm.doctorId,
+              senderId: profile?.id,
+              title: 'Solicitud Aprobada',
+              message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
+              type: 'approval',
+              link: '/doctor/authorizations'
+            })
+          }
+        } catch (notifyErr) {
+          console.warn('No se pudo notificar al doctor:', notifyErr)
+        }
+      }
+    } catch (err) {
+      console.error('Error approving permission:', err)
+    }
+  }
+
+  const handleReject = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({ status: 'revoked' })
+        .eq('id', id)
+      if (!error) {
+        setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'revoked' } : p))
+      }
+    } catch (err) {
+      console.error('Error rejecting permission:', err)
+    }
   }
 
   const activeCount = permissions.filter((p) => p.status === 'active').length
@@ -263,6 +354,25 @@ export function PermissionsTable() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {permission.status === 'pending' && (
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-500 text-white hover:bg-emerald-600 h-8 text-xs font-bold"
+                                    onClick={() => handleApprove(permission.id)}
+                                  >
+                                    Aprobar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-rose-500 border-rose-500/30 hover:bg-rose-50 h-8 text-xs font-bold"
+                                    onClick={() => handleReject(permission.id)}
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              )}
                               {permission.status === 'active' && (
                                 <Button
                                   variant="ghost"
@@ -278,6 +388,7 @@ export function PermissionsTable() {
                                 variant="ghost"
                                 size="icon"
                                 className="text-foreground/40 hover:text-foreground"
+                                onClick={() => handleViewDoctor(permission)}
                               >
                                 <Eye className="size-4" />
                               </Button>
@@ -317,6 +428,74 @@ export function PermissionsTable() {
               Revocar Acceso
             </AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Modal de Detalles del Médico */}
+      <AlertDialog open={viewDoctorOpen} onOpenChange={setViewDoctorOpen}>
+        <AlertDialogContent className="bg-background border-border max-w-md rounded-2xl p-0 overflow-hidden">
+          <div className="h-24 bg-gradient-electric w-full relative">
+            <div className="absolute -bottom-10 left-6">
+              <div className="size-20 rounded-2xl bg-card border-4 border-background flex items-center justify-center shadow-xl">
+                <Stethoscope className="size-10 text-cyan-500" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6 pt-12 space-y-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-black text-foreground tracking-tight">
+                  {loadingDoctor ? 'Cargando...' : doctorDetails?.full_name}
+                </h2>
+                <BadgeCheck className="size-5 text-cyan-500" />
+              </div>
+              <p className="text-sm text-cyan-500 font-bold uppercase tracking-widest mt-1">
+                {doctorDetails?.specialty || 'Médico Especialista'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 rounded-xl bg-foreground/5 border border-border">
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="size-3 text-emerald-400" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-foreground/40">Estado</span>
+                </div>
+                <p className="text-xs font-bold text-foreground">Verificado</p>
+              </div>
+              <div className="p-3 rounded-xl bg-foreground/5 border border-border">
+                <div className="flex items-center gap-2 mb-1">
+                  <GraduationCap className="size-3 text-cyan-500" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-foreground/40">Matrícula</span>
+                </div>
+                <p className="text-xs font-bold text-foreground">{doctorDetails?.license_number || 'En trámite'}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase tracking-widest text-foreground/40">Enfoque y Especialidad</h4>
+              <div className="p-4 rounded-xl bg-foreground/5 border border-border space-y-2">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="size-4 text-cyan-500 mt-0.5" />
+                  <p className="text-sm text-foreground/70 font-medium">
+                    Especialista en {doctorDetails?.specialty || 'Atención Médica Integral'}.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="size-4 text-cyan-500 mt-0.5" />
+                  <p className="text-sm text-foreground/70 font-medium">
+                    Autorizado para gestión de registros médicos digitales.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button 
+              className="w-full bg-foreground text-background font-black rounded-xl h-12"
+              onClick={() => setViewDoctorOpen(false)}
+            >
+              Cerrar Perfil
+            </Button>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </>

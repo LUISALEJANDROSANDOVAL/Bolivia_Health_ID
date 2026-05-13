@@ -8,34 +8,32 @@ import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const queryClient = new QueryClient();
 
+// Configure Wagmi with Alchemy RPC or public RPC and Avalanche Fuji
+const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+const rpcUrl = alchemyKey 
+  ? `https://avax-fuji.g.alchemy.com/v2/${alchemyKey}`
+  : "https://api.avax-test.network/ext/bc/C/rpc";
+
+export const config = createConfig(
+  getDefaultConfig({
+    chains: [avalancheFuji],
+    transports: {
+      [avalancheFuji.id]: http(rpcUrl),
+    },
+    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "1234567890abcdef1234567890abcdef", 
+    appName: "Bolivia Health ID",
+  }),
+);
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Creamos la configuración solo en el cliente para evitar errores de SSR
-  const config = useMemo(() => {
-    return createConfig(
-      getDefaultConfig({
-        chains: [avalancheFuji],
-        transports: {
-          [avalancheFuji.id]: http("https://api.avax-test.network/ext/bc/C/rpc"),
-        },
-        walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3fcc6b4468bd93cb50976d31954a6d09",
-        appName: "Bolivia Health ID",
-      }),
-    );
-  }, []);
-
-  if (!mounted) {
-    return <div style={{ visibility: 'hidden' }}>{children}</div>;
-  }
 
   return (
     <WagmiProvider config={config}>
@@ -49,7 +47,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 enableSystem
                 disableTransitionOnChange
               >
-                {children}
+                {/* 
+                   Evitamos renderizar los hijos hasta que el cliente esté montado
+                   para prevenir errores de hidratación, pero mantenemos los proveedores
+                   siempre presentes.
+                */}
+                {mounted ? children : null}
               </ThemeProvider>
             </DoctorAuthProvider>
           </WalletProvider>
