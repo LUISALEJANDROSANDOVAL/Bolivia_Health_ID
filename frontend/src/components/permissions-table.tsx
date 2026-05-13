@@ -79,6 +79,15 @@ const statusConfig = {
     borderColor: 'border-border',
     badgeBg: 'bg-foreground/5',
     badgeText: 'text-foreground/40'
+  },
+  pending: { 
+    icon: Clock, 
+    color: 'text-amber-400', 
+    bg: 'bg-amber-400/10', 
+    label: 'Pendiente',
+    borderColor: 'border-amber-400/20',
+    badgeBg: 'bg-amber-400/10',
+    badgeText: 'text-amber-400'
   }
 }
 
@@ -192,6 +201,34 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
     setSelectedPermission(null)
   }
 
+  const handleApprove = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({ status: 'active' })
+        .eq('id', id)
+      if (!error) {
+        setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'active' } : p))
+      }
+    } catch (err) {
+      console.error('Error approving permission:', err)
+    }
+  }
+
+  const handleReject = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({ status: 'revoked' })
+        .eq('id', id)
+      if (!error) {
+        setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'revoked' } : p))
+      }
+    } catch (err) {
+      console.error('Error rejecting permission:', err)
+    }
+  }
+
   const activeCount = permissions.filter((p) => p.status === 'active').length
   const expiredCount = permissions.filter((p) => p.status === 'expired').length
 
@@ -297,6 +334,25 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+                              {permission.status === 'pending' && (
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-emerald-500 text-white hover:bg-emerald-600 h-8 text-xs font-bold"
+                                    onClick={() => handleApprove(permission.id)}
+                                  >
+                                    Aprobar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-rose-500 border-rose-500/30 hover:bg-rose-50 h-8 text-xs font-bold"
+                                    onClick={() => handleReject(permission.id)}
+                                  >
+                                    Rechazar
+                                  </Button>
+                                </div>
+                              )}
                               {permission.status === 'active' && (
                                 <Button
                                   variant="ghost"

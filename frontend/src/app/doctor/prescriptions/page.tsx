@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useWallet } from '@/contexts/wallet-context'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,14 @@ interface Medication {
   instructions: string
 }
 
+interface Medicine {
+  id: string
+  generic_name: string
+  brand_name: string
+  form: string
+  concentration: string
+}
+
 // Eliminamos mockPatients estáticos para usar Supabase
 
 export default function DoctorPrescriptionsPage() {
@@ -73,18 +82,57 @@ export default function DoctorPrescriptionsPage() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
+  // Medicine search states
+  const [medicineSuggestions, setMedicineSuggestions] = useState<Medicine[]>([])
+  const [isSearchingMedicines, setIsSearchingMedicines] = useState(false)
+  const [showMedicineDropdown, setShowMedicineDropdown] = useState(false)
+
+  const { walletAddress } = useWallet()
+  const [doctorId, setDoctorId] = useState<string | null>(null)
+
+  // Obtener ID del doctor actual
+  useEffect(() => {
+    async function getDoctorInfo() {
+      if (!walletAddress) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+      if (data) setDoctorId(data.id)
+    }
+    getDoctorInfo()
+  }, [walletAddress])
+
   useEffect(() => {
     const fetchPatients = async () => {
-      if (!searchPatient || searchPatient.length < 2) {
+      if (!searchPatient || searchPatient.length < 2 || !doctorId) {
         setPatients([])
         return
       }
 
       setIsSearching(true)
+
+      // 1. Obtener IDs de pacientes con permiso activo para este doctor
+      const { data: permissions } = await supabase
+        .from('access_permissions')
+        .select('patient_id')
+        .eq('doctor_id', doctorId)
+        .eq('status', 'active')
+
+      const authorizedIds = permissions?.map(p => p.patient_id) || []
+
+      if (authorizedIds.length === 0) {
+        setPatients([])
+        setIsSearching(false)
+        return
+      }
+
+      // 2. Buscar entre esos pacientes autorizados
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'paciente')
+        .in('id', authorizedIds)
         .or(`full_name.ilike.%${searchPatient}%,cedula_identidad.ilike.%${searchPatient}%`)
         .limit(5)
 
@@ -110,6 +158,36 @@ export default function DoctorPrescriptionsPage() {
 
     return () => clearTimeout(timer)
   }, [searchPatient])
+
+  // Effect for medicine search
+  useEffect(() => {
+    const fetchMedicines = async () => {
+      if (!newMed.name || newMed.name.length < 2) {
+        setMedicineSuggestions([])
+        return
+      }
+
+      setIsSearchingMedicines(true)
+      const { data, error } = await supabase
+        .from('medicine_catalog')
+        .select('*')
+        .or(`generic_name.ilike.%${newMed.name}%,brand_name.ilike.%${newMed.name}%`)
+        .limit(10)
+
+      if (error) {
+        console.error('Error buscando medicamentos:', error)
+      } else if (data) {
+        setMedicineSuggestions(data)
+      }
+      setIsSearchingMedicines(false)
+    }
+
+    const timer = setTimeout(() => {
+      fetchMedicines()
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [newMed.name])
 
   const addMedication = () => {
     if (newMed.name && newMed.dose && newMed.frequency) {
@@ -364,14 +442,57 @@ export default function DoctorPrescriptionsPage() {
                   {showAddMed && (
                     <div className="mb-8 space-y-6 rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 animate-in zoom-in-95">
                       <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                           <Label className="font-bold text-foreground">Nombre del Medicamento</Label>
-                          <Input
-                            placeholder="Ej: Metformina"
-                            value={newMed.name}
-                            onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
-                            className="bg-background rounded-xl h-11"
-                          />
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: Ibuprofeno"
+                              value={newMed.name}
+                              onChange={(e) => {
+                                setNewMed({ ...newMed, name: e.target.value })
+                                setShowMedicineDropdown(true)
+                              }}
+                              onFocus={() => setShowMedicineDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowMedicineDropdown(false), 200)}
+                              className="bg-background rounded-xl h-11 pr-10"
+                            />
+                            { (showMedicineDropdown && (newMed.name.length >= 2 || isSearchingMedicines)) && (
+                              <div className="absolute z-50 mt-1 w-full divide-y divide-muted rounded-xl border border-muted bg-card shadow-2xl animate-in fade-in zoom-in-95 overflow-hidden max-h-60 overflow-y-auto">
+                                {isSearchingMedicines ? (
+                                  <div className="p-4 text-center text-muted-foreground flex items-center justify-center gap-2">
+                                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Buscando...</span>
+                                  </div>
+                                ) : medicineSuggestions.length > 0 ? medicineSuggestions.map((med) => (
+                                  <button
+                                    key={med.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setNewMed({ 
+                                        ...newMed, 
+                                        name: med.generic_name || med.brand_name,
+                                        dose: med.concentration || ''
+                                      })
+                                      setShowMedicineDropdown(false)
+                                    }}
+                                    className="flex w-full flex-col p-3 text-left transition-colors hover:bg-primary/5 group"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-bold text-foreground group-hover:text-primary transition-colors">
+                                        {med.generic_name} {med.brand_name && <span className="text-muted-foreground font-normal text-xs ml-1">({med.brand_name})</span>}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[10px] h-4">{med.form}</Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">{med.concentration}</span>
+                                  </button>
+                                )) : (
+                                  <div className="p-4 text-center text-sm text-muted-foreground">
+                                    No se encontraron medicamentos.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label className="font-bold text-foreground">Dosis / Concentración</Label>

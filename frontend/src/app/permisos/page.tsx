@@ -2,8 +2,7 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { PermissionsTable } from '@/components/permissions-table'
-import { GrantPermissionModal } from '@/components/grant-permission-modal'
-import { Shield, Plus, Info } from 'lucide-react'
+import { Shield, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 
@@ -31,7 +30,6 @@ export default function PermisosPage() {
                 </p>
               </div>
             </div>
-            <GrantPermissionModal onPermissionGranted={handleRefresh} />
           </div>
         </div>
 

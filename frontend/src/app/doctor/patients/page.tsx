@@ -1,56 +1,78 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Search, Eye, Filter, User, Calendar, Shield } from 'lucide-react'
+import { Search, Eye, Filter, User, Calendar, Shield, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 
-const mockPatients = [
-  {
-    id: '1',
-    name: 'Carlos Mendoza',
-    ci: '4567890',
-    healthId: '0xA1B2...C3D4',
-    status: 'Activo',
-    lastVisit: '2024-03-20',
-  },
-  {
-    id: '2',
-    name: 'María García',
-    ci: '5678901',
-    healthId: '0xE5F6...G7H8',
-    status: 'Activo',
-    lastVisit: '2024-03-19',
-  },
-  {
-    id: '3',
-    name: 'Juan Pérez',
-    ci: '6789012',
-    healthId: '0xI9J0...K1L2',
-    status: 'Inactivo',
-    lastVisit: '2024-02-15',
-  },
-  {
-    id: '4',
-    name: 'Ana López',
-    ci: '7890123',
-    healthId: '0xM3N4...O5P6',
-    status: 'Activo',
-    lastVisit: '2024-03-21',
-  },
-]
+interface Patient {
+  id: string
+  name: string
+  ci: string
+  healthId: string
+  status: string
+  lastVisit: string
+}
 
 export default function DoctorPatientsPage() {
+  const { doctorId } = useDoctorAuth()
   const [searchTerm, setSearchTerm] = useState('')
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredPatients = mockPatients.filter(
+  const fetchPatients = useCallback(async () => {
+    if (!doctorId) return
+    setLoading(true)
+    try {
+      // Consultar permisos activos para este doctor
+      const { data, error } = await supabase
+        .from('access_permissions')
+        .select(`
+          id,
+          status,
+          created_at,
+          profiles!patient_id (
+            id,
+            full_name,
+            cedula_identidad,
+            wallet_address
+          )
+        `)
+        .eq('doctor_id', doctorId)
+        .eq('status', 'active')
+
+      if (error) throw error
+
+      const mapped: Patient[] = (data || []).map((p: any) => ({
+        id: p.profiles?.id || '',
+        name: p.profiles?.full_name || 'Paciente Desconocido',
+        ci: p.profiles?.cedula_identidad || 'N/A',
+        healthId: p.profiles?.wallet_address || 'N/A',
+        status: 'Activo',
+        lastVisit: new Date(p.created_at).toLocaleDateString() // Usamos la fecha de permiso como referencia
+      }))
+
+      setPatients(mapped)
+    } catch (err) {
+      console.error('Error fetching patients:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [doctorId])
+
+  useEffect(() => {
+    fetchPatients()
+  }, [fetchPatients])
+
+  const filteredPatients = patients.filter(
     (patient) =>
       patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       patient.ci.includes(searchTerm) ||
-      patient.healthId.includes(searchTerm)
+      patient.healthId.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (
@@ -85,7 +107,13 @@ export default function DoctorPatientsPage() {
         </div>
 
         {/* Patients Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+            <Loader2 className="size-12 text-cyan-500 animate-spin mb-4" />
+            <p className="text-sm font-black uppercase tracking-widest text-foreground/40">Cargando directorio...</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredPatients.map((patient) => (
             <div key={patient.id} className="relative overflow-hidden bg-foreground/[0.03] backdrop-blur-xl p-8 rounded-[2rem] border border-border group hover:border-cyan-500/20 transition-all shadow-lg shadow-black/5">
               {/* Badge superior */}
@@ -133,8 +161,9 @@ export default function DoctorPatientsPage() {
             </div>
           ))}
         </div>
+        )}
 
-        {filteredPatients.length === 0 && (
+        {!loading && filteredPatients.length === 0 && (
           <div className="bg-foreground/[0.03] backdrop-blur-xl p-20 rounded-[3rem] border border-border/50 text-center">
              <div className="flex justify-center mb-4">
                 <div className="size-16 rounded-full bg-foreground/5 flex items-center justify-center">
