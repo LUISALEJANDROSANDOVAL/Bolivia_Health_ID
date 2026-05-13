@@ -21,6 +21,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
@@ -47,6 +54,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isUploadingAll, setIsUploadingAll] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>('Laboratorio')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { walletAddress } = useWallet()
@@ -137,7 +145,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         .insert({
           patient_id: profile.id,
           title: file.name,
-          category: file.type.includes('pdf') ? 'Otros' : 'Imágenes', // Por defecto
+          category: selectedCategory,
           file_size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
           file_url: ipfsHash,
           file_type: file.type.includes('pdf') ? 'pdf' : 'image'
@@ -292,6 +300,23 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       </CardHeader>
 
       <CardContent className="p-6 space-y-6">
+        {/* Category Selector */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-bold text-foreground">Categoría del documento</label>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full sm:w-[250px] bg-foreground/5 border-border text-foreground hover:border-cyan-500/50 transition-colors h-11 rounded-xl">
+              <SelectValue placeholder="Selecciona una categoría" />
+            </SelectTrigger>
+            <SelectContent className="bg-background border-border">
+              <SelectItem value="Laboratorio" className="cursor-pointer">Laboratorio</SelectItem>
+              <SelectItem value="Receta" className="cursor-pointer">Receta</SelectItem>
+              <SelectItem value="Imágenes" className="cursor-pointer">Imágenes</SelectItem>
+              <SelectItem value="Certificado" className="cursor-pointer">Certificado</SelectItem>
+              <SelectItem value="Otros" className="cursor-pointer">Otros</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Drop Zone */}
         <div
           onDragOver={handleDragOver}
