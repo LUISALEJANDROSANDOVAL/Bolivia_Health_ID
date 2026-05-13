@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,14 @@ import {
   Fingerprint,
   RefreshCw
 } from 'lucide-react'
+import { useWallet, formatAddress } from '@/contexts/wallet-context'
+import { useToast } from '@/hooks/use-toast'
+import { SecuritySettings } from '@/components/security-settings'
+import { NotificationSettings } from '@/components/notification-settings'
+import { PrivacySettings } from '@/components/privacy-settings'
+import { BlockchainSettings } from '@/components/blockchain-settings'
+import { DataManagement } from '@/components/data-management'
+import { DoctorProfileSettings, DoctorProfileSettingsRef } from '@/components/doctor-profile-settings'
 
 const settingsStats = [
   {
@@ -57,17 +65,46 @@ const settingsStats = [
 ]
 
 export default function DoctorSettingsPage() {
+  const profileRef = useRef<DoctorProfileSettingsRef>(null)
   const [activeTab, setActiveTab] = useState('perfil')
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const walletConnected = true
+  const { isConnected, walletAddress } = useWallet()
+  const [copied, setCopied] = useState(false)
+  const { toast } = useToast()
 
-  const handleSaveAll = () => {
+  const copyAddress = () => {
+    if (walletAddress) {
+      navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      toast({
+        title: 'Dirección copiada',
+        description: 'La dirección de wallet ha sido copiada al portapapeles',
+      })
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleSaveAll = async () => {
     setIsSaving(true)
-    setTimeout(() => {
-      setIsSaving(false)
+    try {
+      if (profileRef.current) {
+        await profileRef.current.save()
+      }
       setLastSaved(new Date())
-    }, 1000)
+      toast({
+        title: 'Configuración guardada',
+        description: 'Todos los cambios han sido guardados correctamente.',
+      })
+    } catch {
+      toast({
+        title: 'Error al guardar',
+        description: 'Hubo un problema al guardar los cambios.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -166,67 +203,32 @@ export default function DoctorSettingsPage() {
           </TabsList>
 
           <TabsContent value="perfil">
-            <Card className="card-premium border-none shadow-sm">
-              <CardContent className="p-6">
-                {!walletConnected ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <div className="mb-4 flex size-20 items-center justify-center rounded-full bg-primary/10">
-                      <User className="size-10 text-primary/50" />
-                    </div>
-                    <p className="text-lg font-semibold text-foreground">Wallet no conectada</p>
-                    <p className="text-center text-sm text-muted-foreground">
-                      Conecta tu wallet para ver y editar tu<br />información profesional.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="max-w-2xl space-y-6">
-                    <h3 className="text-xl font-semibold text-azul-profundo mb-4">Información Profesional</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-gris-grafito">Nombre Completo</Label>
-                        <Input defaultValue="Dr. Luis Fernández" className="focus-visible:ring-primary" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gris-grafito">Licencia Médica</Label>
-                        <Input defaultValue="LIC-BOL-2024-00815" readOnly className="bg-muted text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gris-grafito">Especialidad</Label>
-                        <Input defaultValue="Medicina General" className="focus-visible:ring-primary" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gris-grafito">Email Profesional</Label>
-                        <Input defaultValue="dr.fernandez@boliviahealth.id" className="focus-visible:ring-primary" />
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label className="text-gris-grafito">Hospital / Clínica Principal</Label>
-                        <Input defaultValue="Hospital de Clínicas, La Paz" className="focus-visible:ring-primary" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <DoctorProfileSettings ref={profileRef} />
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Opciones de seguridad en construcción...</p></CardContent></Card>
+            <SecuritySettings />
           </TabsContent>
           
           <TabsContent value="notificaciones">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Preferencias de notificaciones en construcción...</p></CardContent></Card>
+            <NotificationSettings />
           </TabsContent>
 
           <TabsContent value="privacidad">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Ajustes de privacidad en construcción...</p></CardContent></Card>
+            <PrivacySettings />
           </TabsContent>
 
           <TabsContent value="blockchain">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Configuración de red y gas en construcción...</p></CardContent></Card>
+            <BlockchainSettings 
+              isConnected={isConnected}
+              walletAddress={walletAddress}
+              onCopyAddress={copyAddress}
+              copied={copied}
+            />
           </TabsContent>
 
           <TabsContent value="datos">
-            <Card className="card-premium border-none shadow-sm"><CardContent className="p-6"><p className="text-muted-foreground">Exportación de datos en construcción...</p></CardContent></Card>
+            <DataManagement />
           </TabsContent>
         </Tabs>
 

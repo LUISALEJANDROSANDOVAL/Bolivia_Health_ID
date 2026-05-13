@@ -1,72 +1,124 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, XCircle, Clock, Shield, FileText, Users, Key, Activity, Send } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Shield, FileText, Users, Key, Activity, Send, Search } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { RequestAuthorizationModal } from '@/components/request-authorization-modal'
 
-const authorizations = [
-  {
-    patient: 'Carlos Mendoza',
-    type: 'Ver Historial Completo',
-    status: 'Pendiente',
-    requestDate: '2024-03-21',
-    expiresIn: '7 días',
-  },
-  {
-    patient: 'María García',
-    type: 'Acceso a Laboratorios',
-    status: 'Aprobado',
-    requestDate: '2024-03-15',
-    expiresIn: '30 días',
-  },
-  {
-    patient: 'Juan Pérez',
-    type: 'Prescribir Medicamentos',
-    status: 'Rechazado',
-    requestDate: '2024-03-10',
-    expiresIn: 'Expirado',
-  },
-]
-
-const authStats = [
-  {
-    icon: Users,
-    label: 'Total Solicitudes',
-    value: '15',
-    description: 'Histórico completo',
-    color: 'text-blue-500',
-    bg: 'bg-blue-50'
-  },
-  {
-    icon: CheckCircle,
-    label: 'Aprobadas',
-    value: '12',
-    description: 'Acceso activo',
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-50'
-  },
-  {
-    icon: Clock,
-    label: 'Pendientes',
-    value: '2',
-    description: 'En espera de respuesta',
-    color: 'text-amber-500',
-    bg: 'bg-amber-50'
-  },
-  {
-    icon: XCircle,
-    label: 'Rechazadas',
-    value: '1',
-    description: 'Acceso denegado',
-    color: 'text-red-500',
-    bg: 'bg-red-50'
-  }
-]
+interface Authorization {
+  id: string
+  patient: string
+  type: string
+  status: string
+  requestDate: string
+  expiresIn: string
+}
 
 export default function DoctorAuthorizationsPage() {
+  const { doctorId } = useDoctorAuth()
+  const [authorizations, setAuthorizations] = useState<Authorization[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const fetchAuthorizations = useCallback(async () => {
+    if (!doctorId) return
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('access_permissions')
+        .select(`
+          id,
+          status,
+          created_at,
+          expires_at,
+          profiles!patient_id (full_name)
+        `)
+        .eq('doctor_id', doctorId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const mapped: Authorization[] = (data || []).map((p: any) => ({
+        id: p.id,
+        patient: p.profiles?.full_name || 'Paciente Desconocido',
+        type: 'Acceso Digital Seguro',
+        status: p.status === 'pending' ? 'Pendiente' : p.status === 'active' ? 'Aprobado' : 'Rechazado',
+        requestDate: new Date(p.created_at).toLocaleDateString(),
+        expiresIn: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Indefinido'
+      }))
+
+      setAuthorizations(mapped)
+    } catch (err) {
+      console.error('Error fetching authorizations:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [doctorId])
+
+  useEffect(() => {
+    fetchAuthorizations()
+
+    // Suscribirse a cambios en tiempo real
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'access_permissions',
+          filter: `doctor_id=eq.${doctorId}`
+        },
+        () => {
+          fetchAuthorizations()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAuthorizations, doctorId])
+
+  const stats = [
+    {
+      icon: Users,
+      label: 'Total Solicitudes',
+      value: authorizations.length.toString(),
+      description: 'Histórico completo',
+      color: 'text-blue-500',
+      bg: 'bg-blue-50'
+    },
+    {
+      icon: CheckCircle,
+      label: 'Aprobadas',
+      value: authorizations.filter(a => a.status === 'Aprobado').length.toString(),
+      description: 'Acceso activo',
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-50'
+    },
+    {
+      icon: Clock,
+      label: 'Pendientes',
+      value: authorizations.filter(a => a.status === 'Pendiente').length.toString(),
+      description: 'En espera',
+      color: 'text-amber-500',
+      bg: 'bg-amber-50'
+    },
+    {
+      icon: XCircle,
+      label: 'Rechazadas',
+      value: authorizations.filter(a => a.status === 'Rechazado').length.toString(),
+      description: 'Acceso denegado',
+      color: 'text-red-500',
+      bg: 'bg-red-50'
+    }
+  ]
   return (
     <DoctorLayout>
       <div className="space-y-8 animate-slide-in p-6">
@@ -87,7 +139,7 @@ export default function DoctorAuthorizationsPage() {
 
           {/* Stats cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            {authStats.map((stat, idx) => (
+            {stats.map((stat, idx) => (
               <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
                 <CardContent className="p-0">
                   <div className="flex items-start justify-between">
@@ -126,17 +178,23 @@ export default function DoctorAuthorizationsPage() {
                 </p>
               </div>
             </div>
-            <Button className="bg-white text-azul-electrico hover:bg-white/90">
-              <Send className="size-4 mr-2" />
-              Nueva Solicitud
-            </Button>
+            <RequestAuthorizationModal onRequestSent={() => setRefreshTrigger(prev => prev + 1)} />
           </div>
         </div>
 
         {/* Authorizations List */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-azul-profundo">Solicitudes Recientes</h3>
-          {authorizations.map((auth, i) => (
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-azul-profundo">Solicitudes Recientes</h3>
+            {loading && <div className="text-xs text-gris-grafito/60 animate-pulse">Actualizando lista...</div>}
+          </div>
+          
+          {!loading && authorizations.length === 0 ? (
+            <div className="text-center py-12 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
+               <Shield className="size-10 text-slate-300 mx-auto mb-3" />
+               <p className="text-sm text-gris-grafito font-medium">No tienes solicitudes pendientes.</p>
+            </div>
+          ) : authorizations.map((auth, i) => (
             <Card key={i} className="card-premium hover:border-azul-electrico/30 transition-all">
               <CardContent className="p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

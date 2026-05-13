@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useWallet } from '@/contexts/wallet-context'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,11 +52,15 @@ interface Medication {
   instructions: string
 }
 
-const mockPatients: Patient[] = [
-  { id: '1', name: 'María García López', ci: '4523698', age: 45, allergies: ['Penicilina'], gender: 'F' },
-  { id: '2', name: 'Carlos Mendoza R.', ci: '6587412', age: 32, allergies: [], gender: 'M' },
-  { id: '3', name: 'Ana Quispe Mamani', ci: '7896541', age: 28, allergies: ['Aspirina', 'Ibuprofeno'], gender: 'F' },
-]
+interface Medicine {
+  id: string
+  generic_name: string
+  brand_name: string
+  form: string
+  concentration: string
+}
+
+// Eliminamos mockPatients estáticos para usar Supabase
 
 export default function DoctorPrescriptionsPage() {
   const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>('nueva')
@@ -73,10 +79,115 @@ export default function DoctorPrescriptionsPage() {
     instructions: ''
   })
 
-  const filteredPatients = mockPatients.filter(p => 
-    p.name.toLowerCase().includes(searchPatient.toLowerCase()) ||
-    p.ci.includes(searchPatient)
-  )
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // Medicine search states
+  const [medicineSuggestions, setMedicineSuggestions] = useState<Medicine[]>([])
+  const [isSearchingMedicines, setIsSearchingMedicines] = useState(false)
+  const [showMedicineDropdown, setShowMedicineDropdown] = useState(false)
+
+  const { walletAddress } = useWallet()
+  const [doctorId, setDoctorId] = useState<string | null>(null)
+
+  // Obtener ID del doctor actual
+  useEffect(() => {
+    async function getDoctorInfo() {
+      if (!walletAddress) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+      if (data) setDoctorId(data.id)
+    }
+    getDoctorInfo()
+  }, [walletAddress])
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      if (!searchPatient || searchPatient.length < 2 || !doctorId) {
+        setPatients([])
+        return
+      }
+
+      setIsSearching(true)
+
+      // 1. Obtener IDs de pacientes con permiso activo para este doctor
+      const { data: permissions } = await supabase
+        .from('access_permissions')
+        .select('patient_id')
+        .eq('doctor_id', doctorId)
+        .eq('status', 'active')
+
+      const authorizedIds = permissions?.map(p => p.patient_id) || []
+
+      if (authorizedIds.length === 0) {
+        setPatients([])
+        setIsSearching(false)
+        return
+      }
+
+      // 2. Buscar entre esos pacientes autorizados
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', authorizedIds)
+        .or(`full_name.ilike.%${searchPatient}%,cedula_identidad.ilike.%${searchPatient}%`)
+        .limit(5)
+
+      if (error) {
+        console.error('Error buscando pacientes:', error)
+      } else if (data) {
+        const mappedPatients: Patient[] = data.map(p => ({
+          id: p.id,
+          name: p.full_name || 'Sin nombre',
+          ci: p.cedula_identidad || 'Sin CI',
+          age: 0, // No disponible en profiles
+          allergies: [], // No disponible en profiles
+          gender: 'M' // Por defecto
+        }))
+        setPatients(mappedPatients)
+      }
+      setIsSearching(false)
+    }
+
+    const timer = setTimeout(() => {
+      fetchPatients()
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [searchPatient])
+
+  // Effect for medicine search
+  useEffect(() => {
+    const fetchMedicines = async () => {
+      if (!newMed.name || newMed.name.length < 2) {
+        setMedicineSuggestions([])
+        return
+      }
+
+      setIsSearchingMedicines(true)
+      const { data, error } = await supabase
+        .from('medicine_catalog')
+        .select('*')
+        .or(`generic_name.ilike.%${newMed.name}%,brand_name.ilike.%${newMed.name}%`)
+        .limit(10)
+
+      if (error) {
+        console.error('Error buscando medicamentos:', error)
+      } else if (data) {
+        setMedicineSuggestions(data)
+      }
+      setIsSearchingMedicines(false)
+    }
+
+    const timer = setTimeout(() => {
+      fetchMedicines()
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [newMed.name])
 
   const addMedication = () => {
     if (newMed.name && newMed.dose && newMed.frequency) {
@@ -123,9 +234,9 @@ export default function DoctorPrescriptionsPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: 'Recetas Hoy', value: '12', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10' },
-            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-500/10' },
-            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+            { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10' },
+            { label: 'Pendientes', value: '3', icon: AlertTriangle, color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-500/10' },
+            { label: 'Emitidas (Mes)', value: '156', icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
           ].map((stat, i) => (
             <Card key={i} className="card-premium border-none shadow-sm overflow-hidden">
               <CardContent className="p-5">
@@ -200,9 +311,14 @@ export default function DoctorPrescriptionsPage() {
                         />
                       </div>
                       
-                      {searchPatient && (
+                      { (searchPatient || isSearching) && (
                         <div className="mt-4 divide-y divide-muted rounded-2xl border border-muted bg-card shadow-xl animate-in fade-in slide-in-from-top-4 overflow-hidden">
-                          {filteredPatients.length > 0 ? filteredPatients.map((patient) => (
+                          {isSearching ? (
+                            <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-3">
+                              <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              Buscando en la base de datos...
+                            </div>
+                          ) : patients.length > 0 ? patients.map((patient) => (
                             <button
                               key={patient.id}
                               onClick={() => {
@@ -217,16 +333,16 @@ export default function DoctorPrescriptionsPage() {
                                 </div>
                                 <div>
                                   <p className="font-bold text-foreground">{patient.name}</p>
-                                  <p className="text-sm text-muted-foreground">CI: {patient.ci} • {patient.age} años</p>
+                                  <p className="text-sm text-muted-foreground">CI: {patient.ci}</p>
                                 </div>
                               </div>
                               <ChevronRight className="h-5 w-5 text-muted-foreground" />
                             </button>
-                          )) : (
+                          )) : searchPatient.length >= 2 ? (
                             <div className="p-8 text-center text-muted-foreground">
                               No se encontraron pacientes con ese criterio.
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -326,14 +442,57 @@ export default function DoctorPrescriptionsPage() {
                   {showAddMed && (
                     <div className="mb-8 space-y-6 rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 animate-in zoom-in-95">
                       <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                           <Label className="font-bold text-foreground">Nombre del Medicamento</Label>
-                          <Input
-                            placeholder="Ej: Metformina"
-                            value={newMed.name}
-                            onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
-                            className="bg-background rounded-xl h-11"
-                          />
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: Ibuprofeno"
+                              value={newMed.name}
+                              onChange={(e) => {
+                                setNewMed({ ...newMed, name: e.target.value })
+                                setShowMedicineDropdown(true)
+                              }}
+                              onFocus={() => setShowMedicineDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowMedicineDropdown(false), 200)}
+                              className="bg-background rounded-xl h-11 pr-10"
+                            />
+                            { (showMedicineDropdown && (newMed.name.length >= 2 || isSearchingMedicines)) && (
+                              <div className="absolute z-50 mt-1 w-full divide-y divide-muted rounded-xl border border-muted bg-card shadow-2xl animate-in fade-in zoom-in-95 overflow-hidden max-h-60 overflow-y-auto">
+                                {isSearchingMedicines ? (
+                                  <div className="p-4 text-center text-muted-foreground flex items-center justify-center gap-2">
+                                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Buscando...</span>
+                                  </div>
+                                ) : medicineSuggestions.length > 0 ? medicineSuggestions.map((med) => (
+                                  <button
+                                    key={med.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setNewMed({ 
+                                        ...newMed, 
+                                        name: med.generic_name || med.brand_name,
+                                        dose: med.concentration || ''
+                                      })
+                                      setShowMedicineDropdown(false)
+                                    }}
+                                    className="flex w-full flex-col p-3 text-left transition-colors hover:bg-primary/5 group"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-bold text-foreground group-hover:text-primary transition-colors">
+                                        {med.generic_name} {med.brand_name && <span className="text-muted-foreground font-normal text-xs ml-1">({med.brand_name})</span>}
+                                      </span>
+                                      <Badge variant="secondary" className="text-[10px] h-4">{med.form}</Badge>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">{med.concentration}</span>
+                                  </button>
+                                )) : (
+                                  <div className="p-4 text-center text-sm text-muted-foreground">
+                                    No se encontraron medicamentos.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label className="font-bold text-foreground">Dosis / Concentración</Label>
@@ -449,7 +608,7 @@ export default function DoctorPrescriptionsPage() {
             <div className="lg:col-span-4 space-y-6">
               {/* Prescription Live Summary */}
               <div className="sticky top-8 space-y-6">
-                <Card className="border-none shadow-xl overflow-hidden glass-dark text-white">
+                <Card className="border-none shadow-xl overflow-hidden bg-azul-profundo text-white">
                   <div className="bg-gradient-premium p-6 pb-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
@@ -462,7 +621,7 @@ export default function DoctorPrescriptionsPage() {
                     <h3 className="text-xl font-black">Resumen de la Receta</h3>
                     <p className="text-white/60 text-xs mt-1 uppercase tracking-widest font-bold">Registro Blockchain Health ID</p>
                   </div>
-                  <CardContent className="p-6 space-y-6 bg-white/5 backdrop-blur-sm">
+                  <CardContent className="p-6 space-y-6 bg-white/10 backdrop-blur-sm">
                     <div className="space-y-4">
                       <div className="flex flex-col gap-1">
                         <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Paciente</p>

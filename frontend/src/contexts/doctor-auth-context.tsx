@@ -9,6 +9,7 @@ interface DoctorAuthContextType {
   doctorWallet: string | null
   doctorName: string | null
   doctorLicense: string | null
+  doctorId: string | null
   loading: boolean
   refreshProfile: () => Promise<void>
 }
@@ -18,6 +19,7 @@ const defaultValue: DoctorAuthContextType = {
   doctorWallet: null,
   doctorName: null,
   doctorLicense: null,
+  doctorId: null,
   loading: false,
   refreshProfile: async () => {},
 }
@@ -28,6 +30,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
   const { walletAddress: address, isConnected } = useWallet()
   const [doctorName, setDoctorName] = useState<string | null>(null)
   const [doctorLicense, setDoctorLicense] = useState<string | null>(null)
+  const [doctorId, setDoctorId] = useState<string | null>(null)
   const [isDoctorAuthenticated, setIsDoctorAuthenticated] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -42,12 +45,14 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
 
       if (data && data.role === 'medico') {
         setDoctorName(data.full_name)
+        setDoctorId(data.id)
         // Usamos la cédula o un campo de licencia si existe, si no, uno por defecto
         setDoctorLicense(data.cedula_identidad || 'LIC-BOL-ACTIVA')
         setIsDoctorAuthenticated(true)
       } else {
         setIsDoctorAuthenticated(false)
         setDoctorName(null)
+        setDoctorId(null)
         setDoctorLicense(null)
       }
     } catch (err) {
@@ -75,6 +80,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         doctorWallet: address || null,
         doctorName,
         doctorLicense,
+        doctorId,
         loading,
         refreshProfile: async () => { if (address) await fetchDoctorProfile(address) }
       }}

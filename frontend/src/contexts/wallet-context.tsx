@@ -9,15 +9,28 @@ import { ParticleProvider } from '@particle-network/provider'
 
 let particle: ParticleNetwork | null = null;
 let particleProvider: ParticleProvider | null = null;
+
 if (typeof window !== 'undefined') {
-  particle = new ParticleNetwork({
-    projectId: process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID!,
-    clientKey: process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY!,
-    appId: process.env.NEXT_PUBLIC_PARTICLE_APP_ID!,
-    chainName: 'Avalanche',
-    chainId: 43113,
-  });
-  particleProvider = new ParticleProvider(particle.auth);
+  const projectId = process.env.NEXT_PUBLIC_PARTICLE_PROJECT_ID;
+  const clientKey = process.env.NEXT_PUBLIC_PARTICLE_CLIENT_KEY;
+  const appId = process.env.NEXT_PUBLIC_PARTICLE_APP_ID;
+
+  if (projectId && clientKey && appId) {
+    try {
+      particle = new ParticleNetwork({
+        projectId,
+        clientKey,
+        appId,
+        chainName: 'Avalanche',
+        chainId: 43113,
+      });
+      particleProvider = new ParticleProvider(particle.auth);
+    } catch (error) {
+      console.error('Error initializing Particle Network:', error);
+    }
+  } else {
+    console.warn('Particle Network environment variables are missing. Social login will be disabled.');
+  }
 }
 
 interface WalletContextType {
@@ -46,6 +59,7 @@ function formatAddress(address: string | null): string {
   if (!address) return ''
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
+
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()

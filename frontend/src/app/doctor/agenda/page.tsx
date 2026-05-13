@@ -123,9 +123,9 @@ export default function DoctorAgendaPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: 'Total Citas', value: '12', icon: CalendarIcon, color: 'text-primary', bg: 'bg-primary/10' },
-            { label: 'Pacientes', value: '8', icon: Users, color: 'text-blue-600', bg: 'bg-blue-500/10' },
-            { label: 'Completadas', value: '4', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-            { label: 'Próximas', value: '3', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+            { label: 'Pacientes', value: '8', icon: Users, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10' },
+            { label: 'Completadas', value: '4', icon: CheckCircle2, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: 'Próximas', value: '3', icon: Clock, color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-500/10' },
           ].map((stat, i) => (
             <Card key={i} className="card-premium border-none shadow-sm overflow-hidden">
               <CardContent className="p-5">
@@ -182,7 +182,7 @@ export default function DoctorAgendaPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex gap-4">
                           <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black ${
-                            apt.id % 2 === 0 ? 'bg-blue-500/10 text-blue-600' : 'bg-indigo-500/10 text-indigo-600'
+                            apt.id % 2 === 0 ? 'bg-blue-500/10 text-blue-500 dark:text-blue-400' : 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400'
                           }`}>
                             {apt.patient.charAt(0)}
                           </div>
@@ -210,9 +210,9 @@ export default function DoctorAgendaPage() {
                         </div>
                         <div className="flex flex-col items-end gap-3">
                           <Badge className={`rounded-lg px-3 py-1 font-bold text-[11px] ${
-                            apt.status === 'Completada' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' : 
+                            apt.status === 'Completada' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/20' : 
                             apt.status === 'Confirmada' ? 'bg-primary/10 text-primary border-primary/20' : 
-                            'bg-orange-500/10 text-orange-600 border-orange-200'
+                            'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-200/20'
                           }`}>
                             {apt.status.toUpperCase()}
                           </Badge>
@@ -235,12 +235,12 @@ export default function DoctorAgendaPage() {
 
           {/* Sidebar Section */}
           <div className="lg:col-span-4 space-y-6">
-            <Card className="border-none shadow-lg overflow-hidden glass-dark text-white">
+            <Card className="border-none shadow-lg overflow-hidden bg-azul-profundo text-white">
               <div className="bg-gradient-premium p-6 pb-4">
                 <CardTitle className="text-xl font-black">Mi Calendario</CardTitle>
                 <CardDescription className="text-white/60 text-xs mt-1">Marzo 2024</CardDescription>
               </div>
-              <CardContent className="p-6 bg-white/5 backdrop-blur-sm">
+              <CardContent className="p-6 bg-white/10 backdrop-blur-sm">
                 {/* Simplified Calendar View */}
                 <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-black uppercase text-white/40 mb-4">
                   <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sa</span><span>Do</span>

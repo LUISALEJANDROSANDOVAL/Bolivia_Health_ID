@@ -1,6 +1,6 @@
 'use client'
 
-import { Menu, Bell, Moon, Sun } from 'lucide-react'
+import { Menu, Bell, Search, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -10,6 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { NotificationPanel } from '@/components/notification-panel'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -21,7 +23,7 @@ interface DoctorNavbarProps {
 }
 
 export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
-  const { doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
+  const { doctorId, doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
   const { isConnected, walletAddress, userName, connect } = useWallet()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -55,7 +57,15 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
           </h2>
         </div>
 
-
+        <div className="hidden md:flex flex-1 max-w-md mx-4">
+          <div className="relative w-full group">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-cyan-500 transition-colors" />
+            <Input
+              placeholder="Buscar paciente (CI, Health ID o Wallet)"
+              className="pl-10 bg-foreground/5 border-border/50 focus:border-cyan-500/50 rounded-xl"
+            />
+          </div>
+        </div>
 
         <div className="flex items-center gap-3">
           <Button
@@ -67,14 +77,7 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
             {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative h-11 w-11 text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all"
-          >
-            <Bell className="size-5" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-          </Button>
+          <NotificationPanel userId={doctorId} />
           
           <div className="hidden sm:block">
             <Button 

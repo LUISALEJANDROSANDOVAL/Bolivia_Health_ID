@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Lock, 
   Eye, 
@@ -18,9 +18,15 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
+import { useProfile } from '@/hooks/useProfile'
+import { useWallet } from '@/contexts/wallet-context'
 
 export function PrivacySettings() {
-  const [privacySettings, setPrivacySettings] = useState({
+  const { walletAddress } = useWallet()
+  const { profile, updateProfile } = useProfile(walletAddress)
+  const { toast } = useToast()
+
+  const defaultPrivacy = {
     profileVisibility: 'private',
     shareMedicalRecords: false,
     shareWithResearchers: false,
@@ -28,15 +34,42 @@ export function PrivacySettings() {
     anonymizedData: true,
     showOnlineStatus: true,
     allowMessagesFrom: 'contacts'
-  })
+  }
 
-  const { toast } = useToast()
+  const [privacySettings, setPrivacySettings] = useState(defaultPrivacy)
+
+  useEffect(() => {
+    if (profile?.preferences?.privacy) {
+      setPrivacySettings({ ...defaultPrivacy, ...profile.preferences.privacy })
+    }
+  }, [profile?.preferences?.privacy])
+
+  const saveToDatabase = async (newPrivacy: any) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          privacy: newPrivacy
+        }
+      })
+    } catch (err) {
+      console.error('Error saving privacy settings:', err)
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudieron guardar las configuraciones de privacidad.',
+        variant: 'destructive'
+      })
+    }
+  }
 
   const handleToggle = (setting: string) => {
-    setPrivacySettings(prev => ({
-      ...prev,
-      [setting]: !prev[setting as keyof typeof prev]
-    }))
+    const newValue = !privacySettings[setting as keyof typeof privacySettings]
+    const newSettings = {
+      ...privacySettings,
+      [setting]: newValue
+    }
+    setPrivacySettings(newSettings)
+    saveToDatabase(newSettings)
     toast({
       title: 'Configuración actualizada',
       description: 'Los cambios han sido aplicados correctamente',
@@ -71,7 +104,9 @@ export function PrivacySettings() {
                     : 'border-gray-200 hover:border-azul-electrico/30'
                 }`}
                 onClick={() => {
-                  setPrivacySettings(prev => ({ ...prev, profileVisibility: option.value }))
+                  const newSettings = { ...privacySettings, profileVisibility: option.value }
+                  setPrivacySettings(newSettings)
+                  saveToDatabase(newSettings)
                   toast({
                     title: 'Visibilidad actualizada',
                     description: `Tu perfil ahora es ${option.label.toLowerCase()}`,
@@ -173,7 +208,9 @@ export function PrivacySettings() {
                     : 'btn-outline-premium'
                   }
                   onClick={() => {
-                    setPrivacySettings(prev => ({ ...prev, allowMessagesFrom: option.value }))
+                    const newSettings = { ...privacySettings, allowMessagesFrom: option.value }
+                    setPrivacySettings(newSettings)
+                    saveToDatabase(newSettings)
                     toast({
                       title: 'Configuración actualizada',
                       description: `Ahora ${option.label.toLowerCase()} puede enviarte mensajes`,

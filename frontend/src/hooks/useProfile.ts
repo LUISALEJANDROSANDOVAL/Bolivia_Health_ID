@@ -12,6 +12,7 @@ export interface ProfileData {
   blood_type: string;
   allergies: string;
   cedula_identidad: string;
+  preferences?: any;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
@@ -22,7 +23,8 @@ const DEFAULT_PROFILE: ProfileData = {
   occupation: '',
   blood_type: '',
   allergies: '',
-  cedula_identidad: ''
+  cedula_identidad: '',
+  preferences: {}
 };
 
 export function useProfile(walletAddress: string | null) {
@@ -83,7 +85,8 @@ export function useProfile(walletAddress: string | null) {
             occupation: profileData?.occupation || '',
             cedula_identidad: profileData?.cedula_identidad || '',
             blood_type: vitalsData?.blood_type || '',
-            allergies: vitalsData?.allergies || ''
+            allergies: vitalsData?.allergies || '',
+            preferences: profileData?.preferences || {}
           });
         }
       } catch (err: any) {
@@ -143,7 +146,7 @@ export function useProfile(walletAddress: string | null) {
       address: dataToUpdate.address,
       occupation: dataToUpdate.occupation,
       cedula_identidad: dataToUpdate.cedula_identidad,
-      updated_at: new Date().toISOString()
+      preferences: dataToUpdate.preferences !== undefined ? dataToUpdate.preferences : profile.preferences
     };
 
     const vitalsPayload = {
@@ -194,8 +197,9 @@ export function useProfile(walletAddress: string | null) {
       setProfile(prev => ({ ...prev, ...dataToUpdate, id: currentProfileId }));
       return true;
     } catch (err: any) {
-      console.error('Error actualizando perfil:', err);
-      throw new Error(err.message || 'Fallo al actualizar el perfil en base de datos.');
+      console.error('Error completo de Supabase:', err);
+      const message = err?.message || err?.details || 'Fallo al actualizar el perfil. Verifica si creaste la columna preferences.';
+      throw new Error(message);
     }
   };
 

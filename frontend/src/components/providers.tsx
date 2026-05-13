@@ -12,24 +12,28 @@ import React, { useState, useEffect } from 'react';
 
 const queryClient = new QueryClient();
 
+// Configure Wagmi with Alchemy RPC or public RPC and Avalanche Fuji
+const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+const rpcUrl = alchemyKey 
+  ? `https://avax-fuji.g.alchemy.com/v2/${alchemyKey}`
+  : "https://api.avax-test.network/ext/bc/C/rpc";
+
 export const config = createConfig(
   getDefaultConfig({
     chains: [avalancheFuji],
     transports: {
-      [avalancheFuji.id]: http("https://api.avax-test.network/ext/bc/C/rpc"),
+      [avalancheFuji.id]: http(rpcUrl),
     },
-    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "3fcc6b4468bd93cb50976d31954a6d09", // ID de prueba público
+    walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "1234567890abcdef1234567890abcdef", 
     appName: "Bolivia Health ID",
   }),
 );
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) {
-    return <>{children}</>;
-  }
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <WagmiProvider config={config}>
@@ -43,7 +47,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 enableSystem
                 disableTransitionOnChange
               >
-                {children}
+                {/* 
+                   Evitamos renderizar los hijos hasta que el cliente esté montado
+                   para prevenir errores de hidratación, pero mantenemos los proveedores
+                   siempre presentes.
+                */}
+                {mounted ? children : null}
               </ThemeProvider>
             </DoctorAuthProvider>
           </WalletProvider>
