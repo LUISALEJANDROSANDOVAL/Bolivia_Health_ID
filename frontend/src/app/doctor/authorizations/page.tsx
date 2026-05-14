@@ -9,9 +9,13 @@ import { CheckCircle, XCircle, Clock, Shield, FileText, Users, Key, Activity, Se
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { RequestAuthorizationModal } from '@/components/request-authorization-modal'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/use-toast'
+import { sendNotification } from '@/lib/notifications'
 
 interface Authorization {
   id: string
+  patientId: string
   patient: string
   type: string
   status: string
@@ -20,10 +24,13 @@ interface Authorization {
 }
 
 export default function DoctorAuthorizationsPage() {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName } = useDoctorAuth()
+  const router = useRouter()
+  const { toast } = useToast()
   const [authorizations, setAuthorizations] = useState<Authorization[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const fetchAuthorizations = useCallback(async () => {
     if (!doctorId) return
@@ -36,6 +43,7 @@ export default function DoctorAuthorizationsPage() {
           status,
           created_at,
           expires_at,
+          patient_id,
           profiles!patient_id (full_name)
         `)
         .eq('doctor_id', doctorId)
@@ -45,6 +53,7 @@ export default function DoctorAuthorizationsPage() {
 
       const mapped: Authorization[] = (data || []).map((p: any) => ({
         id: p.id,
+        patientId: p.patient_id,
         patient: p.profiles?.full_name || 'Paciente Desconocido',
         type: 'Acceso Digital Seguro',
         status: p.status === 'pending' ? 'Pendiente' : p.status === 'active' ? 'Aprobado' : 'Rechazado',
@@ -85,6 +94,63 @@ export default function DoctorAuthorizationsPage() {
     }
   }, [fetchAuthorizations, doctorId])
 
+  const handleCancel = async (authId: string) => {
+    setActionLoading(authId)
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .delete()
+        .eq('id', authId)
+      
+      if (error) throw error
+
+      toast({
+        title: 'Solicitud cancelada',
+        description: 'La solicitud pendiente ha sido eliminada.'
+      })
+      
+      // Update local state to avoid waiting for real-time channel
+      setAuthorizations(prev => prev.filter(a => a.id !== authId))
+    } catch (err) {
+      console.error('Error cancelling auth:', err)
+      toast({
+        title: 'Error',
+        description: 'No se pudo cancelar la solicitud.',
+        variant: 'destructive'
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRemind = async (auth: Authorization) => {
+    if (!doctorId) return
+    setActionLoading('remind-' + auth.id)
+    try {
+      await sendNotification({
+        recipientId: auth.patientId,
+        senderId: doctorId,
+        title: 'Recordatorio de solicitud',
+        message: `El Dr. ${doctorName || 'su médico'} le recuerda que tiene una solicitud de acceso pendiente.`,
+        type: 'request',
+        link: '/permisos'
+      })
+      toast({
+        title: 'Recordatorio enviado',
+        description: `Se ha enviado un recordatorio a ${auth.patient}.`
+      })
+    } catch (err) {
+      console.error('Error sending reminder:', err)
+      toast({
+        title: 'Error',
+        description: 'Hubo un problema al enviar el recordatorio.',
+        variant: 'destructive'
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const stats = [
     {
       icon: Users,
@@ -122,7 +188,7 @@ export default function DoctorAuthorizationsPage() {
   return (
     <DoctorLayout>
       <div className="space-y-8 animate-slide-in p-6">
-        
+
         {/* Header con icono y gradiente */}
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -188,11 +254,11 @@ export default function DoctorAuthorizationsPage() {
             <h3 className="text-lg font-semibold text-azul-profundo">Solicitudes Recientes</h3>
             {loading && <div className="text-xs text-gris-grafito/60 animate-pulse">Actualizando lista...</div>}
           </div>
-          
+
           {!loading && authorizations.length === 0 ? (
             <div className="text-center py-12 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
-               <Shield className="size-10 text-slate-300 mx-auto mb-3" />
-               <p className="text-sm text-gris-grafito font-medium">No tienes solicitudes pendientes.</p>
+              <Shield className="size-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm text-gris-grafito font-medium">No tienes solicitudes pendientes.</p>
             </div>
           ) : authorizations.map((auth, i) => (
             <Card key={i} className="card-premium hover:border-azul-electrico/30 transition-all">
@@ -211,7 +277,7 @@ export default function DoctorAuthorizationsPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col sm:items-end gap-3">
                     {auth.status === 'Pendiente' && (
                       <Badge className="bg-amber-100/50 text-amber-700 border-amber-200">
@@ -228,15 +294,36 @@ export default function DoctorAuthorizationsPage() {
                         <XCircle className="size-3 mr-1" /> {auth.status}
                       </Badge>
                     )}
-                    
+
                     {auth.status === 'Pendiente' && (
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="text-xs hover:bg-slate-100">Cancelar</Button>
-                        <Button size="sm" className="btn-premium py-1 h-8 text-xs">Recordar</Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-xs hover:bg-slate-100"
+                          onClick={() => handleCancel(auth.id)}
+                          disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
+                        >
+                          {actionLoading === auth.id ? '...' : 'Cancelar'}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="btn-premium py-1 h-8 text-xs"
+                          onClick={() => handleRemind(auth)}
+                          disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
+                        >
+                          {actionLoading === 'remind-' + auth.id ? '...' : 'Recordar'}
+                        </Button>
                       </div>
                     )}
                     {auth.status === 'Aprobado' && (
-                      <Button size="sm" className="btn-outline-premium py-1 h-8 text-xs">Ver Historial</Button>
+                      <Button 
+                        size="sm" 
+                        className="btn-outline-premium py-1 h-8 text-xs"
+                        onClick={() => router.push(`/doctor/patients/${auth.patientId}`)}
+                      >
+                        Ver Historial
+                      </Button>
                     )}
                   </div>
                 </div>
