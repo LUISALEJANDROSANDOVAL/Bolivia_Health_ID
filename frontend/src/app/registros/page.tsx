@@ -1,14 +1,6 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import { DashboardLayout } from '@/components/dashboard-layout'
-import { MedicalRecords } from '@/components/medical-records'
-
+// Redirigir la ruta antigua /registros a /diagnosticos
 export default function RegistrosPage() {
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <MedicalRecords />
-      </div>
-    </DashboardLayout>
-  )
+  redirect('/diagnosticos')
 }

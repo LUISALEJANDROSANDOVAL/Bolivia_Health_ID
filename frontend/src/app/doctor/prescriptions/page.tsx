@@ -64,6 +64,14 @@ interface Medicine {
   concentration: string
 }
 
+interface DiagnosisCatalog {
+  id: string
+  code: string
+  description: string
+  category: string
+  is_chronic: boolean
+}
+
 // Eliminamos mockPatients estáticos para usar Supabase
 
 export default function DoctorPrescriptionsPage() {
@@ -93,6 +101,14 @@ export default function DoctorPrescriptionsPage() {
   const [medicineSuggestions, setMedicineSuggestions] = useState<Medicine[]>([])
   const [isSearchingMedicines, setIsSearchingMedicines] = useState(false)
   const [showMedicineDropdown, setShowMedicineDropdown] = useState(false)
+
+  // Diagnosis search states
+  const [diagnosisSuggestions, setDiagnosisSuggestions] = useState<DiagnosisCatalog[]>([])
+  const [isSearchingDiagnosis, setIsSearchingDiagnosis] = useState(false)
+  const [showDiagnosisDropdown, setShowDiagnosisDropdown] = useState(false)
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState<DiagnosisCatalog | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   const { walletAddress } = useWallet()
   const [doctorId, setDoctorId] = useState<string | null>(null)
@@ -195,6 +211,102 @@ export default function DoctorPrescriptionsPage() {
 
     return () => clearTimeout(timer)
   }, [newMed.name])
+
+  // Effect for diagnosis search
+  useEffect(() => {
+    const fetchDiagnosis = async () => {
+      if (!diagnosis || diagnosis.length < 2) {
+        setDiagnosisSuggestions([])
+        return
+      }
+      setIsSearchingDiagnosis(true)
+      const { data } = await supabase
+        .from('diagnosis_catalog')
+        .select('*')
+        .or(`code.ilike.%${diagnosis}%,description.ilike.%${diagnosis}%`)
+        .limit(8)
+      setDiagnosisSuggestions(data || [])
+      setIsSearchingDiagnosis(false)
+    }
+    const timer = setTimeout(fetchDiagnosis, 350)
+    return () => clearTimeout(timer)
+  }, [diagnosis])
+
+  const handleSubmitPrescription = async () => {
+    if (!selectedPatient || !diagnosis) return
+    setIsSaving(true)
+    try {
+      // 1. Guardar diagnóstico en medical_background
+      const { error: bgError } = await supabase
+        .from('medical_background')
+        .insert({
+          patient_id:   selectedPatient.id,
+          title: selectedDiagnosis
+            ? `${selectedDiagnosis.code} - ${selectedDiagnosis.description}`
+            : diagnosis,
+          description: [
+            reason       && `Motivo: ${reason}`,
+            anamnesis    && `Anamnesis: ${anamnesis}`,
+            physicalExam && `Examen físico: ${physicalExam}`,
+            observations && `Observaciones: ${observations}`,
+          ].filter(Boolean).join(' | '),
+          // Only 'consulta', 'vaccine', 'surgery' are valid
+          category:      'consulta',
+          status_detail: 'Completa',
+          doctor_id:     doctorId,
+          diagnosis_id:  selectedDiagnosis?.id ?? null,
+        })
+
+      if (bgError) {
+        console.error('Error medical_background:', bgError.message, bgError.details, bgError.hint)
+        throw bgError
+      }
+
+      // 2. Guardar cada medicamento en la tabla medications
+      if (medications.length > 0) {
+        const medsToInsert = medications.map(med => ({
+          patient_id: selectedPatient.id,
+          doctor_id:  doctorId,
+          name:       med.name,
+          dosage:     med.dose,
+          frequency:  med.frequency,
+          start_date: new Date().toISOString().split('T')[0],
+          end_date:   null,
+          status:     'active',
+          diagnosis_id: selectedDiagnosis?.id ?? null,
+          // medicine_id will be null unless the med was selected from catalog
+          medicine_id: medicineSuggestions.find(
+            m => m.generic_name === med.name || m.brand_name === med.name
+          )?.id ?? null,
+        }))
+
+        const { error: medError } = await supabase
+          .from('medications')
+          .insert(medsToInsert)
+
+        if (medError) {
+          console.error('Error medications:', medError.message, medError.details, medError.hint)
+          throw medError
+        }
+      }
+
+      setSaveSuccess(true)
+      // Reset form
+      setReason('')
+      setAnamnesis('')
+      setPhysicalExam('')
+      setDiagnosis('')
+      setObservations('')
+      setSelectedDiagnosis(null)
+      setMedications([])
+      setSelectedPatient(null)
+      setTimeout(() => setSaveSuccess(false), 4000)
+    } catch (err: any) {
+      console.error('Error al emitir receta:', err?.message || err?.code || JSON.stringify(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const addMedication = () => {
     if (newMed.name && newMed.dose && newMed.frequency) {
@@ -467,14 +579,56 @@ export default function DoctorPrescriptionsPage() {
                         <CheckCircle2 className="h-4 w-4 text-white" />
                       </div>
                       <div className="space-y-4 rounded-2xl bg-muted/20 p-5 border border-muted/50">
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                           <Label className="text-xs font-bold uppercase tracking-wider text-primary">4. Juicio Clínico (CIE-10)</Label>
-                          <Input 
-                            placeholder="Ej: E11.9 - Diabetes mellitus tipo 2"
-                            value={diagnosis}
-                            onChange={(e) => setDiagnosis(e.target.value)}
-                            className="h-11 rounded-xl border-muted focus:ring-primary/10 font-bold"
-                          />
+                          <div className="relative">
+                            <Input 
+                              placeholder="Ej: E11.9 - Diabetes mellitus tipo 2"
+                              value={diagnosis}
+                              onChange={(e) => {
+                                setDiagnosis(e.target.value)
+                                setSelectedDiagnosis(null)
+                                setShowDiagnosisDropdown(true)
+                              }}
+                              onFocus={() => setShowDiagnosisDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowDiagnosisDropdown(false), 200)}
+                              className="h-11 rounded-xl border-muted focus:ring-primary/10 font-bold pr-10"
+                            />
+                            {isSearchingDiagnosis && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            )}
+                            {showDiagnosisDropdown && diagnosisSuggestions.length > 0 && (
+                              <div className="absolute z-50 mt-1 w-full divide-y divide-muted rounded-xl border border-muted bg-card shadow-2xl animate-in fade-in zoom-in-95 overflow-hidden max-h-64 overflow-y-auto">
+                                {diagnosisSuggestions.map((diag) => (
+                                  <button
+                                    key={diag.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setDiagnosis(`${diag.code} - ${diag.description}`)
+                                      setSelectedDiagnosis(diag)
+                                      setShowDiagnosisDropdown(false)
+                                    }}
+                                    className="flex w-full flex-col p-3 text-left transition-colors hover:bg-primary/5 group/item"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-black text-sm text-foreground group-hover/item:text-primary transition-colors">
+                                        {diag.code}
+                                      </span>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {diag.is_chronic && (
+                                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-500 font-bold uppercase">Crónico</span>
+                                        )}
+                                        {diag.category && (
+                                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold uppercase">{diag.category}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground mt-0.5">{diag.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold text-muted-foreground">Observaciones Finales</Label>
@@ -730,14 +884,26 @@ export default function DoctorPrescriptionsPage() {
                     </div>
 
                     <div className="pt-4 border-t border-white/10">
+                      {saveSuccess && (
+                        <div className="flex items-center gap-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 p-3 text-emerald-400 text-sm font-bold mb-2">
+                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          Diagnóstico guardado en el perfil del paciente.
+                        </div>
+                      )}
                       <Button 
                         className="w-full bg-white text-primary hover:bg-white/90 h-14 rounded-2xl font-black text-base shadow-xl transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
-                        disabled={!selectedPatient || medications.length === 0}
+                        disabled={!selectedPatient || !diagnosis || isSaving}
+                        onClick={handleSubmitPrescription}
                       >
-                        Firmar y Emitir Receta
+                        {isSaving ? (
+                          <div className="flex items-center gap-2">
+                            <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            Guardando...
+                          </div>
+                        ) : 'Firmar y Emitir Receta'}
                       </Button>
                       <p className="text-[10px] text-center text-white/40 mt-4 leading-relaxed px-4">
-                        Al emitir esta receta, se generará una firma criptográfica única vinculada a su identidad profesional.
+                        Al emitir esta receta, se guardará el diagnóstico en el perfil del paciente y se generará una firma criptográfica única.
                       </p>
                     </div>
                   </CardContent>

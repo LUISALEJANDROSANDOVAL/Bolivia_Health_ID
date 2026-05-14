@@ -1,21 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  FileText, 
-  Search, 
-  Download, 
-  Eye, 
+import {
+  Stethoscope,
+  Search,
   ChevronRight,
   Calendar,
   User,
-  FileCheck,
   Upload,
   Share2,
-  File,
-  Image,
-  FileSpreadsheet,
-  Activity
+  FileText,
+  Activity,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  HeartPulse,
+  Syringe,
+  Filter,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,62 +29,75 @@ import {
 } from "@/components/ui/select"
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
+import Link from 'next/link'
 
-// Definición de tipos
-interface RecordItem {
+interface DiagnosisItem {
   id: string
   title: string
   date: string
-  type: string
+  category: string
+  status: string
   description: string
-  fileType: string
-  fileSize: string
-  fileUrl: string
+  doctor?: string
+  doctorSpecialty?: string
+  diagnosisCode?: string
+  diagnosisDescription?: string
+  isChronic?: boolean
 }
 
-// Configuración de tipos de registros
-const recordTypeConfig = {
-  laboratorio: { 
-    icon: FileSpreadsheet, 
-    bg: 'bg-blue-400/10', 
+const categoryConfig: Record<string, { icon: any; bg: string; color: string; border: string; label: string }> = {
+  consulta: {
+    icon: Stethoscope,
+    bg: 'bg-blue-500/15',
     color: 'text-blue-400',
-    label: 'Laboratorio'
+    border: 'border-blue-500/30',
+    label: 'Consulta',
   },
-  imagen: { 
-    icon: Image, 
-    bg: 'bg-purple-400/10', 
+  vaccine: {
+    icon: Syringe,
+    bg: 'bg-purple-500/15',
     color: 'text-purple-400',
-    label: 'Imagen'
+    border: 'border-purple-500/30',
+    label: 'Vacuna',
   },
-  consulta: { 
-    icon: Activity, 
-    bg: 'bg-emerald-400/10', 
-    color: 'text-emerald-400',
-    label: 'Consulta'
+  surgery: {
+    icon: HeartPulse,
+    bg: 'bg-rose-500/15',
+    color: 'text-rose-400',
+    border: 'border-rose-500/30',
+    label: 'Cirugía',
   },
-  receta: { 
-    icon: FileText, 
-    bg: 'bg-amber-400/10', 
-    color: 'text-amber-400',
-    label: 'Receta'
+  chronic: {
+    icon: Activity,
+    bg: 'bg-orange-500/15',
+    color: 'text-orange-400',
+    border: 'border-orange-500/30',
+    label: 'Crónico',
   },
-  certificado: { 
-    icon: FileCheck, 
-    bg: 'bg-teal-400/10', 
+  default: {
+    icon: FileText,
+    bg: 'bg-teal-500/15',
     color: 'text-teal-400',
-    label: 'Certificado'
-  }
+    border: 'border-teal-500/30',
+    label: 'Diagnóstico',
+  },
+}
+
+const statusConfig: Record<string, { icon: any; color: string; bg: string; label: string }> = {
+  Completa: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Completado' },
+  Pendiente: { icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-400/10',   label: 'Pendiente'  },
+  default:   { icon: XCircle,      color: 'text-white/40',    bg: 'bg-white/5',         label: 'Registrado' },
 }
 
 export function MedicalRecords() {
-  const { isDbConnected, walletAddress } = useWallet()
-  const [records, setRecords] = useState<RecordItem[]>([])
-  const [loading, setLoading] = useState(false)
+  const { walletAddress } = useWallet()
+  const [records, setRecords] = useState<DiagnosisItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('todos')
 
   useEffect(() => {
-    async function fetchRecords() {
+    async function fetchDiagnoses() {
       if (!walletAddress) return
       setLoading(true)
       try {
@@ -94,205 +108,231 @@ export function MedicalRecords() {
           .single()
 
         if (profile) {
-          const { data } = await supabase
-            .from('health_records')
-            .select('*')
+          const { data, error } = await supabase
+            .from('medical_background')
+            .select(`
+              *,
+              diagnosis_catalog (
+                code,
+                description,
+                is_chronic
+              ),
+              doctor:profiles!medical_background_doctor_id_fkey (
+                full_name,
+                specialty
+              )
+            `)
             .eq('patient_id', profile.id)
             .order('created_at', { ascending: false })
-          
-          const mapped: RecordItem[] = (data || []).map(r => {
-            let mappedType = 'receta'
-            if (r.category === 'Laboratorio') mappedType = 'laboratorio'
-            else if (r.category === 'Imágenes') mappedType = 'imagen'
-            else if (r.category === 'Receta') mappedType = 'receta'
-            else if (r.category === 'Certificado') mappedType = 'certificado'
 
-            return {
-              id: r.id,
-              title: r.title,
-              date: new Date(r.created_at).toLocaleDateString(),
-              type: mappedType,
-              description: `${r.category} - ${r.file_size}`,
-              fileType: 'pdf',
-              fileSize: r.file_size,
-              fileUrl: r.file_url ? `https://gateway.pinata.cloud/ipfs/${r.file_url}` : '#'
-            }
-          })
-          
+          if (error) console.error('Supabase error:', error)
+
+          const mapped: DiagnosisItem[] = (data || []).map(r => ({
+            id: r.id,
+            title: r.title,
+            date: new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+            category: r.category || 'consulta',
+            status: r.status_detail || 'Registrado',
+            description: r.description || '',
+            doctor: (r.doctor as any)?.full_name,
+            doctorSpecialty: (r.doctor as any)?.specialty,
+            diagnosisCode: (r.diagnosis_catalog as any)?.code,
+            diagnosisDescription: (r.diagnosis_catalog as any)?.description,
+            isChronic: (r.diagnosis_catalog as any)?.is_chronic,
+          }))
+
           setRecords(mapped)
         }
       } catch (err) {
-        console.error('Error fetching records:', err)
+        console.error('Error fetching diagnoses:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    if (isDbConnected) {
-      fetchRecords()
-    }
-  }, [isDbConnected, walletAddress])
+    fetchDiagnoses()
+  }, [walletAddress])
 
-  // Filtrar registros
   const filteredRecords = records.filter(record => {
-    const matchesSearch = record.title.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesType = selectedType === 'todos' || record.type === selectedType
+    const matchesSearch =
+      record.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (record.diagnosisCode?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+      (record.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+    const matchesType = selectedType === 'todos' || record.category === selectedType
     return matchesSearch && matchesType
   })
 
-  // Estadísticas
   const stats = {
-    total: records.length,
-    laboratorios: records.filter(r => r.type === 'laboratorio').length,
-    imagenes: records.filter(r => r.type === 'imagen').length,
-    recetas: records.filter(r => r.type === 'receta').length
+    total:     records.length,
+    consultas: records.filter(r => r.category === 'consulta').length,
+    recetas:   records.filter(r => r.category === 'chronic').length,
+    certs:     records.filter(r => r.category === 'vaccine' || r.category === 'surgery').length,
   }
 
   return (
     <div className="space-y-8 animate-slide-in">
-      
-      {/* Header con estadísticas */}
+
+      {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-2">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-electric">
-            <FileText className="size-6 text-white" />
+            <Activity className="size-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-foreground tracking-tight">Mis Registros Médicos</h1>
+            <h1 className="text-2xl lg:text-3xl font-black text-foreground tracking-tight">Mis Diagnósticos</h1>
             <p className="text-sm text-foreground/60 font-medium">
-              Documentos almacenados de forma segura en la red
+              Consultas, recetas y certificados de tu historial clínico
             </p>
           </div>
         </div>
-        
-        {/* Stats cards */}
+
+        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <div className="bg-foreground/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-border text-foreground font-bold">
-            <p className="text-2xl">{loading ? '...' : stats.total}</p>
-            <p className="text-xs text-foreground/50">Total</p>
+          <div className="bg-foreground/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-border">
+            <p className="text-2xl font-black text-foreground">{loading ? '…' : stats.total}</p>
+            <p className="text-xs text-foreground/50 font-bold uppercase tracking-widest mt-1">Total</p>
           </div>
-          <div className="bg-foreground/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-border text-blue-500 font-bold">
-            <p className="text-2xl">{loading ? '...' : stats.laboratorios}</p>
-            <p className="text-xs text-blue-500/60">Labs</p>
+          <div className="bg-blue-500/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-blue-500/20">
+            <p className="text-2xl font-black text-blue-400">{loading ? '…' : stats.consultas}</p>
+            <p className="text-xs text-blue-400/50 font-bold uppercase tracking-widest mt-1">Consultas</p>
           </div>
-          <div className="bg-foreground/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-border text-violet-500 font-bold">
-            <p className="text-2xl">{loading ? '...' : stats.imagenes}</p>
-            <p className="text-xs text-violet-500/60">Imágenes</p>
+          <div className="bg-orange-500/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-orange-500/20">
+            <p className="text-2xl font-black text-orange-400">{loading ? '…' : stats.recetas}</p>
+            <p className="text-xs text-orange-400/50 font-bold uppercase tracking-widest mt-1">Crónicos</p>
           </div>
-          <div className="bg-foreground/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-border text-amber-500 font-bold">
-            <p className="text-2xl">{loading ? '...' : stats.recetas}</p>
-            <p className="text-xs text-amber-500/60">Recetas</p>
+          <div className="bg-purple-500/5 backdrop-blur-sm p-4 text-center rounded-2xl border border-purple-500/20">
+            <p className="text-2xl font-black text-purple-400">{loading ? '…' : stats.certs}</p>
+            <p className="text-xs text-purple-400/50 font-bold uppercase tracking-widest mt-1">Vacunas / Cirugías</p>
           </div>
         </div>
       </div>
 
-      {/* Filtros y búsqueda */}
+      {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/40" />
+          <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-foreground/40" />
           <Input
-            placeholder="Buscar por título..."
+            placeholder="Buscar por nombre o código CIE-10..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-11 bg-foreground/5 border-border text-foreground placeholder:text-foreground/30"
           />
         </div>
-        
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <div className="w-[180px] shrink-0">
             <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger className="h-10 bg-foreground/5 border-border text-foreground hover:border-primary/50 transition-colors">
+                <Filter className="size-3.5 mr-2 text-foreground/40" />
                 <SelectValue placeholder="Todos los tipos" />
               </SelectTrigger>
               <SelectContent className="bg-background border-border">
-                <SelectItem value="todos" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Todos los tipos</SelectItem>
-                <SelectItem value="laboratorio" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Laboratorio</SelectItem>
-                <SelectItem value="imagen" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Imágenes</SelectItem>
-                <SelectItem value="receta" className="hover:bg-foreground/10 focus:bg-foreground/10 cursor-pointer">Recetas</SelectItem>
+                <SelectItem value="todos">Todos los tipos</SelectItem>
+                <SelectItem value="consulta">Consultas</SelectItem>
+                <SelectItem value="chronic">Crónicos</SelectItem>
+                <SelectItem value="vaccine">Vacunas</SelectItem>
+                <SelectItem value="surgery">Cirugías</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          
-          <Button className="bg-foreground text-background font-black rounded-xl px-6 py-2 shadow-lg hover:scale-105 transition-all">
-            <Upload className="size-4 mr-2" />
-            Subir registro
-          </Button>
+          <Link href="/subir">
+            <Button className="bg-gradient-electric text-white font-black rounded-xl px-5 h-10 shadow-lg hover:scale-105 transition-all border-none">
+              <Upload className="size-4 mr-2" />
+              Subir
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* Lista de registros */}
+      {/* List */}
       <div className="space-y-4">
         {loading ? (
-           <div className="py-20 text-center text-foreground/40 font-bold uppercase tracking-widest animate-pulse">Cargando registros...</div>
+          <div className="py-20 text-center text-foreground/40 font-bold uppercase tracking-widest animate-pulse">
+            Cargando diagnósticos…
+          </div>
         ) : filteredRecords.length === 0 ? (
-          <div className="bg-foreground/5 border border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center transition-all hover:scale-[1.01] group">
-            <div className="size-20 rounded-2xl bg-foreground/5 border border-dashed border-border flex items-center justify-center mb-6 overflow-hidden relative">
+          <div className="bg-foreground/5 border border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center group hover:scale-[1.01] transition-all">
+            <div className="size-20 rounded-2xl bg-foreground/5 border border-dashed border-border flex items-center justify-center mb-6 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-electric opacity-0 group-hover:opacity-10 transition-opacity" />
-              <FileText className="size-10 text-foreground/20 group-hover:text-cyan-500 transition-all group-hover:scale-110" />
+              <Stethoscope className="size-10 text-foreground/20 group-hover:text-cyan-500 transition-all group-hover:scale-110" />
             </div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-foreground/40 text-center max-w-xs leading-relaxed">
-              No se encontraron registros médicos para esta cuenta.
+            <h3 className="text-lg font-black text-foreground tracking-tight uppercase">Sin diagnósticos registrados</h3>
+            <p className="text-sm text-foreground/40 mt-1 font-medium text-center max-w-xs">
+              Los diagnósticos emitidos por tu médico aparecerán aquí.
             </p>
           </div>
         ) : (
           filteredRecords.map((record) => {
-            const TypeConfig = recordTypeConfig[record.type as keyof typeof recordTypeConfig] || recordTypeConfig.laboratorio
-            const TypeIcon = TypeConfig.icon
+            const cfg = categoryConfig[record.category] ?? categoryConfig.default
+            const TypeIcon = cfg.icon
+            const scfg = statusConfig[record.status] ?? statusConfig.default
+            const StatusIcon = scfg.icon
 
             return (
-              <div key={record.id} className="bg-foreground/5 backdrop-blur-sm p-6 rounded-2xl border border-border hover:border-primary/30 transition-all group">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                  <div className={`size-16 rounded-2xl ${TypeConfig.bg} flex items-center justify-center shrink-0`}>
-                    <TypeIcon className={`size-8 ${TypeConfig.color}`} />
+              <div
+                key={record.id}
+                className={`${cfg.bg} border ${cfg.border} backdrop-blur-sm rounded-2xl p-5 hover:scale-[1.01] transition-all group`}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+                  {/* Icon */}
+                  <div className={`size-14 rounded-2xl ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
+                    <TypeIcon className={`size-7 ${cfg.color}`} />
                   </div>
-                  
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-xl font-black text-foreground group-hover:text-cyan-500 transition-colors tracking-tight">
-                          {record.title}
-                        </h3>
-                        <p className="text-sm text-foreground/40 mt-1">{record.description}</p>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                          {cfg.label}
+                        </span>
+                        {record.isChronic && (
+                          <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                            Crónico
+                          </span>
+                        )}
+                        <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full ${scfg.bg}`}>
+                          <StatusIcon className={`size-3 ${scfg.color}`} />
+                          <span className={`text-[10px] font-bold uppercase ${scfg.color}`}>{scfg.label}</span>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-foreground/40 hover:text-cyan-500 hover:bg-foreground/5"
-                          onClick={() => window.open(record.fileUrl, '_blank')}
-                        >
-                          <Eye className="size-5 mr-2" />
-                          Ver
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-foreground/40 hover:text-emerald-400 hover:bg-foreground/5"
-                          onClick={() => window.open(record.fileUrl, '_blank')}
-                        >
-                          <Download className="size-5" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 flex flex-wrap gap-6 text-xs text-foreground/40">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-foreground/40">
                         <Calendar className="size-3.5 text-cyan-500" />
-                        <span>Subido: {record.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <User className="size-3.5 text-blue-400" />
-                        <span>Bolivia Health ID</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <File className="size-3.5 text-amber-500" />
-                        <span>{record.fileSize}</span>
+                        <span>{record.date}</span>
                       </div>
                     </div>
+
+                    <h3 className={`text-base font-black text-foreground group-hover:${cfg.color} transition-colors tracking-tight`}>
+                      {record.title}
+                    </h3>
+
+                    {/* CIE-10 badge */}
+                    {record.diagnosisCode && (
+                      <div className="mt-1 inline-flex items-center gap-1.5 text-xs bg-foreground/10 px-2.5 py-1 rounded-lg">
+                        <span className="font-black text-cyan-400">{record.diagnosisCode}</span>
+                        {record.diagnosisDescription && (
+                          <span className="text-foreground/60">{record.diagnosisDescription}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {record.description && (
+                      <p className="text-sm text-foreground/50 mt-2 leading-relaxed line-clamp-2">
+                        {record.description}
+                      </p>
+                    )}
+
+                    {/* Meta */}
+                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-foreground/40">
+                      {record.doctor && (
+                        <div className="flex items-center gap-1.5">
+                          <User className="size-3.5 text-cyan-500" />
+                          <span>{record.doctor}{record.doctorSpecialty ? ` · ${record.doctorSpecialty}` : ''}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  
-                  <ChevronRight className="size-6 text-foreground/20 group-hover:text-cyan-500 transition-all" />
+
+                  <ChevronRight className={`size-5 text-foreground/20 group-hover:${cfg.color} transition-all shrink-0 self-center`} />
                 </div>
               </div>
             )
@@ -300,7 +340,7 @@ export function MedicalRecords() {
         )}
       </div>
 
-      {/* Banner de acción */}
+      {/* Banner */}
       <div className="bg-gradient-electric rounded-3xl p-8 relative overflow-hidden shadow-2xl">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
           <div className="flex items-center gap-6">
@@ -308,13 +348,15 @@ export function MedicalRecords() {
               <Share2 className="size-8 text-white" />
             </div>
             <div className="text-white">
-              <h3 className="text-xl font-black tracking-tight">¿Necesitas compartir estos registros?</h3>
-              <p className="text-white/80 font-medium">Comparte de forma segura tus resultados con médicos y especialistas.</p>
+              <h3 className="text-xl font-black tracking-tight">¿Necesitas compartir tu historial?</h3>
+              <p className="text-white/80 font-medium">Comparte de forma segura tus diagnósticos con médicos y especialistas.</p>
             </div>
           </div>
-          <Button className="bg-white text-cyan-600 hover:scale-105 px-10 py-7 text-lg font-black rounded-2xl shadow-xl transition-all border-none">
-            Compartir Ahora
-          </Button>
+          <Link href="/permisos">
+            <Button className="bg-white text-cyan-600 hover:scale-105 px-10 py-7 text-lg font-black rounded-2xl shadow-xl transition-all border-none">
+              Gestionar Permisos
+            </Button>
+          </Link>
         </div>
       </div>
 

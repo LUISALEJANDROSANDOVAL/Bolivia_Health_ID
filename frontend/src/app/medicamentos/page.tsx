@@ -5,27 +5,14 @@ import { DashboardLayout } from '@/components/dashboard-layout'
 import { 
   Pill, 
   Search, 
-  Filter, 
   Calendar, 
   ChevronRight,
-  Plus,
-  Clock,
   CheckCircle2,
   XCircle,
-  Bell,
-  BellOff,
-  Trash2,
-  Edit,
   CalendarDays,
-  Timer,
-  Shield,
-  Sparkles,
-  Package,
-  AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 
@@ -33,23 +20,16 @@ import { useWallet } from '@/contexts/wallet-context'
 interface Medication {
   id: string
   name: string
+  genericName?: string
+  brandName?: string
+  form?: string
   dosage: string
   frequency: string
   startDate: string
   endDate: string | null
   status: 'activo' | 'completado' | 'suspendido'
-  reminders: boolean
-  form?: 'tableta' | 'capsula' | 'inyeccion' | 'jarabe' | 'crema'
-}
-
-// Imágenes de medicamentos
-const medicationImages: Record<string, { icon: string, color: string, bgGradient: string }> = {
-  'Metformina': { icon: '💊', color: 'text-emerald-400', bgGradient: 'bg-emerald-400/10' },
-  'Losartán': { icon: '❤️', color: 'text-rose-400', bgGradient: 'bg-rose-400/10' },
-  'Amoxicilina': { icon: '🦠', color: 'text-blue-400', bgGradient: 'bg-blue-400/10' },
-  'Atorvastatina': { icon: '⭐', color: 'text-purple-400', bgGradient: 'bg-purple-400/10' },
-  'Paracetamol': { icon: '💊', color: 'text-amber-400', bgGradient: 'bg-amber-400/10' },
-  'default': { icon: '💊', color: 'text-white', bgGradient: 'bg-white/10' }
+  diagnosisCode?: string
+  diagnosisDesc?: string
 }
 
 // Configuración de estados
@@ -59,30 +39,42 @@ const statusConfig = {
     color: 'text-emerald-400', 
     bg: 'bg-emerald-400/10', 
     label: 'Activo',
-    borderColor: 'border-emerald-400/20'
+    borderColor: 'border-emerald-400/30'
   },
   completado: { 
     icon: CheckCircle2, 
     color: 'text-white/40', 
     bg: 'bg-white/5', 
     label: 'Completado',
-    borderColor: 'border-white/5'
+    borderColor: 'border-white/10'
   },
   suspendido: { 
     icon: XCircle, 
     color: 'text-rose-400', 
     bg: 'bg-rose-400/10', 
     label: 'Suspendido',
-    borderColor: 'border-rose-400/20'
+    borderColor: 'border-rose-400/30'
   }
 }
 
+// Pill icon by form
+const formEmoji: Record<string, string> = {
+  'tableta': '💊',
+  'cápsula': '💊',
+  'capsula': '💊',
+  'inyección': '💉',
+  'inyeccion': '💉',
+  'jarabe': '🧴',
+  'crema': '🧴',
+  'gotas': '💧',
+  'default': '💊',
+}
+
 export default function MedicamentosPage() {
-  const { isDbConnected, walletAddress } = useWallet()
+  const { walletAddress } = useWallet()
   const [medications, setMedications] = useState<Medication[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<string>('todos')
   const [viewMode, setViewMode] = useState<'activos' | 'historial'>('activos')
 
   useEffect(() => {
@@ -97,23 +89,51 @@ export default function MedicamentosPage() {
           .single()
 
         if (profile) {
-          const { data } = await supabase
+          const { data, error } = await supabase
             .from('medications')
-            .select('*')
+            .select(`
+              *,
+              medicine_catalog (
+                generic_name,
+                brand_name,
+                form,
+                concentration
+              ),
+              diagnosis_catalog (
+                code,
+                description
+              )
+            `)
             .eq('patient_id', profile.id)
-          
-          const mapped: Medication[] = (data || []).map(m => ({
-            id: m.id,
-            name: m.name,
-            dosage: m.dosage,
-            frequency: m.frequency,
-            startDate: m.start_date || new Date(m.created_at).toLocaleDateString(),
-            endDate: m.end_date,
-            status: m.status === 'active' ? 'activo' : 'completado' as any,
-            reminders: true,
-            form: 'tableta'
-          }))
-          
+            .order('created_at', { ascending: false })
+
+          if (error) console.error('Error medications:', error)
+
+          const mapped: Medication[] = (data || []).map(m => {
+            const med = m.medicine_catalog as any
+            const diag = m.diagnosis_catalog as any
+            return {
+              id: m.id,
+              name: med?.generic_name || m.name,
+              genericName: med?.generic_name,
+              brandName: med?.brand_name,
+              form: med?.form?.toLowerCase(),
+              dosage: m.dosage || med?.concentration || '',
+              frequency: m.frequency || '',
+              startDate: m.start_date
+                ? new Date(m.start_date).toLocaleDateString('es-ES')
+                : new Date(m.created_at).toLocaleDateString('es-ES'),
+              endDate: m.end_date
+                ? new Date(m.end_date).toLocaleDateString('es-ES')
+                : null,
+              status: m.status === 'active' ? 'activo'
+                : m.status === 'suspended' ? 'suspendido'
+                : 'completado',
+              diagnosisCode: diag?.code,
+              diagnosisDesc: diag?.description,
+            }
+          })
+
           setMedications(mapped)
         }
       } catch (err) {
@@ -123,19 +143,16 @@ export default function MedicamentosPage() {
       }
     }
 
-    if (isDbConnected) {
-      fetchMeds()
-    }
-  }, [isDbConnected, walletAddress])
+    fetchMeds()
+  }, [walletAddress])
 
   // Filtrar medicamentos
   const filteredMedications = medications.filter(med => {
     const matchesSearch = med.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = selectedStatus === 'todos' || med.status === selectedStatus
-    const matchesView = viewMode === 'activos' 
-      ? med.status === 'activo' 
+    const matchesView = viewMode === 'activos'
+      ? med.status === 'activo'
       : med.status !== 'activo'
-    return matchesSearch && matchesStatus && matchesView
+    return matchesSearch && matchesView
   })
 
   // Estadísticas
@@ -222,13 +239,13 @@ export default function MedicamentosPage() {
             filteredMedications.map((med) => {
               const Status = statusConfig[med.status]
               const StatusIcon = Status.icon
-              const medImage = medicationImages[med.name] || medicationImages.default
-              
+              const emoji = formEmoji[med.form ?? 'default'] ?? formEmoji.default
+
               return (
                 <div key={med.id} className={`bg-foreground/5 backdrop-blur-sm p-6 rounded-2xl border border-border hover:border-primary/30 transition-all group border-l-4 ${Status.borderColor}`}>
                   <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                    <div className={`size-16 rounded-2xl ${medImage.bgGradient} flex items-center justify-center shrink-0`}>
-                      <span className="text-3xl">{medImage.icon}</span>
+                    <div className="size-16 rounded-2xl bg-foreground/10 flex items-center justify-center shrink-0">
+                      <span className="text-3xl">{emoji}</span>
                     </div>
                     
                     <div className="flex-1">
@@ -237,11 +254,21 @@ export default function MedicamentosPage() {
                           <h3 className="text-xl font-black text-foreground group-hover:text-cyan-500 transition-colors tracking-tight uppercase">
                             {med.name}
                           </h3>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="text-sm text-cyan-500 font-bold uppercase tracking-wider">{med.dosage}</span>
-                            <span className="text-foreground/20">•</span>
-                            <span className="text-sm text-foreground/60 font-medium">{med.frequency}</span>
+                          {med.brandName && med.brandName !== med.name && (
+                            <p className="text-xs text-foreground/40 mt-0.5">Marca: <span className="font-bold text-foreground/60">{med.brandName}</span></p>
+                          )}
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {med.dosage && <span className="text-sm text-cyan-500 font-bold uppercase tracking-wider">{med.dosage}</span>}
+                            {med.dosage && med.frequency && <span className="text-foreground/20">•</span>}
+                            {med.frequency && <span className="text-sm text-foreground/60 font-medium">{med.frequency}</span>}
+                            {med.form && <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-foreground/10 text-foreground/50">{med.form}</span>}
                           </div>
+                          {med.diagnosisCode && (
+                            <div className="mt-1 inline-flex items-center gap-1.5 text-xs bg-blue-500/10 px-2 py-0.5 rounded-lg">
+                              <span className="font-black text-blue-400">{med.diagnosisCode}</span>
+                              {med.diagnosisDesc && <span className="text-foreground/50">{med.diagnosisDesc}</span>}
+                            </div>
+                          )}
                         </div>
                         
                         <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${Status.bg}`}>
@@ -261,22 +288,10 @@ export default function MedicamentosPage() {
                             <span>Fin: {med.endDate}</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          <Shield className="size-3.5 text-blue-400" />
-                          <span>Bolivia Health Network</span>
-                        </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" className="text-foreground/40 hover:text-cyan-500 hover:bg-foreground/5">
-                        <Edit className="size-5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-white/40 hover:text-rose-400 hover:bg-white/5">
-                        <Trash2 className="size-5" />
-                      </Button>
-                      <ChevronRight className="size-6 text-foreground/20 group-hover:text-cyan-500 transition-all" />
-                    </div>
+                    <ChevronRight className="size-6 text-foreground/20 group-hover:text-cyan-500 transition-all" />
                   </div>
                 </div>
               )

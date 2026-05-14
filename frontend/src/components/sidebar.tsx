@@ -6,15 +6,18 @@ import {
   Upload,
   ClipboardList,
   Pill,
+  Stethoscope,
+  FlaskConical,
 } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
 import { SidebarBase, NavItem } from '@/components/ui/sidebar-base'
 
 const navigationItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Historial Médico', href: '/historial', icon: ClipboardList },
+  { title: 'Línea del Tiempo', href: '/historial', icon: ClipboardList },
   { title: 'Medicamentos', href: '/medicamentos', icon: Pill },
-  { title: 'Mis Registros', href: '/registros', icon: FileText },
+  { title: 'Mis Diagnósticos', href: '/diagnosticos', icon: Stethoscope },
+  { title: 'Mis Estudios', href: '/estudios', icon: FlaskConical },
   { title: 'Permisos', href: '/permisos', icon: Shield },
   { title: 'Subir Archivos', href: '/subir', icon: Upload },
   { title: 'Configuración', href: '/configuracion', icon: Settings },
