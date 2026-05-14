@@ -45,6 +45,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
+import { Toaster } from 'sonner'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,6 +58,7 @@ export default function RootLayout({
         <ClientWrapper>
           {children}
         </ClientWrapper>
+        <Toaster position="top-center" richColors />
         <Analytics />
       </body>
     </html>
