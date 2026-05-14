@@ -8,6 +8,7 @@ import { Search, Eye, Filter, User, Calendar, Shield, Loader2 } from 'lucide-rea
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { NewAppointmentModal } from '@/components/new-appointment-modal'
 
 interface Patient {
   id: string
@@ -85,13 +86,15 @@ export default function DoctorPatientsPage() {
             <p className="text-sm text-foreground/50 font-bold uppercase tracking-widest mt-1">Directorio con acceso autorizado</p>
           </div>
           <div className="flex gap-2">
-             <Button variant="ghost" className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10">
+             <Button 
+               variant="ghost" 
+               className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10"
+               onClick={() => fetchPatients()}
+             >
                <Filter className="size-4 mr-2" />
                Filtrar
              </Button>
-             <Button className="bg-gradient-electric text-azul-profundo font-black rounded-2xl h-12 px-8 border-none hover:scale-105 transition-all">
-               Nueva Consulta
-             </Button>
+             <NewAppointmentModal onAppointmentCreated={fetchPatients} />
           </div>
         </div>
 

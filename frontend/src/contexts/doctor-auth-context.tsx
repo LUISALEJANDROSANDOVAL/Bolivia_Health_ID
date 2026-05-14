@@ -10,6 +10,7 @@ interface DoctorAuthContextType {
   doctorName: string | null
   doctorLicense: string | null
   doctorId: string | null
+  doctorSpecialty: string | null
   loading: boolean
   refreshProfile: () => Promise<void>
 }
@@ -20,6 +21,7 @@ const defaultValue: DoctorAuthContextType = {
   doctorName: null,
   doctorLicense: null,
   doctorId: null,
+  doctorSpecialty: null,
   loading: false,
   refreshProfile: async () => {},
 }
@@ -31,6 +33,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
   const [doctorName, setDoctorName] = useState<string | null>(null)
   const [doctorLicense, setDoctorLicense] = useState<string | null>(null)
   const [doctorId, setDoctorId] = useState<string | null>(null)
+  const [doctorSpecialty, setDoctorSpecialty] = useState<string | null>(null)
   const [isDoctorAuthenticated, setIsDoctorAuthenticated] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -46,6 +49,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
       if (data && data.role === 'medico') {
         setDoctorName(data.full_name)
         setDoctorId(data.id)
+        setDoctorSpecialty(data.specialty || 'General')
         // Usamos la cédula o un campo de licencia si existe, si no, uno por defecto
         setDoctorLicense(data.cedula_identidad || 'LIC-BOL-ACTIVA')
         setIsDoctorAuthenticated(true)
@@ -53,6 +57,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         setIsDoctorAuthenticated(false)
         setDoctorName(null)
         setDoctorId(null)
+        setDoctorSpecialty(null)
         setDoctorLicense(null)
       }
     } catch (err) {
@@ -71,6 +76,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
       setDoctorName(null)
       setDoctorLicense(null)
       setDoctorId(null)
+      setDoctorSpecialty(null)
     }
   }, [isConnected, address, fetchDoctorProfile])
 
@@ -82,6 +88,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         doctorName,
         doctorLicense,
         doctorId,
+        doctorSpecialty,
         loading,
         refreshProfile: async () => { if (address) await fetchDoctorProfile(address) }
       }}

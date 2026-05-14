@@ -27,7 +27,7 @@ interface Patient {
 }
 
 export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCreated?: () => void }) {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName, doctorSpecialty } = useDoctorAuth()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [patients, setPatients] = useState<Patient[]>([])
@@ -70,7 +70,13 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!doctorId) return
+    console.log('Submitting appointment form...', { doctorId, formData })
+
+    if (!doctorId) {
+      toast.error('Error: No se detectó la sesión del doctor. Por favor, reintenta el login.')
+      return
+    }
+
     if (!formData.patient_id) {
       toast.error('Por favor seleccione un paciente')
       return
@@ -78,17 +84,35 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
 
     setLoading(true)
     try {
-      const { error } = await supabase
+      const appointmentData = {
+        patient_id: formData.patient_id,
+        doctor_id: doctorId,
+        doctor_name: doctorName || 'Doctor',
+        specialty: doctorSpecialty || 'General',
+        appointment_date: formData.appointment_date,
+        appointment_time: formData.appointment_time,
+        end_time: formData.end_time,
+        location: formData.location,
+        type: formData.location === 'Telemedicina' ? 'virtual' : 'presencial',
+        priority: formData.priority,
+        reason: formData.reason,
+        notes: formData.notes,
+        status: 'scheduled'
+      }
+
+      console.log('Inserting into Supabase:', appointmentData)
+
+      const { data, error } = await supabase
         .from('appointments')
-        .insert([{
-          ...formData,
-          doctor_id: doctorId,
-          type: formData.location === 'Telemedicina' ? 'virtual' : 'presencial',
-          status: 'scheduled'
-        }])
+        .insert([appointmentData])
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase Insert Error:', error)
+        throw error
+      }
 
+      console.log('Insert successful:', data)
       toast.success('Cita programada con éxito')
       setOpen(false)
       if (onAppointmentCreated) onAppointmentCreated()
@@ -104,9 +128,9 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
         reason: 'Consulta General',
         notes: ''
       })
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating appointment:', err)
-      toast.error('Error al crear la cita')
+      toast.error(`Error al crear la cita: ${err.message || 'Error desconocido'}`)
     } finally {
       setLoading(false)
     }
