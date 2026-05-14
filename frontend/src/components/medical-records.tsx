@@ -100,16 +100,24 @@ export function MedicalRecords() {
             .eq('patient_id', profile.id)
             .order('created_at', { ascending: false })
           
-          const mapped: RecordItem[] = (data || []).map(r => ({
-            id: r.id,
-            title: r.title,
-            date: new Date(r.created_at).toLocaleDateString(),
-            type: r.category === 'Laboratorio' ? 'laboratorio' : r.category === 'Imágenes' ? 'imagen' : 'receta',
-            description: `${r.category} - ${r.file_size}`,
-            fileType: 'pdf',
-            fileSize: r.file_size,
-            fileUrl: r.file_url ? `https://gateway.pinata.cloud/ipfs/${r.file_url}` : '#'
-          }))
+          const mapped: RecordItem[] = (data || []).map(r => {
+            let mappedType = 'receta'
+            if (r.category === 'Laboratorio') mappedType = 'laboratorio'
+            else if (r.category === 'Imágenes') mappedType = 'imagen'
+            else if (r.category === 'Receta') mappedType = 'receta'
+            else if (r.category === 'Certificado') mappedType = 'certificado'
+
+            return {
+              id: r.id,
+              title: r.title,
+              date: new Date(r.created_at).toLocaleDateString(),
+              type: mappedType,
+              description: `${r.category} - ${r.file_size}`,
+              fileType: 'pdf',
+              fileSize: r.file_size,
+              fileUrl: r.file_url ? `https://gateway.pinata.cloud/ipfs/${r.file_url}` : '#'
+            }
+          })
           
           setRecords(mapped)
         }

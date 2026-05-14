@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useWallet } from '@/contexts/wallet-context'
 import { supabase } from '@/lib/supabase'
+import CryptoJS from 'crypto-js'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,7 +21,8 @@ import {
   Smartphone,
   Wallet,
   Droplets,
-  AlertTriangle
+  AlertTriangle,
+  Lock
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
@@ -46,7 +48,9 @@ export default function RegisterPage() {
     licenciaMedica: '',
     // Si es paciente
     tipoSangre: '',
-    alergias: ''
+    alergias: '',
+    // Password
+    password: ''
   })
 
   // Handle setting role if we arrived via "Crear cuenta" from login
@@ -80,12 +84,15 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     try {
+      const hashedPassword = CryptoJS.SHA256(formData.password).toString()
+
       const updates: any = {
         full_name: formData.nombreCompleto,
         cedula_identidad: formData.cedula,
         phone: formData.telefono,
         address: formData.direccion,
-        role: role
+        role: role,
+        password_hash: hashedPassword
       }
 
       const { error } = await supabase
@@ -262,6 +269,27 @@ export default function RegisterPage() {
                           onChange={handleChange}
                           required
                         />
+                      </Field>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-1">
+                      <Field>
+                        <FieldLabel className="flex items-center gap-2">
+                          <Lock className="size-4 text-primary" />
+                          Contraseña de Acceso
+                        </FieldLabel>
+                        <Input
+                          name="password"
+                          type="password"
+                          placeholder="Crea una contraseña segura"
+                          value={formData.password}
+                          onChange={handleChange}
+                          required
+                          minLength={6}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Esta contraseña te servirá como capa extra de seguridad para tu identidad médica.
+                        </p>
                       </Field>
                     </div>
 

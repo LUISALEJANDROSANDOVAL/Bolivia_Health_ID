@@ -8,7 +8,7 @@ import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 const queryClient = new QueryClient();
 
@@ -31,6 +31,7 @@ export const config = createConfig(
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);

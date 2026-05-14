@@ -34,6 +34,7 @@ import {
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
+import { MockDataGenerator } from '@/components/mock-data-generator'
 
 // Tipos de datos
 interface HistoryRecord {
@@ -100,7 +101,7 @@ export default function HistorialPage() {
               id: b.id,
               title: b.title,
               description: b.description,
-              date: b.date_recorded || new Date(b.created_at).toLocaleDateString(),
+              date: new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               type: (b.category === 'surgery' ? 'cirugia' : b.category === 'vaccine' ? 'vacuna' : 'consulta') as any,
               status: (b.status_detail === 'Completa' ? 'completado' : 'pendiente') as any,
               attachments: 0
@@ -109,7 +110,7 @@ export default function HistorialPage() {
               id: h.id,
               title: h.title,
               description: `${h.category} - ${h.file_size}`,
-              date: new Date(h.created_at).toLocaleDateString(),
+              date: new Date(h.created_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               type: (h.category === 'Recetas' ? 'receta' : 'examen') as any,
               status: 'completado' as any,
               attachments: 1
@@ -249,6 +250,9 @@ export default function HistorialPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Generador de datos (sólo para pruebas) */}
+          <MockDataGenerator onGenerate={() => window.location.reload()} />
         </div>
 
         {/* Lista de registros */}
