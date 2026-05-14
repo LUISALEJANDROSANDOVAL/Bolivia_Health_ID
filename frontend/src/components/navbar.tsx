@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { useWallet } from '@/contexts/wallet-context'
+import { NotificationPanel } from '@/components/notification-panel'
+import { useProfile } from '@/hooks/useProfile'
 
 interface NavbarProps {
   onMenuClick: () => void
@@ -14,6 +16,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const { isConnected, walletAddress, userName, connect } = useWallet()
+  const { profile } = useProfile(walletAddress)
 
   useEffect(() => setMounted(true), [])
 
@@ -48,14 +51,7 @@ export function Navbar({ onMenuClick }: NavbarProps) {
             {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
           
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative h-11 w-11 min-w-[44px] text-foreground/60 hover:bg-foreground/10 hover:text-cyan-500 rounded-xl border border-transparent hover:border-border/50 transition-all flex items-center justify-center"
-          >
-            <Bell className="size-5" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(34,211,238,0.5)]" />
-          </Button>
+          <NotificationPanel userId={profile?.id || null} />
           
           <div className="flex items-center">
             <Button 

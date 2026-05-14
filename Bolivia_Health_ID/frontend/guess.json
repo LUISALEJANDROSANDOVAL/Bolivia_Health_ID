@@ -1,0 +1,14 @@
+{
+  "health_records": [
+    {
+      "id": "fe156560-6efa-4de5-b20b-b73458569987",
+      "patient_id": "d2b7c02b-98b7-4dc5-b82b-0e9e9f654b9f",
+      "title": "Análisis de sangre - Marzo 2026",
+      "category": "Laboratorio",
+      "file_size": "2.4 MB",
+      "pinata_cid": "QmZTrQe9q8zP4yKkF8vH...abc1",
+      "tx_hash": "0xabc123456789def0123...",
+      "created_at": "2026-03-21T20:06:29.365486+00:00"
+    }
+  ]
+}

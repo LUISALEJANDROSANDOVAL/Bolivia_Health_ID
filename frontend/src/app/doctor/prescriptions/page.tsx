@@ -31,7 +31,11 @@ import {
   CheckCircle2,
   ChevronRight,
   ShieldCheck,
-  Stethoscope
+  Stethoscope,
+  MessageSquare,
+  Activity,
+  Brain,
+  Zap
 } from 'lucide-react'
 
 interface Patient {
@@ -68,6 +72,9 @@ export default function DoctorPrescriptionsPage() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [medications, setMedications] = useState<Medication[]>([])
   const [showAddMed, setShowAddMed] = useState(false)
+  const [reason, setReason] = useState('')
+  const [anamnesis, setAnamnesis] = useState('')
+  const [physicalExam, setPhysicalExam] = useState('')
   const [diagnosis, setDiagnosis] = useState('')
   const [observations, setObservations] = useState('')
   
@@ -386,35 +393,101 @@ export default function DoctorPrescriptionsPage() {
                 </CardContent>
               </Card>
 
-              {/* 2. Diagnosis */}
-              <Card className="card-premium border-none shadow-md">
+              {/* 2. Historia Clínica Narrativa (The Story) */}
+              <Card className="card-premium border-none shadow-md overflow-hidden">
                 <CardHeader className="bg-muted/30 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-2 rounded-lg text-primary">
-                      <Stethoscope className="h-5 w-5" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                        <Stethoscope className="h-5 w-5" />
+                      </div>
+                      <CardTitle className="text-lg">Evaluación Clínica: La Historia</CardTitle>
                     </div>
-                    <CardTitle className="text-lg">Diagnóstico y Observaciones</CardTitle>
+                    <Badge variant="secondary" className="bg-primary/5 text-primary border-none text-[10px] uppercase font-bold tracking-wider">
+                      Modelo SOAP
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-bold text-foreground">Diagnóstico Principal (CIE-10)</Label>
-                    <Input 
-                      placeholder="Ej: E11.9 - Diabetes mellitus tipo 2 sin complicaciones"
-                      value={diagnosis}
-                      onChange={(e) => setDiagnosis(e.target.value)}
-                      className="h-12 rounded-xl focus:ring-primary/10"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-bold text-foreground">Observaciones Clínicas</Label>
-                    <Textarea 
-                      placeholder="Detalles adicionales, recomendaciones dietéticas o precauciones..." 
-                      rows={4} 
-                      className="rounded-xl focus:ring-primary/10 resize-none"
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                    />
+                <CardContent className="p-6 relative">
+                  {/* Vertical Line Connector */}
+                  <div className="absolute left-[35px] top-10 bottom-10 w-0.5 bg-muted" />
+
+                  <div className="space-y-10">
+                    {/* Step 1: Motivo de Consulta */}
+                    <div className="relative pl-12 group">
+                      <div className="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-xl bg-background border border-muted shadow-sm z-10 transition-colors group-focus-within:border-primary">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground group-focus-within:text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">1. Motivo de Consulta</Label>
+                        <Textarea 
+                          placeholder="¿Qué trajo al paciente hoy?"
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                          className="min-h-[80px] rounded-xl border-muted bg-background focus:ring-primary/10 transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step 2: Anamnesis */}
+                    <div className="relative pl-12 group">
+                      <div className="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-xl bg-background border border-muted shadow-sm z-10 transition-colors group-focus-within:border-primary">
+                        <Brain className="h-4 w-4 text-muted-foreground group-focus-within:text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">2. Anamnesis y Antecedentes</Label>
+                        <Textarea 
+                          placeholder="Historia detallada del malestar y antecedentes relevantes..."
+                          value={anamnesis}
+                          onChange={(e) => setAnamnesis(e.target.value)}
+                          className="min-h-[100px] rounded-xl border-muted bg-background focus:ring-primary/10 transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step 3: Examen Físico */}
+                    <div className="relative pl-12 group">
+                      <div className="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-xl bg-background border border-muted shadow-sm z-10 transition-colors group-focus-within:border-primary">
+                        <Activity className="h-4 w-4 text-muted-foreground group-focus-within:text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">3. Examen Físico</Label>
+                        <Textarea 
+                          placeholder="Signos vitales y hallazgos de exploración..."
+                          value={physicalExam}
+                          onChange={(e) => setPhysicalExam(e.target.value)}
+                          className="min-h-[80px] rounded-xl border-muted bg-background focus:ring-primary/10 transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Step 4: Diagnóstico Final */}
+                    <div className="relative pl-12 group">
+                      <div className="absolute left-0 top-0 flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm z-10">
+                        <CheckCircle2 className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="space-y-4 rounded-2xl bg-muted/20 p-5 border border-muted/50">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-primary">4. Juicio Clínico (CIE-10)</Label>
+                          <Input 
+                            placeholder="Ej: E11.9 - Diabetes mellitus tipo 2"
+                            value={diagnosis}
+                            onChange={(e) => setDiagnosis(e.target.value)}
+                            className="h-11 rounded-xl border-muted focus:ring-primary/10 font-bold"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold text-muted-foreground">Observaciones Finales</Label>
+                          <Textarea 
+                            placeholder="Recomendaciones o advertencias..." 
+                            rows={2} 
+                            className="rounded-xl border-muted focus:ring-primary/10 resize-none bg-background"
+                            value={observations}
+                            onChange={(e) => setObservations(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -628,8 +701,16 @@ export default function DoctorPrescriptionsPage() {
                         <p className="text-sm font-bold">{selectedPatient?.name || 'No seleccionado'}</p>
                       </div>
                       <div className="flex flex-col gap-1">
+                        <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Caso Clínico</p>
+                        <p className="text-sm font-medium line-clamp-2 italic text-white/90">
+                          {reason || 'Pendiente de evaluación...'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-1">
                         <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Diagnóstico</p>
-                        <p className="text-sm font-medium line-clamp-1 italic">{diagnosis || 'Sin especificar'}</p>
+                        <p className="text-sm font-bold text-primary-foreground line-clamp-1">
+                          {diagnosis || 'Sin especificar'}
+                        </p>
                       </div>
                       <div className="flex flex-col gap-1">
                         <p className="text-[10px] uppercase font-bold text-white/40 tracking-wider">Medicamentos ({medications.length})</p>

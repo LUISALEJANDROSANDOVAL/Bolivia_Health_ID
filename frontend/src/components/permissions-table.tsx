@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
+import { useProfile } from '@/hooks/useProfile'
+import { sendNotification } from '@/lib/notifications'
 
 interface Permission {
   id: string
@@ -124,6 +126,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
               status,
               created_at,
               expires_at,
+              doctor_id,
               profiles!doctor_id (full_name)
             `)
             .eq('patient_id', profile.id)
@@ -209,6 +212,23 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
         .eq('id', id)
       if (!error) {
         setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'active' } : p))
+        
+        // Notificar al doctor (con try/catch para no bloquear)
+        try {
+          const perm = permissions.find(p => p.id === id)
+          if (perm) {
+            await sendNotification({
+              recipientId: perm.doctorId,
+              senderId: profile?.id,
+              title: 'Solicitud Aprobada',
+              message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
+              type: 'approval',
+              link: '/doctor/authorizations'
+            })
+          }
+        } catch (notifyErr) {
+          console.warn('No se pudo notificar al doctor:', notifyErr)
+        }
       }
     } catch (err) {
       console.error('Error approving permission:', err)
