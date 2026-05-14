@@ -11,20 +11,27 @@ import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { RequestAuthorizationModal } from '@/components/request-authorization-modal'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/use-toast'
+import { sendNotification } from '@/lib/notifications'
 
 interface Authorization {
   id: string
+  patientId: string
   patient: {
     full_name: string
     wallet_address: string
   }
+  type: string
   status: string
   created_at: string
   expires_at: string | null
 }
 
 export default function DoctorAuthorizationsPage() {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName } = useDoctorAuth()
+  const router = useRouter()
+  const { toast } = useToast()
   const [authorizations, setAuthorizations] = useState<Authorization[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -34,6 +41,7 @@ export default function DoctorAuthorizationsPage() {
     pending: 0,
     rejected: 0
   })
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const fetchAuthorizations = useCallback(async () => {
     if (!doctorId) {
@@ -49,6 +57,7 @@ export default function DoctorAuthorizationsPage() {
           status,
           created_at,
           expires_at,
+          patient_id,
           patient:profiles!patient_id (full_name, wallet_address)
         `)
         .eq('doctor_id', doctorId)
@@ -57,7 +66,15 @@ export default function DoctorAuthorizationsPage() {
       if (error) throw error
 
       if (data) {
-        const mapped = data as any[]
+        const mapped = data.map((p: any) => ({
+          id: p.id,
+          patientId: p.patient_id,
+          patient: p.patient,
+          type: 'Acceso Digital Seguro',
+          status: p.status,
+          created_at: p.created_at,
+          expires_at: p.expires_at
+        })) as Authorization[]
         setAuthorizations(mapped)
         
         // Calcular estadísticas
@@ -106,6 +123,62 @@ export default function DoctorAuthorizationsPage() {
     }
   }, [fetchAuthorizations, doctorId, refreshTrigger])
 
+  const handleCancel = async (authId: string) => {
+    setActionLoading(authId)
+    try {
+      const { error } = await supabase
+        .from('access_permissions')
+        .delete()
+        .eq('id', authId)
+      
+      if (error) throw error
+
+      toast({
+        title: 'Solicitud cancelada',
+        description: 'La solicitud pendiente ha sido eliminada.'
+      })
+      
+      setAuthorizations(prev => prev.filter(a => a.id !== authId))
+    } catch (err) {
+      console.error('Error cancelling auth:', err)
+      toast({
+        title: 'Error',
+        description: 'No se pudo cancelar la solicitud.',
+        variant: 'destructive'
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRemind = async (auth: Authorization) => {
+    if (!doctorId) return
+    setActionLoading('remind-' + auth.id)
+    try {
+      await sendNotification({
+        recipientId: auth.patientId,
+        senderId: doctorId,
+        title: 'Recordatorio de solicitud',
+        message: `El Dr. ${doctorName || 'su médico'} le recuerda que tiene una solicitud de acceso pendiente.`,
+        type: 'request',
+        link: '/permisos'
+      })
+      toast({
+        title: 'Recordatorio enviado',
+        description: `Se ha enviado un recordatorio a ${auth.patient?.full_name || 'Paciente'}.`
+      })
+    } catch (err) {
+      console.error('Error sending reminder:', err)
+      toast({
+        title: 'Error',
+        description: 'Hubo un problema al enviar el recordatorio.',
+        variant: 'destructive'
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const statsDisplay = [
     {
       icon: Users,
@@ -145,7 +218,7 @@ export default function DoctorAuthorizationsPage() {
     <DoctorLayout>
       <div className="space-y-8 animate-slide-in p-6">
         
-        {/* Header */}
+        {/* Header con icono y gradiente */}
         <div>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex size-12 items-center justify-center rounded-2xl bg-gradient-electric">
@@ -292,12 +365,33 @@ export default function DoctorAuthorizationsPage() {
                       
                       {(auth.status?.toLowerCase() === 'pending' || auth.status === 'Pendiente') && (
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="text-xs hover:bg-slate-100 border-slate-200">Cancelar</Button>
-                          <Button size="sm" className="btn-premium py-1 h-8 text-xs">Recordar</Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs hover:bg-slate-100 border-slate-200"
+                            onClick={() => handleCancel(auth.id)}
+                            disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
+                          >
+                            {actionLoading === auth.id ? 'Cancelando...' : 'Cancelar'}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="btn-premium py-1 h-8 text-xs"
+                            onClick={() => handleRemind(auth)}
+                            disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
+                          >
+                            {actionLoading === 'remind-' + auth.id ? 'Enviando...' : 'Recordar'}
+                          </Button>
                         </div>
                       )}
                       {(auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
-                        <Button size="sm" className="btn-outline-premium py-1 h-8 text-xs">Ver Historial</Button>
+                        <Button 
+                          size="sm" 
+                          className="btn-outline-premium py-1 h-8 text-xs"
+                          onClick={() => router.push(`/doctor/patients/${auth.patientId}`)}
+                        >
+                          Ver Historial
+                        </Button>
                       )}
                     </div>
                   </div>

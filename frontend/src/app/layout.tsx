@@ -4,12 +4,12 @@ import { Analytics } from '@vercel/analytics/next'
 import { ClientWrapper } from '@/components/client-wrapper'
 import './globals.css'
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: '--font-inter'
 });
 
-const geistMono = Geist_Mono({ 
+const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: '--font-geist-mono'
 });
