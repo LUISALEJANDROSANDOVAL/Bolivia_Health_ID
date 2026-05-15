@@ -4,12 +4,12 @@ import { Analytics } from '@vercel/analytics/next'
 import { ClientWrapper } from '@/components/client-wrapper'
 import './globals.css'
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: '--font-inter'
 });
 
-const geistMono = Geist_Mono({ 
+const geistMono = Geist_Mono({
   subsets: ["latin"],
   variable: '--font-geist-mono'
 });
@@ -45,6 +45,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
+import { Toaster } from 'sonner'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -56,6 +58,7 @@ export default function RootLayout({
         <ClientWrapper>
           {children}
         </ClientWrapper>
+        <Toaster position="top-center" richColors />
         <Analytics />
       </body>
     </html>
