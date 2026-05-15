@@ -12,6 +12,8 @@ export interface ProfileData {
   blood_type: string;
   allergies: string;
   cedula_identidad: string;
+  birth_date?: string | null;
+  gender?: string | null;
   preferences?: any;
 }
 
@@ -24,6 +26,8 @@ const DEFAULT_PROFILE: ProfileData = {
   blood_type: '',
   allergies: '',
   cedula_identidad: '',
+  birth_date: '',
+  gender: '',
   preferences: {}
 };
 
@@ -69,7 +73,7 @@ export function useProfile(walletAddress: string | null) {
             .single();
 
           if (vError && vError.code !== 'PGRST116') {
-             console.error('Error fetching vitals:', vError);
+            console.error('Error fetching vitals:', vError);
           }
           vitalsData = vData;
         }
@@ -86,6 +90,8 @@ export function useProfile(walletAddress: string | null) {
             cedula_identidad: profileData?.cedula_identidad || '',
             blood_type: vitalsData?.blood_type || '',
             allergies: vitalsData?.allergies || '',
+            birth_date: profileData?.birth_date || '',
+            gender: profileData?.gender || '',
             preferences: profileData?.preferences || {}
           });
         }
@@ -105,25 +111,25 @@ export function useProfile(walletAddress: string | null) {
 
   const updateProfile = async (dataToUpdate: Partial<ProfileData>) => {
     if (!walletAddress) throw new Error('Conecta tu wallet para guardar cambios.');
-    
+
     // Si no tenemos ID (perfil nuevo), buscamos de nuevo por si acaso se creó en el background
     let currentProfileId = profile.id;
     if (!currentProfileId) {
-       const { data: existing } = await supabase
-         .from('profiles')
-         .select('id')
-         .eq('wallet_address', walletAddress.toLowerCase())
-         .single();
-       if (existing) currentProfileId = existing.id;
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single();
+      if (existing) currentProfileId = existing.id;
     }
 
     if (!currentProfileId) {
       // Crear perfil directamente — id se auto-genera con gen_random_uuid()
       const { data: created, error: createError } = await supabase
         .from('profiles')
-        .insert([{ 
+        .insert([{
           wallet_address: walletAddress.toLowerCase(),
-          full_name: dataToUpdate.full_name || `Paciente ${walletAddress.slice(0,6)}`,
+          full_name: dataToUpdate.full_name || `Paciente ${walletAddress.slice(0, 6)}`,
           email: dataToUpdate.email || '',
           phone: dataToUpdate.phone || '',
           address: dataToUpdate.address || '',
@@ -133,11 +139,11 @@ export function useProfile(walletAddress: string | null) {
         }])
         .select()
         .single();
-      
+
       if (createError) throw createError;
       currentProfileId = created.id;
     }
-    
+
     // Preparar payloads
     const profilePayload = {
       full_name: dataToUpdate.full_name,
@@ -146,6 +152,8 @@ export function useProfile(walletAddress: string | null) {
       address: dataToUpdate.address,
       occupation: dataToUpdate.occupation,
       cedula_identidad: dataToUpdate.cedula_identidad,
+      birth_date: dataToUpdate.birth_date || null,
+      gender: dataToUpdate.gender || null,
       preferences: dataToUpdate.preferences !== undefined ? dataToUpdate.preferences : profile.preferences
     };
 
@@ -183,14 +191,14 @@ export function useProfile(walletAddress: string | null) {
             updated_at: vitalsPayload.updated_at
           })
           .eq('patient_id', currentProfileId);
-        
+
         if (vitalsError) throw vitalsError;
       } else {
         // Si no existen, insertamos
         const { error: vitalsError } = await supabase
           .from('patient_vitals')
           .insert([vitalsPayload]);
-        
+
         if (vitalsError) throw vitalsError;
       }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useImperativeHandle, forwardRef } from 'react'
-import { User, Mail, Phone, MapPin, Save, Briefcase, Heart, Activity, CreditCard, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { User, Mail, Phone, MapPin, Save, Briefcase, Heart, Activity, CreditCard, RefreshCw, CheckCircle2, Calendar, Users } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,7 +45,9 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
       occupation: '',
       blood_type: '',
       allergies: '',
-      cedula_identidad: ''
+      cedula_identidad: '',
+      birth_date: '',
+      gender: ''
     })
 
     // Sincroniza formData con el perfil cargado desde Supabase
@@ -59,7 +61,9 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
           occupation: profile.occupation || '',
           blood_type: profile.blood_type || '',
           allergies: profile.allergies || '',
-          cedula_identidad: profile.cedula_identidad || ''
+          cedula_identidad: profile.cedula_identidad || '',
+          birth_date: profile.birth_date || '',
+          gender: profile.gender || ''
         })
       }
     }, [profile])
@@ -89,6 +93,7 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
         // Reset el check de guardado después de 3s
         setTimeout(() => setSavedOk(false), 3000)
       } catch (err: any) {
+        alert("ERROR EN BASE DE DATOS: " + (err?.message || 'Error desconocido'));
         toast({
           title: 'Error al guardar',
           description: err?.message || 'Hubo un problema guardando tu perfil. Intenta de nuevo.',
@@ -131,7 +136,7 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
           <CardContent className="p-16 flex flex-col items-center justify-center gap-3">
             <RefreshCw className="size-8 text-cyan-500 animate-spin" />
             <p className="text-foreground/40 font-bold uppercase tracking-widest text-xs">
-              Cargando tu perfil desde Supabase...
+              Cargando...
             </p>
           </CardContent>
         </Card>
@@ -204,6 +209,34 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
               </Field>
             </div>
 
+            {/* Fecha de Nacimiento + Género */}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field>
+                <FieldLabel className={labelClass}>
+                  <Calendar className="size-4 text-cyan-500" /> Fecha de Nacimiento
+                </FieldLabel>
+                <Input type="date" value={formData.birth_date} onChange={e => handleChange('birth_date', e.target.value)} className={inputClass} />
+              </Field>
+              <Field>
+                <FieldLabel className={labelClass}>
+                  <Users className="size-4 text-cyan-500" /> Género
+                </FieldLabel>
+                <Select
+                  value={formData.gender}
+                  onValueChange={value => handleChange('gender', value)}
+                >
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M">Masculino</SelectItem>
+                    <SelectItem value="F">Femenino</SelectItem>
+                    <SelectItem value="Otro">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+
             {/* Email + Ocupación */}
             <div className="grid gap-5 sm:grid-cols-2">
               <Field>
@@ -246,8 +279,8 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
                 <FieldLabel className={labelClass}>
                   <Heart className="size-4 text-red-400" /> Tipo de sangre
                 </FieldLabel>
-                <Select 
-                  value={formData.blood_type} 
+                <Select
+                  value={formData.blood_type}
                   onValueChange={value => handleChange('blood_type', value)}
                 >
                   <SelectTrigger className={inputClass}>

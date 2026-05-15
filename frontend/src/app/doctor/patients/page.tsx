@@ -8,7 +8,6 @@ import { Search, Eye, Filter, User, Calendar, Shield, Loader2 } from 'lucide-rea
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
-import { NewAppointmentModal } from '@/components/new-appointment-modal'
 
 interface Patient {
   id: string
@@ -94,7 +93,6 @@ export default function DoctorPatientsPage() {
                <Filter className="size-4 mr-2" />
                Filtrar
              </Button>
-             <NewAppointmentModal onAppointmentCreated={fetchPatients} />
           </div>
         </div>
 
@@ -139,14 +137,7 @@ export default function DoctorPatientsPage() {
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-border/30">
-                  <div className="flex justify-between items-center bg-foreground/5 p-3 rounded-2xl border border-border/30">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/30 mb-1">Health ID</p>
-                      <p className="font-mono text-xs text-foreground/70 truncate">{patient.healthId}</p>
-                    </div>
-                    <Shield className="size-4 text-cyan-500 opacity-30" />
-                  </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <Calendar className="size-4 text-foreground/30" />
                     <span className="text-xs font-bold text-foreground/50 uppercase tracking-widest">Última visita:</span>
