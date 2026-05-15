@@ -234,12 +234,6 @@ export function MedicalRecords() {
               </SelectContent>
             </Select>
           </div>
-          <Link href="/subir">
-            <Button className="bg-gradient-electric text-white font-black rounded-xl px-5 h-10 shadow-lg hover:scale-105 transition-all border-none">
-              <Upload className="size-4 mr-2" />
-              Subir
-            </Button>
-          </Link>
         </div>
       </div>
 

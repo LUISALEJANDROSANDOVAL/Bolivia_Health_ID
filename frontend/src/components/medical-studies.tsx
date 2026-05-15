@@ -212,12 +212,6 @@ export function MedicalStudies() {
               </SelectContent>
             </Select>
           </div>
-          <Link href="/subir">
-            <Button className="bg-gradient-electric text-white font-black rounded-xl px-5 py-2 shadow-lg hover:scale-105 transition-all border-none h-10">
-              <Upload className="size-4 mr-2" />
-              Subir estudio
-            </Button>
-          </Link>
         </div>
       </div>
 
@@ -235,13 +229,8 @@ export function MedicalStudies() {
             </div>
             <h3 className="text-lg font-black text-foreground tracking-tight uppercase">Sin estudios registrados</h3>
             <p className="text-sm text-foreground/40 mt-1 font-medium text-center max-w-xs">
-              Sube tus resultados de laboratorio, radiografías o imágenes médicas.
+              Tus resultados de laboratorio, radiografías o imágenes médicas aparecerán aquí.
             </p>
-            <Link href="/subir" className="mt-6">
-              <Button className="bg-foreground text-background font-black rounded-xl px-10 py-3 shadow-xl hover:scale-105 transition-all">
-                Subir mi primer estudio
-              </Button>
-            </Link>
           </div>
         ) : (
           filteredStudies.map((study) => {

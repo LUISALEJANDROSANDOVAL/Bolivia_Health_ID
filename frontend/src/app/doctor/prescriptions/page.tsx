@@ -290,6 +290,22 @@ export default function DoctorPrescriptionsPage() {
         }
       }
 
+      // 3. Enviar notificación por email (la API verifica las preferencias del paciente internamente)
+      try {
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientId: selectedPatient.id,
+            title: 'Nueva Receta Médica',
+            message: `Tu médico te ha emitido una nueva receta con diagnóstico: ${selectedDiagnosis ? selectedDiagnosis.description : diagnosis}.`,
+            link: '/diagnosticos'
+          })
+        })
+      } catch (emailErr) {
+        console.error('Error enviando email:', emailErr)
+      }
+
       setSaveSuccess(true)
       // Reset form
       setReason('')
