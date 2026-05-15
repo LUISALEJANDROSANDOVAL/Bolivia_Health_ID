@@ -41,19 +41,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ConnectKitProvider>
           <WalletProvider>
             <DoctorAuthProvider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="dark"
-                enableSystem
-                disableTransitionOnChange
-              >
-                {/* 
-                   Evitamos renderizar los hijos hasta que el cliente esté montado
-                   para prevenir errores de hidratación, pero mantenemos los proveedores
-                   siempre presentes.
-                */}
-                {mounted ? children : null}
-              </ThemeProvider>
+            <DoctorAuthProvider>
+              {mounted ? (
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="dark"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  {children}
+                </ThemeProvider>
+              ) : (
+                <>{children}</>
+              )}
+            </DoctorAuthProvider>
             </DoctorAuthProvider>
           </WalletProvider>
         </ConnectKitProvider>

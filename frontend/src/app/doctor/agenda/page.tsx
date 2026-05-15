@@ -33,6 +33,7 @@ import { format, addDays, startOfWeek, eachDayOfInterval, isSameDay } from 'date
 import { es } from 'date-fns/locale'
 import { NewAppointmentModal } from '@/components/new-appointment-modal'
 import { StatCard } from '@/components/ui/stat-card'
+import { QuickAppointmentCard } from '@/components/quick-appointment-card'
 
 interface Appointment {
   id: string
@@ -188,7 +189,6 @@ export default function DoctorAgendaPage() {
               <Filter className="size-4 mr-2" />
               Filtrar
             </Button>
-            <NewAppointmentModal onAppointmentCreated={fetchAgenda} />
           </div>
         </div>
 
@@ -222,7 +222,10 @@ export default function DoctorAgendaPage() {
 
         <div className="grid gap-8 lg:grid-cols-12">
           {/* Main Timeline Column */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="lg:col-span-9 space-y-8">
+            {/* Integrated Quick Appointment Card - Centralized Form */}
+            <QuickAppointmentCard onAppointmentCreated={fetchAgenda} />
+
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground group-focus-within:text-cyan-500 transition-colors" />
               <Input
@@ -323,55 +326,55 @@ export default function DoctorAgendaPage() {
           </div>
 
           {/* Sidebar Section */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* Calendar Widget Glassmorphism */}
-            <div className="bg-azul-profundo/95 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                 <Shield className="size-32 text-cyan-500" />
+          <div className="lg:col-span-3 space-y-6">
+            {/* Calendar Widget Glassmorphism - Narrower */}
+            <div className="bg-azul-profundo/95 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-6 opacity-10">
+                 <Shield className="size-24 text-cyan-500" />
               </div>
               
               <div className="relative z-10">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-black text-white tracking-tight">Calendario</h3>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-black text-white tracking-tight">Calendario</h3>
                   <div className="flex gap-1">
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="size-8 rounded-full hover:bg-white/10 text-white"
+                      className="size-7 rounded-full hover:bg-white/10 text-white"
                       onClick={() => setCurrentDate(addDays(currentDate, -1))}
                     >
-                      <ChevronLeft className="size-4" />
+                      <ChevronLeft className="size-3" />
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="size-8 rounded-full hover:bg-white/10 text-white"
+                      className="size-7 rounded-full hover:bg-white/10 text-white"
                       onClick={() => setCurrentDate(addDays(currentDate, 1))}
                     >
-                      <ChevronRight className="size-4" />
+                      <ChevronRight className="size-3" />
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   {/* Selector de días de la semana */}
-                  <div className="grid grid-cols-7 gap-2">
+                  <div className="grid grid-cols-7 gap-1">
                     {weekDays.map((day, i) => {
                       const isSelected = isSameDay(day, currentDate)
                       return (
                         <button
                           key={i}
                           onClick={() => setCurrentDate(day)}
-                          className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
                             isSelected 
-                              ? 'bg-gradient-electric text-azul-profundo scale-110 shadow-lg shadow-cyan-500/20' 
+                              ? 'bg-gradient-electric text-azul-profundo scale-105 shadow-lg shadow-cyan-500/20' 
                               : 'hover:bg-white/5 text-white/40 hover:text-white'
                           }`}
                         >
-                          <span className="text-[10px] font-black uppercase tracking-tighter">
+                          <span className="text-[8px] font-black uppercase tracking-tighter">
                             {format(day, 'eee', { locale: es })}
                           </span>
-                          <span className="text-sm font-black">
+                          <span className="text-xs font-black">
                             {format(day, 'd')}
                           </span>
                         </button>
@@ -379,35 +382,35 @@ export default function DoctorAgendaPage() {
                     })}
                   </div>
 
-                  <Button className="w-full mt-4 bg-white/10 hover:bg-white/20 text-white border-none h-12 rounded-2xl font-black uppercase tracking-widest text-[10px]">
+                  <Button className="w-full mt-2 bg-white/10 hover:bg-white/20 text-white border-none h-10 rounded-xl font-black uppercase tracking-widest text-[8px]">
                     Ver Calendario Completo
                   </Button>
                 </div>
               </div>
             </div>
 
-            {/* Daily Reminders Premium */}
-            <div className="bg-foreground/[0.03] backdrop-blur-xl p-8 rounded-[2.5rem] border border-border shadow-lg shadow-black/5">
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground/40 mb-6">Recordatorios</h3>
-              <div className="space-y-4">
+            {/* Daily Reminders Premium - Narrower */}
+            <div className="bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2.5rem] border border-border shadow-lg shadow-black/5">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/40 mb-4">Recordatorios</h3>
+              <div className="space-y-3">
                 {stats.upcoming > 0 && (
-                  <div className="flex items-start gap-4 p-4 rounded-3xl bg-orange-500/5 border border-orange-500/10 group">
-                    <div className="p-2 rounded-xl bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
-                      <AlertCircle className="size-4 text-orange-500" />
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-orange-500/5 border border-orange-500/10 group">
+                    <div className="p-1.5 rounded-lg bg-orange-500/10 group-hover:bg-orange-500/20 transition-colors">
+                      <AlertCircle className="size-3.5 text-orange-500" />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-foreground/80">Atención Pendiente</p>
-                      <p className="text-[10px] font-bold text-foreground/40 mt-0.5">Tienes {stats.upcoming} citas por atender hoy.</p>
+                      <p className="text-[11px] font-black text-foreground/80 leading-tight">Atención Pendiente</p>
+                      <p className="text-[9px] font-bold text-foreground/40 mt-0.5">Tienes {stats.upcoming} citas hoy.</p>
                     </div>
                   </div>
                 )}
-                <div className="flex items-start gap-4 p-4 rounded-3xl bg-cyan-500/5 border border-cyan-500/10 group">
-                  <div className="p-2 rounded-xl bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-colors">
-                    <Users className="size-4 text-cyan-500" />
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-cyan-500/5 border border-cyan-500/10 group">
+                  <div className="p-1.5 rounded-lg bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-colors">
+                    <Users className="size-3.5 text-cyan-500" />
                   </div>
                   <div>
-                    <p className="text-xs font-black text-foreground/80">Pacientes del Día</p>
-                    <p className="text-[10px] font-bold text-foreground/40 mt-0.5">{stats.patients} personas registradas.</p>
+                    <p className="text-[11px] font-black text-foreground/80 leading-tight">Pacientes del Día</p>
+                    <p className="text-[9px] font-bold text-foreground/40 mt-0.5">{stats.patients} registrados.</p>
                   </div>
                 </div>
               </div>
