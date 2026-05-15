@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,148 +9,293 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import { AlertCircle, Lock, Heart, Pill, FileText, Zap, Loader2 } from 'lucide-react'
+import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useWallet } from '@/contexts/wallet-context'
 import { useToast } from '@/hooks/use-toast'
 
 export default function PatientView360() {
   const params = useParams()
-
-  // Mock patient data
-  const patient = {
-    name: 'Carlos Mendoza',
-    age: 45,
-    gender: 'M',
-    bloodType: 'O+',
-    ci: '4567890',
-    healthId: '0xA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6',
-    allergies: ['Penicilina', 'Sulfonamidas'],
-    chronicConditions: ['Hipertensión', 'Diabetes Tipo 2'],
-  }
-
-  const [consultNotes, setConsultNotes] = useState('')
-  const [bloodPressure, setBloodPressure] = useState('')
-  const [heartRate, setHeartRate] = useState('')
-  const [temperature, setTemperature] = useState('')
-  const [diagnosis, setDiagnosis] = useState('')
-  const [prescription, setPrescription] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
-
-  const { walletAddress } = useWallet()
+  const patientId = params.id as string
   const { toast } = useToast()
 
-  const handleSaveConsultation = async () => {
-    if (!walletAddress) {
-      toast({ title: 'Error', description: 'Conecta tu wallet como médico', variant: 'destructive' })
-      return
-    }
+  const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState<any>(null)
+  const [vitals, setVitals] = useState<any>(null)
+  const [medications, setMedications] = useState<any[]>([])
+  const [background, setBackground] = useState<any[]>([])
+  const [studies, setStudies] = useState<any[]>([])
+  const [uploading, setUploading] = useState(false)
 
-    if (!consultNotes) {
-      toast({ title: 'Faltan datos', description: 'El motivo de la consulta es obligatorio', variant: 'destructive' })
-      return
-    }
+  // Vitals Edit State
+  const [isEditingVitals, setIsEditingVitals] = useState(false)
+  const [isSavingVitals, setIsSavingVitals] = useState(false)
+  const [editVitalsForm, setEditVitalsForm] = useState({
+    blood_pressure: '',
+    heart_rate: '',
+    temperature: '',
+    weight: '',
+    height: ''
+  })
 
-    setIsSaving(true)
+  const fetchPatientData = useCallback(async () => {
     try {
-      // 1. Obtener ID del doctor actual
-      const { data: doctorProfile } = await supabase
+      setIsLoading(true)
+
+      // 1. Perfil
+      const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
-        .select('id')
-        .eq('wallet_address', walletAddress.toLowerCase())
+        .select('*')
+        .eq('id', patientId)
         .single()
 
-      if (!doctorProfile) {
-        throw new Error('Perfil de médico no encontrado')
-      }
+      if (profileErr) throw profileErr
+      setProfile(profileData)
 
-      const patientId = params.id as string
+      // 2. Vitals
+      const { data: vitalsData } = await supabase
+        .from('patient_vitals')
+        .select('*')
+        .eq('patient_id', patientId)
+        .single()
 
-      // 2. Insertar en medical_background
-      const { error: bgError } = await supabase
+      setVitals(vitalsData || {})
+      setEditVitalsForm({
+        blood_pressure: vitalsData?.blood_pressure || '',
+        heart_rate: vitalsData?.heart_rate || '',
+        temperature: vitalsData?.temperature || '',
+        weight: vitalsData?.weight || '',
+        height: vitalsData?.height || ''
+      })
+
+      // 3. Medications
+      const { data: medsData } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('status', 'active')
+
+      setMedications(medsData || [])
+
+      // 4. Background (Condiciones crónicas y otras cosas, filtraremos)
+      const { data: bgData } = await supabase
         .from('medical_background')
-        .insert({
-          patient_id: patientId,
-          doctor_id: doctorProfile.id,
-          title: diagnosis ? `Consulta: ${diagnosis}` : 'Consulta General',
-          description: `Motivo: ${consultNotes}. Receta/Recomendaciones: ${prescription}`,
-          category: 'consulta',
-          status_detail: 'Completa',
-          date_recorded: new Date().toISOString()
-        })
+        .select('*')
+        .eq('patient_id', patientId)
 
-      if (bgError) throw bgError
+      setBackground(bgData || [])
 
-      // 3. Insertar en patient_vitals si hay datos
-      if (bloodPressure || heartRate || temperature) {
-        await supabase
-          .from('patient_vitals')
-          .insert({
-            patient_id: patientId,
-            blood_pressure: bloodPressure,
-            // heartRate and temperature might need schema changes if not present, but we can store them in general fields or just skip if they don't exist.
-            // As per migrations.sql: patient_vitals has blood_type, allergies, blood_pressure, weight, height.
-            // Let's just insert blood_pressure.
-          })
-      }
+      // 5. Studies
+      const { data: recordsData } = await supabase
+        .from('health_records')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
 
-      toast({ title: 'Éxito', description: 'Consulta guardada y firmada (simulado) correctamente' })
-      
-      // Limpiar formulario
-      setConsultNotes('')
-      setBloodPressure('')
-      setHeartRate('')
-      setTemperature('')
-      setDiagnosis('')
-      setPrescription('')
+      setStudies(recordsData || [])
 
     } catch (err: any) {
       console.error(err)
-      toast({ title: 'Error', description: err.message, variant: 'destructive' })
+      toast({ title: 'Error', description: 'No se pudieron cargar los datos del paciente', variant: 'destructive' })
     } finally {
-      setIsSaving(false)
+      setIsLoading(false)
+    }
+  }, [patientId, toast])
+
+  useEffect(() => {
+    if (patientId) {
+      fetchPatientData()
+    }
+  }, [fetchPatientData, patientId])
+
+  const handleSaveVitals = async () => {
+    setIsSavingVitals(true)
+    try {
+      // 1. Verificar si ya existe un registro de vitales para este paciente
+      const { data: existingVitals } = await supabase
+        .from('patient_vitals')
+        .select('id')
+        .eq('patient_id', patientId)
+        .maybeSingle()
+
+      let dbError = null;
+
+      if (existingVitals) {
+        // Actualizar si ya existe
+        const { error } = await supabase
+          .from('patient_vitals')
+          .update({
+            blood_pressure: editVitalsForm.blood_pressure,
+            heart_rate: editVitalsForm.heart_rate,
+            temperature: editVitalsForm.temperature,
+            weight: editVitalsForm.weight,
+            height: editVitalsForm.height,
+            updated_at: new Date().toISOString()
+          })
+          .eq('patient_id', patientId)
+        dbError = error
+      } else {
+        // Insertar si no existe
+        const { error } = await supabase
+          .from('patient_vitals')
+          .insert({
+            patient_id: patientId,
+            blood_pressure: editVitalsForm.blood_pressure,
+            heart_rate: editVitalsForm.heart_rate,
+            temperature: editVitalsForm.temperature,
+            weight: editVitalsForm.weight,
+            height: editVitalsForm.height
+          })
+        dbError = error
+      }
+
+      if (dbError) throw dbError
+
+      setVitals({ ...vitals, ...editVitalsForm })
+      setIsEditingVitals(false)
+      toast({ title: 'Éxito', description: 'Signos vitales actualizados correctamente' })
+    } catch (err: any) {
+      console.error("Error guardando vitales:", err)
+      toast({
+        title: 'Error al guardar',
+        description: err.message || 'Revisa la consola para más detalles',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSavingVitals(false)
     }
   }
 
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 'N/A'
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const m = today.getMonth() - birth.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    return age
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      // 1. Upload to Supabase Storage (Bucket: health_records)
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${Math.random()}.${fileExt}`
+      const filePath = `${patientId}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('health_records')
+        .upload(filePath, file)
+
+      if (uploadError) {
+        // Create bucket if it doesn't exist? (Often needs to be done via dashboard due to RLS, but we catch it)
+        throw new Error('Error al subir a Storage. Asegúrate de tener un bucket llamado "health_records" creado y público. Detalle: ' + uploadError.message)
+      }
+
+      // 2. Get Public URL or save path
+      const { data: { publicUrl } } = supabase.storage
+        .from('health_records')
+        .getPublicUrl(filePath)
+
+      // 3. Insert into health_records table
+      const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
+
+      const { error: dbError } = await supabase
+        .from('health_records')
+        .insert({
+          patient_id: patientId,
+          title: file.name,
+          category: 'Otros', // Default
+          file_size: `${fileSizeInMB} MB`,
+          file_url: publicUrl,
+          file_type: fileExt
+        })
+
+      if (dbError) throw dbError
+
+      toast({ title: 'Éxito', description: 'Estudio subido correctamente' })
+      fetchPatientData() // Recargar estudios
+
+    } catch (err: any) {
+      console.error('Error uploading:', err)
+      toast({ title: 'Error', description: err.message || 'Error al subir el archivo', variant: 'destructive' })
+    } finally {
+      setUploading(false)
+      // Reset input value to allow uploading the same file again if needed
+      e.target.value = ''
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <DoctorLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+          <Loader2 className="size-12 animate-spin text-primary" />
+          <p className="text-muted-foreground animate-pulse">Cargando historia clínica...</p>
+        </div>
+      </DoctorLayout>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <DoctorLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <p className="text-destructive font-bold">Paciente no encontrado</p>
+        </div>
+      </DoctorLayout>
+    )
+  }
+
+  const age = calculateAge(profile.birth_date)
+  const allergiesList = vitals?.allergies ? vitals.allergies.split(',').map((a: string) => a.trim()) : []
+  // Mostrar cualquier background como antecedente médico
+  const chronicConditions = background
+
   return (
     <DoctorLayout>
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-6 animate-slide-in">
         {/* Patient Header */}
         <div className="rounded-xl border bg-gradient-to-r from-primary/10 to-accent/10 p-6">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">{patient.name}</h1>
-              <p className="text-muted-foreground">{patient.age} años • {patient.gender}</p>
-              <p className="mt-2 font-mono text-sm text-foreground">CI: {patient.ci}</p>
-              <p className="font-mono text-sm text-muted-foreground">Health ID: {patient.healthId}</p>
+              <h1 className="text-3xl font-bold text-foreground">{profile.full_name}</h1>
+              <p className="text-muted-foreground">
+                {age} años • {profile.gender === 'M' ? 'Masculino' : profile.gender === 'F' ? 'Femenino' : profile.gender || 'N/A'}
+              </p>
+              <p className="mt-2 font-mono text-sm text-foreground">CI: {profile.cedula_identidad}</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-foreground">{patient.bloodType}</div>
+              <div className="text-2xl font-bold text-foreground">{vitals?.blood_type || 'N/A'}</div>
               <p className="text-sm text-muted-foreground">Grupo Sanguíneo</p>
             </div>
           </div>
 
           {/* Alerts */}
-          <div className="mt-4 space-y-2">
-            {patient.allergies.map((allergy) => (
-              <Alert key={allergy} className="border-destructive bg-destructive/5">
-                <AlertCircle className="size-4 text-destructive" />
-                <AlertDescription className="text-destructive font-semibold">
-                  ⚠️ ALERGIA: {allergy}
-                </AlertDescription>
-              </Alert>
-            ))}
-          </div>
+          {allergiesList.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {allergiesList.map((allergy: string, idx: number) => (
+                <Alert key={idx} className="border-destructive bg-destructive/5">
+                  <AlertCircle className="size-4 text-destructive" />
+                  <AlertDescription className="text-destructive font-semibold">
+                    ⚠️ ALERGIA: {allergy}
+                  </AlertDescription>
+                </Alert>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto">
             <TabsTrigger value="overview">Resumen</TabsTrigger>
             <TabsTrigger value="history">Historial</TabsTrigger>
-            <TabsTrigger value="consultation">Nueva Consulta</TabsTrigger>
             <TabsTrigger value="studies">Estudios</TabsTrigger>
           </TabsList>
 
@@ -158,26 +303,153 @@ export default function PatientView360() {
           <TabsContent value="overview" className="space-y-4 mt-6">
             <div className="grid gap-4 md:grid-cols-2">
               {/* Vital Signs */}
-              <Card>
-                <CardHeader>
+              <Card className="relative overflow-hidden group">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="flex items-center gap-2">
                     <Heart className="size-5 text-primary" />
                     Signos Vitales Recientes
                   </CardTitle>
+                  {!isEditingVitals && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingVitals(true)}
+                      className="h-8 px-3 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all opacity-0 group-hover:opacity-100 rounded-full"
+                    >
+                      <Edit2 className="size-4 mr-1.5" />
+                      Editar
+                    </Button>
+                  )}
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Presión Arterial</p>
-                    <p className="text-2xl font-bold text-foreground">140/90</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Frecuencia Cardíaca</p>
-                    <p className="text-2xl font-bold text-foreground">78 bpm</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Temperatura</p>
-                    <p className="text-2xl font-bold text-foreground">36.8°C</p>
-                  </div>
+                <CardContent className="space-y-4 pt-2">
+                  {isEditingVitals ? (
+                    <div className="space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-2 items-center gap-4">
+                          <p className="text-sm font-semibold text-foreground">Presión Arterial</p>
+                          <Input
+                            placeholder="Ej: 120/80"
+                            value={editVitalsForm.blood_pressure}
+                            onChange={(e) => setEditVitalsForm({ ...editVitalsForm, blood_pressure: e.target.value })}
+                            className="h-9 bg-foreground/5 border-none focus-visible:ring-1 focus-visible:ring-primary font-mono text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 items-center gap-4">
+                          <p className="text-sm font-semibold text-foreground">Frec. Cardíaca</p>
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: 72"
+                              value={editVitalsForm.heart_rate}
+                              onChange={(e) => setEditVitalsForm({ ...editVitalsForm, heart_rate: e.target.value })}
+                              className="h-9 bg-foreground/5 border-none focus-visible:ring-1 focus-visible:ring-primary font-mono text-sm pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">bpm</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 items-center gap-4">
+                          <p className="text-sm font-semibold text-foreground">Temperatura</p>
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: 36.5"
+                              value={editVitalsForm.temperature}
+                              onChange={(e) => setEditVitalsForm({ ...editVitalsForm, temperature: e.target.value })}
+                              className="h-9 bg-foreground/5 border-none focus-visible:ring-1 focus-visible:ring-primary font-mono text-sm pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">°C</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 items-center gap-4">
+                          <p className="text-sm font-semibold text-foreground">Peso</p>
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: 75"
+                              value={editVitalsForm.weight}
+                              onChange={(e) => setEditVitalsForm({ ...editVitalsForm, weight: e.target.value })}
+                              className="h-9 bg-foreground/5 border-none focus-visible:ring-1 focus-visible:ring-primary font-mono text-sm pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">kg</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 items-center gap-4">
+                          <p className="text-sm font-semibold text-foreground">Altura</p>
+                          <div className="relative">
+                            <Input
+                              placeholder="Ej: 170"
+                              value={editVitalsForm.height}
+                              onChange={(e) => setEditVitalsForm({ ...editVitalsForm, height: e.target.value })}
+                              className="h-9 bg-foreground/5 border-none focus-visible:ring-1 focus-visible:ring-primary font-mono text-sm pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">cm</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end pt-3 border-t border-border/50">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingVitals(false)
+                            setEditVitalsForm({
+                              blood_pressure: vitals?.blood_pressure || '',
+                              heart_rate: vitals?.heart_rate || '',
+                              temperature: vitals?.temperature || '',
+                              weight: vitals?.weight || '',
+                              height: vitals?.height || ''
+                            })
+                          }}
+                          disabled={isSavingVitals}
+                          className="h-8 rounded-full"
+                        >
+                          <X className="size-4 mr-1" />
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveVitals}
+                          disabled={isSavingVitals}
+                          className="h-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full shadow-sm"
+                        >
+                          {isSavingVitals ? (
+                            <Loader2 className="size-4 mr-1 animate-spin" />
+                          ) : (
+                            <Check className="size-4 mr-1" />
+                          )}
+                          Guardar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 animate-in fade-in">
+                      <div className="flex justify-between items-center border-b border-border/50 pb-2 group/item transition-colors hover:bg-foreground/5 px-2 -mx-2 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Presión Arterial</p>
+                        <p className="text-lg font-bold text-foreground">{vitals?.blood_pressure || 'N/A'}</p>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-border/50 pb-2 group/item transition-colors hover:bg-foreground/5 px-2 -mx-2 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Frecuencia Cardíaca</p>
+                        <p className="text-lg font-bold text-foreground">
+                          {vitals?.heart_rate ? `${vitals.heart_rate} bpm` : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-border/50 pb-2 group/item transition-colors hover:bg-foreground/5 px-2 -mx-2 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Temperatura</p>
+                        <p className="text-lg font-bold text-foreground">
+                          {vitals?.temperature ? `${vitals.temperature} °C` : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-border/50 pb-2 group/item transition-colors hover:bg-foreground/5 px-2 -mx-2 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Peso</p>
+                        <p className="text-lg font-bold text-foreground">
+                          {vitals?.weight ? `${vitals.weight} kg` : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center group/item transition-colors hover:bg-foreground/5 px-2 -mx-2 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Altura</p>
+                        <p className="text-lg font-bold text-foreground">
+                          {vitals?.height ? `${vitals.height} cm` : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -190,17 +462,20 @@ export default function PatientView360() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    {[
-                      { name: 'Metformina', dose: '500mg' },
-                      { name: 'Enalapril', dose: '10mg' },
-                      { name: 'Atorvastatina', dose: '20mg' },
-                    ].map((med) => (
-                      <div key={med.name} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground">{med.name}</span>
-                        <Badge variant="secondary">{med.dose}</Badge>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    {medications.length > 0 ? (
+                      medications.map((med) => (
+                        <div key={med.id} className="flex items-center justify-between text-sm p-2 bg-foreground/5 rounded-lg">
+                          <div>
+                            <span className="text-foreground font-semibold block">{med.name}</span>
+                            <span className="text-xs text-muted-foreground">{med.frequency}</span>
+                          </div>
+                          <Badge variant="secondary">{med.dosage}</Badge>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No hay medicamentos activos.</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -212,13 +487,17 @@ export default function PatientView360() {
                 <CardTitle>Antecedentes Médicos</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {patient.chronicConditions.map((condition) => (
-                    <Badge key={condition} variant="outline" className="bg-red-50 text-red-800 border-red-300">
-                      {condition}
-                    </Badge>
-                  ))}
-                </div>
+                {chronicConditions.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {chronicConditions.map((condition) => (
+                      <Badge key={condition.id} variant="outline" className="bg-red-50 text-red-800 border-red-300 px-3 py-1">
+                        {condition.title}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin antecedentes registrados.</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -231,108 +510,33 @@ export default function PatientView360() {
                   <Lock className="size-5 text-primary" />
                   Historial Clínico Blockchain
                 </CardTitle>
-                <CardDescription>Timeline inmutable de todas las consultas</CardDescription>
+                <CardDescription>Timeline inmutable de todas las consultas y registros médicos</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { date: '2024-03-20', type: 'Consulta Cardiológica', status: 'Acceso concedido' },
-                    { date: '2024-03-10', type: 'Control de Hipertensión', status: 'Bloqueado' },
-                    { date: '2024-02-28', type: 'Laboratorios', status: 'Acceso concedido' },
-                  ].map((record, i) => (
-                    <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0">
-                      <div>
-                        <p className="font-semibold text-foreground">{record.type}</p>
-                        <p className="text-sm text-muted-foreground">{record.date}</p>
+                  {background.length > 0 ? (
+                    background.map((record) => (
+                      <div key={record.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 group hover:bg-foreground/5 p-3 -mx-3 rounded-xl transition-colors">
+                        <div>
+                          <p className="font-semibold text-foreground text-lg">{record.title}</p>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{record.description}</p>
+                          <div className="flex gap-2 mt-2">
+                            <Badge variant="outline" className="text-[10px] uppercase bg-background">{record.category}</Badge>
+                            <span className="text-xs text-muted-foreground font-medium">{new Date(record.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <Badge variant="default" className="shrink-0 bg-primary/20 text-primary hover:bg-primary/30 border-none">
+                          {record.status_detail || 'Registrado'}
+                        </Badge>
                       </div>
-                      <Badge variant={record.status === 'Acceso concedido' ? 'default' : 'secondary'}>
-                        {record.status === 'Acceso concedido' ? '🔓' : '🔒'} {record.status}
-                      </Badge>
+                    ))
+                  ) : (
+                    <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
+                      <Lock className="size-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-sm font-semibold text-muted-foreground">No hay registros en el historial.</p>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Nueva Consulta Tab */}
-          <TabsContent value="consultation" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Registrar Nueva Consulta</CardTitle>
-                <CardDescription>Esta información será firmada criptográficamente</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <FieldGroup>
-                  <FieldLabel>Motivo de Consulta</FieldLabel>
-                  <Textarea
-                    placeholder="Describe el motivo de la consulta"
-                    value={consultNotes}
-                    onChange={(e) => setConsultNotes(e.target.value)}
-                  />
-                </FieldGroup>
-
-                <div>
-                  <h4 className="font-semibold text-foreground mb-3">Signos Vitales</h4>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <FieldGroup>
-                      <FieldLabel>Presión Arterial (mmHg)</FieldLabel>
-                      <Input
-                        placeholder="120/80"
-                        value={bloodPressure}
-                        onChange={(e) => setBloodPressure(e.target.value)}
-                      />
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Frecuencia Cardíaca (bpm)</FieldLabel>
-                      <Input
-                        placeholder="72"
-                        value={heartRate}
-                        onChange={(e) => setHeartRate(e.target.value)}
-                        type="number"
-                      />
-                    </FieldGroup>
-                    <FieldGroup>
-                      <FieldLabel>Temperatura (°C)</FieldLabel>
-                      <Input
-                        placeholder="36.8"
-                        value={temperature}
-                        onChange={(e) => setTemperature(e.target.value)}
-                        type="number"
-                      />
-                    </FieldGroup>
-                  </div>
-                </div>
-
-                <FieldGroup>
-                  <FieldLabel>Diagnóstico (CIE-10)</FieldLabel>
-                  <Input 
-                    placeholder="Ej: J00 - Resfriado común" 
-                    value={diagnosis}
-                    onChange={(e) => setDiagnosis(e.target.value)}
-                  />
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldLabel>Receta/Tratamiento</FieldLabel>
-                  <Textarea 
-                    placeholder="Medicamentos y recomendaciones" 
-                    value={prescription}
-                    onChange={(e) => setPrescription(e.target.value)}
-                  />
-                </FieldGroup>
-
-                <Alert className="border-primary bg-primary/5">
-                  <Zap className="size-4 text-primary" />
-                  <AlertDescription>
-                    Al guardar, se solicitará una firma de tu wallet para registrar este diagnóstico en blockchain
-                  </AlertDescription>
-                </Alert>
-
-                <Button size="lg" className="w-full" onClick={handleSaveConsultation} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="mr-2 size-5 animate-spin" /> : <Zap className="mr-2 size-5" />}
-                  {isSaving ? 'Guardando...' : 'Guardar y Firmar Diagnóstico'}
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -340,18 +544,77 @@ export default function PatientView360() {
           {/* Estudios Tab */}
           <TabsContent value="studies" className="space-y-4 mt-6">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="size-5 text-primary" />
                   Estudios y Exámenes
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                  <p className="text-muted-foreground mb-2">Arrastra archivos o haz clic para subir</p>
-                  <Button variant="outline">Seleccionar Archivo</Button>
-                  <p className="text-xs text-muted-foreground mt-2">PDF, JPG, PNG (máx 20MB)</p>
+              <CardContent className="space-y-6">
+
+                {/* Upload Area */}
+                <div className="relative rounded-xl border-2 border-dashed border-border/50 bg-foreground/5 hover:bg-foreground/10 transition-colors p-10 text-center group cursor-pointer">
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                  />
+                  <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                    {uploading ? (
+                      <Loader2 className="size-10 animate-spin text-primary" />
+                    ) : (
+                      <UploadCloud className="size-10 text-muted-foreground group-hover:text-primary transition-colors" />
+                    )}
+                    <p className="text-foreground font-semibold text-lg">
+                      {uploading ? 'Subiendo archivo y registrando...' : 'Arrastra archivos o haz clic para subir'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Soporta archivos PDF, JPG, PNG (máx. 20MB)</p>
+                  </div>
                 </div>
+
+                {/* List of Studies */}
+                <div className="space-y-4 pt-4">
+                  <h4 className="font-semibold text-foreground border-b border-border/30 pb-2">Documentos Guardados</h4>
+                  {studies.length > 0 ? (
+                    <div className="grid gap-3">
+                      {studies.map((study) => (
+                        <div key={study.id} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:border-primary/30 transition-colors">
+                          <div className="flex items-center gap-4 overflow-hidden">
+                            <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                              <FileText className="size-6 text-primary" />
+                            </div>
+                            <div className="truncate">
+                              <p className="font-semibold text-foreground truncate">{study.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">{study.category}</Badge>
+                                <span className="text-xs text-muted-foreground font-medium">{study.file_size}</span>
+                                <span className="text-xs text-muted-foreground">• {new Date(study.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <a
+                            href={study.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0"
+                          >
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-10 w-10 rounded-full bg-foreground/5 hover:bg-primary/10">
+                              <Download className="size-4" />
+                            </Button>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
+                      <FileText className="size-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-sm font-semibold text-muted-foreground">No hay estudios registrados.</p>
+                    </div>
+                  )}
+                </div>
+
               </CardContent>
             </Card>
           </TabsContent>
