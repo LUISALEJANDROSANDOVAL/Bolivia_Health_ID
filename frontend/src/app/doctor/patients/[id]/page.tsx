@@ -147,12 +147,42 @@ export default function PatientView360() {
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
-            <TabsTrigger value="overview">Resumen</TabsTrigger>
-            <TabsTrigger value="history">Historial</TabsTrigger>
-            <TabsTrigger value="consultation">Nueva Consulta</TabsTrigger>
-            <TabsTrigger value="studies">Estudios</TabsTrigger>
-          </TabsList>
+          <div className="bg-white/50 dark:bg-azul-profundo/30 backdrop-blur-md p-1 rounded-2xl border border-azul-electrico/10 shadow-sm inline-block">
+            <TabsList className="flex bg-transparent h-auto p-0 border-none">
+              <TabsTrigger 
+                value="overview"
+                className="px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                Resumen
+              </TabsTrigger>
+              <TabsTrigger 
+                value="history"
+                className="px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                Historial
+              </TabsTrigger>
+              <TabsTrigger 
+                value="consultation"
+                className="px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                Nueva Consulta
+              </TabsTrigger>
+              <TabsTrigger 
+                value="studies"
+                className="px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
+              >
+                Estudios
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Resumen Tab */}
           <TabsContent value="overview" className="space-y-4 mt-6">

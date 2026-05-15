@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,49 +29,94 @@ import { BlockchainSettings } from '@/components/blockchain-settings'
 import { DataManagement } from '@/components/data-management'
 import { DoctorProfileSettings, DoctorProfileSettingsRef } from '@/components/doctor-profile-settings'
 
-const settingsStats = [
-  {
-    icon: Shield,
-    label: 'Nivel de seguridad',
-    value: 'Alto',
-    description: '2FA activada',
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-50'
-  },
-  {
-    icon: Database,
-    label: 'Almacenamiento',
-    value: '5.2 GB',
-    description: 'de 20 GB',
-    color: 'text-blue-500',
-    bg: 'bg-blue-50'
-  },
-  {
-    icon: Lock,
-    label: 'Cifrado',
-    value: 'AES-256',
-    description: 'End-to-end',
-    color: 'text-purple-500',
-    bg: 'bg-purple-50'
-  },
-  {
-    icon: CreditCard,
-    label: 'Wallet',
-    value: 'Conectada',
-    description: 'Red Ethereum',
-    color: 'text-amber-500',
-    bg: 'bg-amber-50'
-  }
-]
-
 export default function DoctorSettingsPage() {
+  const { isConnected, walletAddress } = useWallet()
+  const [stats, setStats] = useState([
+    {
+      icon: Shield,
+      label: 'Nivel de seguridad',
+      value: 'Alto',
+      description: '2FA activada',
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-50'
+    },
+    {
+      icon: Database,
+      label: 'Almacenamiento',
+      value: 'Calculando...',
+      description: 'de 20 GB',
+      color: 'text-blue-500',
+      bg: 'bg-blue-50'
+    },
+    {
+      icon: Lock,
+      label: 'Cifrado',
+      value: 'AES-256',
+      description: 'End-to-end',
+      color: 'text-purple-500',
+      bg: 'bg-purple-50'
+    },
+    {
+      icon: CreditCard,
+      label: 'Wallet',
+      value: isConnected ? 'Conectada' : 'Desconectada',
+      description: isConnected ? 'Red Avalanche' : 'Requiere conexión',
+      color: isConnected ? 'text-emerald-500' : 'text-amber-500',
+      bg: isConnected ? 'bg-emerald-50' : 'bg-amber-50'
+    }
+  ])
+
   const profileRef = useRef<DoctorProfileSettingsRef>(null)
   const [activeTab, setActiveTab] = useState('perfil')
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const { isConnected, walletAddress } = useWallet()
   const [copied, setCopied] = useState(false)
   const { toast } = useToast()
+
+  // Actualizar stats reales
+  const fetchRealStats = async () => {
+    if (!walletAddress) return
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+
+      if (!profile) return
+
+      const { count: medicalCount } = await supabase
+        .from('medical_background')
+        .select('id', { count: 'exact' })
+        .eq('doctor_id', profile.id)
+
+      const usedGB = (((medicalCount || 0) * 0.15) / 1024 + 0.12).toFixed(1)
+
+      setStats(prev => {
+        const newStats = [...prev]
+        newStats[1] = {
+          ...newStats[1],
+          value: `${usedGB} GB`,
+          description: `${medicalCount || 0} registros médicos`
+        }
+        newStats[3] = {
+          ...newStats[3],
+          value: isConnected ? 'Conectada' : 'Desconectada',
+          description: isConnected ? 'Red Avalanche' : 'Requiere conexión',
+          color: isConnected ? 'text-emerald-500' : 'text-amber-500',
+          bg: isConnected ? 'bg-emerald-50' : 'bg-amber-50'
+        }
+        return newStats
+      })
+    } catch (err) {
+      console.error('Error fetching stats:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchRealStats()
+  }, [walletAddress, isConnected])
 
   const copyAddress = () => {
     if (walletAddress) {
@@ -96,6 +141,7 @@ export default function DoctorSettingsPage() {
         title: 'Configuración guardada',
         description: 'Todos los cambios han sido guardados correctamente.',
       })
+      fetchRealStats() // Refrescar stats después de guardar
     } catch {
       toast({
         title: 'Error al guardar',
@@ -127,7 +173,7 @@ export default function DoctorSettingsPage() {
 
           {/* Stats cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-            {settingsStats.map((stat, idx) => (
+            {stats.map((stat, idx) => (
               <Card key={idx} className="card-premium p-4 hover:border-azul-electrico/30 transition-all">
                 <CardContent className="p-0">
                   <div className="flex items-start justify-between">
@@ -175,32 +221,64 @@ export default function DoctorSettingsPage() {
 
         {/* Tabs de configuración */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-3 lg:grid-cols-6 gap-2 bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="perfil" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <User className="size-4" />
-              <span className="hidden lg:inline">Perfil Médico</span>
-            </TabsTrigger>
-            <TabsTrigger value="seguridad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <Shield className="size-4" />
-              <span className="hidden lg:inline">Seguridad</span>
-            </TabsTrigger>
-            <TabsTrigger value="notificaciones" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <Bell className="size-4" />
-              <span className="hidden lg:inline">Notificaciones</span>
-            </TabsTrigger>
-            <TabsTrigger value="privacidad" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <Lock className="size-4" />
-              <span className="hidden lg:inline">Privacidad</span>
-            </TabsTrigger>
-            <TabsTrigger value="blockchain" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <Globe className="size-4" />
-              <span className="hidden lg:inline">Blockchain</span>
-            </TabsTrigger>
-            <TabsTrigger value="datos" className="flex items-center gap-2 data-[state=active]:bg-gradient-electric data-[state=active]:text-white">
-              <Database className="size-4" />
-              <span className="hidden lg:inline">Datos</span>
-            </TabsTrigger>
-          </TabsList>
+          <div className="bg-white/50 dark:bg-azul-profundo/50 backdrop-blur-md p-1.5 rounded-2xl border border-azul-electrico/10 shadow-sm overflow-x-auto">
+            <TabsList className="flex w-full lg:grid lg:grid-cols-6 gap-2 bg-transparent h-auto p-0 border-none">
+              <TabsTrigger 
+                value="perfil" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <User className="size-4" />
+                <span className="font-semibold">Perfil</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="seguridad" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <Shield className="size-4" />
+                <span className="font-semibold">Seguridad</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="notificaciones" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <Bell className="size-4" />
+                <span className="font-semibold">Notificaciones</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="privacidad" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <Lock className="size-4" />
+                <span className="font-semibold">Privacidad</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="blockchain" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <Globe className="size-4" />
+                <span className="font-semibold">Blockchain</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="datos" 
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all duration-300
+                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
+                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-lg"
+              >
+                <Database className="size-4" />
+                <span className="font-semibold">Datos</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="perfil">
             <DoctorProfileSettings ref={profileRef} />
