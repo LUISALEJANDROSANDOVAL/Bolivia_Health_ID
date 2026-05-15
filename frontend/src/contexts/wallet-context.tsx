@@ -112,21 +112,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw fetchError
       }
 
+      // Si no existe, usamos upsert por seguridad (evita errores de duplicidad en carreras de estado)
       const newFullName = name || `Paciente ${walletAddr.slice(0, 6)}`;
-      const { data: created, error: createError } = await supabase
+      const { data: profileData, error: upsertError } = await supabase
         .from('profiles')
-        .insert([{
+        .upsert({
           wallet_address: wallet,
           full_name: newFullName,
           email: email || null,
           role: 'paciente'
-        }])
+        }, { 
+          onConflict: 'wallet_address',
+          ignoreDuplicates: false 
+        })
         .select()
         .single()
 
-      if (createError) throw createError
+      if (upsertError) throw upsertError
 
-      setProfile(created)
+      setProfile(profileData)
     } catch (err) {
       console.error('Error sincronizando perfil:', err)
     } finally {

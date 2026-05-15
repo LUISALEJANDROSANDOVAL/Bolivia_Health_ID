@@ -74,6 +74,25 @@ export default function RegisterPage() {
     }
   }, [])
 
+  // Redirección si ya es doctor y está intentando registrarse como tal
+  useEffect(() => {
+    async function checkExistingRole() {
+      if (isConnected && walletAddress && role === 'medico') {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('wallet_address', walletAddress.toLowerCase())
+          .single()
+        
+        if (data && data.role === 'medico') {
+          console.log('Usuario ya es médico, redireccionando...')
+          router.push('/doctor')
+        }
+      }
+    }
+    checkExistingRole()
+  }, [isConnected, walletAddress, role, router])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
@@ -260,7 +279,18 @@ export default function RegisterPage() {
         .eq('wallet_address', walletAddress.toLowerCase())
 
       if (error) {
-        alert(`Error desde Supabase: ${error.message || JSON.stringify(error)}`)
+        // Manejo específico de errores de duplicidad (Unique Constraint)
+        if (error.code === '23505') {
+          if (error.message?.includes('cedula_identidad')) {
+            alert('Error: Esta Cédula de Identidad ya está registrada con otra cuenta.')
+          } else if (error.message?.includes('wallet_address')) {
+            alert('Error: Esta billetera ya tiene un perfil asignado.')
+          } else {
+            alert(`Error de duplicidad: ${error.message}`)
+          }
+        } else {
+          alert(`Error desde Supabase: ${error.message || JSON.stringify(error)}`)
+        }
         throw error
       }
 
@@ -278,7 +308,7 @@ export default function RegisterPage() {
       }
     } catch (err: any) {
       console.error('Error actualizando perfil:', err)
-      if (!err.message) alert('Hubo un error al guardar tus datos.')
+      // El alert ya se mostró arriba si era error de Supabase
     } finally {
       setIsLoading(false)
     }
