@@ -7,7 +7,6 @@ import { ConnectKitProvider, getDefaultConfig } from "connectkit";
 import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
-
 import React, { useState, useEffect } from 'react';
 
 const queryClient = new QueryClient();

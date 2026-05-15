@@ -1,6 +1,6 @@
 'use client'
 
-import { Calendar, Clock, MapPin, Video, ChevronRight, Plus } from 'lucide-react'
+import { Calendar, Clock, MapPin, Video, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useWallet } from '@/contexts/wallet-context'
@@ -16,10 +16,6 @@ export function UpcomingAppointments() {
           <h2 className="text-xl font-black text-foreground tracking-tight">Próximas Citas</h2>
           <p className="text-sm text-foreground/50 font-medium">Tus consultas programadas</p>
         </div>
-        <Button variant="outline" size="sm" className="btn-outline-premium text-sm py-1">
-          <Plus className="size-4 mr-1" />
-          Agendar
-        </Button>
       </div>
       
       <div className="space-y-4">
