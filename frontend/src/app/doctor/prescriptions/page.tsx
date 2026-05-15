@@ -338,9 +338,9 @@ export default function DoctorPrescriptionsPage() {
 
   return (
     <DoctorLayout>
-      <div className="animate-slide-in space-y-8 p-8">
+      <div className="space-y-8 p-8">
         {/* Header Section */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-slide-in">
           <div className="flex items-center gap-5">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
               <Pill className="h-8 w-8" />
@@ -366,7 +366,7 @@ export default function DoctorPrescriptionsPage() {
         </div>
 
         {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 animate-slide-in [animation-delay:100ms]">
           {[
             { label: 'Recetas Hoy', value: '12', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Esta Semana', value: '48', icon: Clock, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10' },
@@ -390,7 +390,7 @@ export default function DoctorPrescriptionsPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b-2 border-muted pb-1">
+        <div className="flex items-center gap-2 border-b-2 border-muted pb-1 animate-slide-in [animation-delay:200ms]">
           <button
             onClick={() => setActiveTab('nueva')}
             className={`relative px-6 py-4 text-sm font-bold transition-all ${
@@ -422,7 +422,7 @@ export default function DoctorPrescriptionsPage() {
         {activeTab === 'nueva' ? (
           <div className="grid gap-8 lg:grid-cols-12">
             {/* Form Section */}
-            <div className="lg:col-span-8 space-y-8">
+            <div className="lg:col-span-8 space-y-8 animate-slide-in [animation-delay:300ms]">
               {/* 1. Patient Selection */}
               <Card className="card-premium border-none shadow-md overflow-hidden">
                 <CardHeader className="bg-muted/30 pb-4">
@@ -849,8 +849,8 @@ export default function DoctorPrescriptionsPage() {
 
             {/* Sidebar / Summary Section */}
             <div className="lg:col-span-4 space-y-6">
-              {/* Prescription Live Summary */}
-              <div className="sticky top-8 space-y-6">
+              {/* Prescription Sidebar - Both cards follow the scroll together */}
+              <div className="sticky top-20 space-y-6 z-10">
                 <Card className="border-none shadow-xl overflow-hidden bg-azul-profundo text-white">
                   <div className="bg-gradient-premium p-6 pb-4">
                     <div className="flex items-center justify-between mb-4">
@@ -925,7 +925,7 @@ export default function DoctorPrescriptionsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Helpful Resources */}
+                {/* Helpful Resources - Now sticky too! */}
                 <Card className="card-premium border-none shadow-md overflow-hidden">
                   <div className="bg-muted/30 p-4 border-b">
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
