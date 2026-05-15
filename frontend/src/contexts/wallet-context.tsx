@@ -23,6 +23,9 @@ if (typeof window !== 'undefined') {
         appId,
         chainName: 'Avalanche',
         chainId: 43113,
+        wallet: {
+          displayWalletEntry: false, // Oculta el botón flotante de "Rendering..."
+        }
       });
       particleProvider = new ParticleProvider(particle.auth);
     } catch (error) {

@@ -41,7 +41,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ConnectKitProvider>
           <WalletProvider>
             <DoctorAuthProvider>
-            <DoctorAuthProvider>
               {mounted ? (
                 <ThemeProvider
                   attribute="class"
@@ -54,7 +53,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
               ) : (
                 <>{children}</>
               )}
-            </DoctorAuthProvider>
             </DoctorAuthProvider>
           </WalletProvider>
         </ConnectKitProvider>

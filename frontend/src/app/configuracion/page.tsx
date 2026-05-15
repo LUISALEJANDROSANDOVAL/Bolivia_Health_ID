@@ -50,6 +50,15 @@ import { PrivacySettings } from '@/components/privacy-settings'
 import { BlockchainSettings } from '@/components/blockchain-settings'
 import { DataManagement } from '@/components/data-management'
 
+export default function ConfiguracionPage() {
+  const { isConnected, walletAddress, userName } = useWallet()
+  const profileRef = useRef<ProfileSettingsRef>(null)
+  const [copied, setCopied] = useState(false)
+  const [activeTab, setActiveTab] = useState('perfil')
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const { toast } = useToast()
+
   const [stats, setStats] = useState([
     {
       icon: Shield,
@@ -78,24 +87,30 @@ import { DataManagement } from '@/components/data-management'
     {
       icon: CreditCard,
       label: 'Wallet',
-      value: isConnected ? 'Conectada' : 'Desconectada',
-      description: isConnected ? 'Red Avalanche' : 'Requiere conexión',
-      color: isConnected ? 'text-emerald-500' : 'text-amber-500',
-      bg: isConnected ? 'bg-emerald-50' : 'bg-amber-50'
+      value: 'Cargando...',
+      description: 'Verificando conexión',
+      color: 'text-amber-500',
+      bg: 'bg-amber-50'
     }
   ])
 
-  const profileRef = useRef<ProfileSettingsRef>(null)
-  const { isConnected, walletAddress, userName } = useWallet()
-  const [copied, setCopied] = useState(false)
-  const [activeTab, setActiveTab] = useState('perfil')
-  const [isSaving, setIsSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const { toast } = useToast()
-
   // Actualizar stats reales del paciente
   const fetchRealStats = async () => {
-    if (!walletAddress) return
+    // Si no hay wallet, marcamos como desconectada y salimos
+    if (!walletAddress) {
+      setStats(prev => {
+        const newStats = [...prev]
+        newStats[3] = {
+          ...newStats[3],
+          value: 'Desconectada',
+          description: 'Requiere conexión',
+          color: 'text-amber-500',
+          bg: 'bg-amber-50'
+        }
+        return newStats
+      })
+      return
+    }
 
     try {
       const { data: profile } = await supabase
@@ -122,10 +137,10 @@ import { DataManagement } from '@/components/data-management'
         }
         newStats[3] = {
           ...newStats[3],
-          value: isConnected ? 'Conectada' : 'Desconectada',
-          description: isConnected ? 'Red Avalanche' : 'Requiere conexión',
-          color: isConnected ? 'text-emerald-500' : 'text-amber-500',
-          bg: isConnected ? 'bg-emerald-50' : 'bg-amber-50'
+          value: 'Conectada',
+          description: 'Red Avalanche Fuji',
+          color: 'text-emerald-500',
+          bg: 'bg-emerald-50'
         }
         return newStats
       })
