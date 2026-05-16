@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, User, Clock, Calendar as CalendarIcon, MapPin, FileText, Loader2, Check } from 'lucide-react'
+import { Plus, User, Clock, Calendar as CalendarIcon, MapPin, FileText, Loader2, Check, Video } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { toast } from 'sonner'
@@ -40,6 +40,7 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
     end_time: '09:30',
     location: 'Consultorio A-102',
     priority: 'normal',
+    type: 'presencial',
     reason: 'Consulta General',
     notes: ''
   })
@@ -93,7 +94,7 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
         appointment_time: formData.appointment_time,
         end_time: formData.end_time,
         location: formData.location,
-        type: formData.location === 'Telemedicina' ? 'virtual' : 'presencial',
+        type: formData.type,
         priority: formData.priority,
         reason: formData.reason,
         notes: formData.notes,
@@ -243,22 +244,42 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
               />
             </div>
 
-            {/* Ubicación */}
+            {/* Tipo de Cita */}
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Ubicación</Label>
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Tipo de Cita</Label>
               <Select 
-                value={formData.location} 
-                onValueChange={(val) => setFormData({...formData, location: val})}
+                value={formData.type} 
+                onValueChange={(val: 'presencial' | 'virtual') => setFormData({...formData, type: val})}
               >
                 <SelectTrigger className="h-12 rounded-2xl bg-foreground/5 border-none">
-                  <SelectValue />
+                  <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-xl">
-                  <SelectItem value="Consultorio A-102" className="rounded-xl">Consultorio A-102</SelectItem>
-                  <SelectItem value="Consultorio B-205" className="rounded-xl">Consultorio B-205</SelectItem>
-                  <SelectItem value="Telemedicina" className="rounded-xl">Telemedicina (Virtual)</SelectItem>
+                  <SelectItem value="presencial" className="rounded-xl">Presencial</SelectItem>
+                  <SelectItem value="virtual" className="rounded-xl">Virtual (Telemedicina)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Ubicación o Link */}
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+                {formData.type === 'virtual' ? 'Link de la Reunión' : 'Ubicación'}
+              </Label>
+              <div className="relative">
+                {formData.type === 'virtual' ? (
+                  <Video className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                ) : (
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                )}
+                <Input 
+                  placeholder={formData.type === 'virtual' ? "Zoom, Meet, WhatsApp link..." : "Ej: Consultorio A-102"}
+                  className="h-12 rounded-2xl bg-foreground/5 border-none pl-11"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  required
+                />
+              </div>
             </div>
           </div>
 

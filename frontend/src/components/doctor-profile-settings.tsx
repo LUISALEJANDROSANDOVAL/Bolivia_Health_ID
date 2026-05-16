@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
 import { useWallet } from '@/contexts/wallet-context'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { supabase } from '@/lib/supabase'
 
 export interface DoctorProfileSettingsRef {
@@ -25,6 +26,7 @@ interface DoctorProfileSettingsProps {
 export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, DoctorProfileSettingsProps>(
   function DoctorProfileSettings({ userName }, ref) {
     const { walletAddress } = useWallet()
+    const { doctorName, doctorLicense, doctorSpecialty, refreshProfile } = useDoctorAuth()
     const { toast } = useToast()
 
     const [isSaving, setIsSaving] = useState(false)
@@ -73,7 +75,7 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
 
     const handleChange = (field: string, value: string) => {
       setFormData(prev => ({ ...prev, [field]: value }))
-      setSavedOk(false) // Marca como no guardado cuando hay cambios
+      setSavedOk(false)
     }
 
     const handleSave = async () => {
@@ -85,6 +87,7 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
         })
         return
       }
+
       setIsSaving(true)
       try {
         const { error } = await supabase
@@ -99,10 +102,11 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
 
         if (error) throw error
 
+        await refreshProfile()
         setSavedOk(true)
         toast({
-          title: '✅ Perfil guardado',
-          description: 'Tu información profesional fue guardada correctamente.',
+          title: '✅ Perfil actualizado',
+          description: 'Tu información profesional ha sido guardada en la base de datos.',
         })
         
         // Reset el check de guardado después de 3s
