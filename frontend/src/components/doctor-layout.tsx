@@ -14,13 +14,13 @@ interface DoctorLayoutProps {
 
 export function DoctorLayout({ children }: DoctorLayoutProps) {
   const router = useRouter()
-  const { approvalStatus, loading, isDoctorAuthenticated } = useDoctorAuth()
+  const { approvalStatus, loading, isDoctorAuthenticated, identityVerified, licenseVerified } = useDoctorAuth()
 
   useEffect(() => {
-    if (!loading && isDoctorAuthenticated && approvalStatus && approvalStatus !== 'approved') {
+    if (!loading && isDoctorAuthenticated && (approvalStatus !== 'approved' || !identityVerified || !licenseVerified)) {
       router.push('/verificando')
     }
-  }, [approvalStatus, loading, isDoctorAuthenticated, router])
+  }, [approvalStatus, identityVerified, licenseVerified, loading, isDoctorAuthenticated, router])
 
   if (loading) {
     return (
