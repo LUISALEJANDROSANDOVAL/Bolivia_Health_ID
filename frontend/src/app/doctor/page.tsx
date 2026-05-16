@@ -3,36 +3,86 @@
 import { DoctorLayout } from '@/components/doctor-layout'
 import { DoctorWelcomeBanner } from '@/components/doctor-welcome-banner'
 import { Button } from '@/components/ui/button'
-import { Users, Clock, AlertCircle, Share2, TrendingUp, Wallet, Shield } from 'lucide-react'
+import { Users, Clock, AlertCircle, Share2, TrendingUp, Wallet, Shield, Loader2 } from 'lucide-react'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import Link from 'next/link'
 import { StatCard } from '@/components/ui/stat-card'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export default function DoctorDashboard() {
-  const { doctorName, doctorWallet } = useDoctorAuth()
+  const { doctorName, doctorWallet, doctorId } = useDoctorAuth()
+  const [loading, setLoading] = useState(true)
+  const [dashboardStats, setDashboardStats] = useState({
+    todayPatients: 0,
+    pendingRequests: 0,
+    activeAccess: 0,
+    prescriptionsSigned: 0
+  })
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      if (!doctorId) return
+      
+      try {
+        // 1. Contar solicitudes pendientes
+        const { count: pendingCount } = await supabase
+          .from('access_permissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('doctor_id', doctorId)
+          .eq('status', 'pending')
+
+        // 2. Contar accesos activos
+        const { count: activeCount } = await supabase
+          .from('access_permissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('doctor_id', doctorId)
+          .eq('status', 'active')
+
+        // 3. Contar recetas firmadas (registros médicos hechos por este doctor)
+        const { count: recordCount } = await supabase
+          .from('medical_background')
+          .select('*', { count: 'exact', head: true })
+          .eq('doctor_id', doctorId)
+
+        setDashboardStats({
+          todayPatients: 0, // Esto requeriría una tabla de citas que aún está vacía
+          pendingRequests: pendingCount || 0,
+          activeAccess: activeCount || 0,
+          prescriptionsSigned: recordCount || 0
+        })
+      } catch (err) {
+        console.error('Error cargando stats del dashboard:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [doctorId])
 
   const stats = [
     {
       title: 'Pacientes Citados Hoy',
-      value: '8',
+      value: dashboardStats.todayPatients.toString(),
       icon: Users,
       color: 'text-blue-500',
     },
     {
       title: 'Solicitudes Pendientes',
-      value: '3',
+      value: dashboardStats.pendingRequests.toString(),
       icon: AlertCircle,
       color: 'text-orange-500',
     },
     {
       title: 'Accesos Concedidos',
-      value: '24',
+      value: dashboardStats.activeAccess.toString(),
       icon: Share2,
       color: 'text-green-500',
     },
     {
       title: 'Diagnósticos Firmados',
-      value: '5',
+      value: dashboardStats.prescriptionsSigned.toString(),
       icon: TrendingUp,
       color: 'text-purple-500',
     },
@@ -52,7 +102,7 @@ export default function DoctorDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* Acciones Rápidas con estilo premium */}
+            {/* Acciones Rápidas */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-black text-foreground">Panel de Control</h2>
@@ -71,22 +121,28 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            {/* Stats Grid con estilo premium */}
+            {/* Stats Grid */}
             <div>
               <div className="mb-4">
                 <h2 className="text-xl font-black text-foreground">Resumen de Actividad</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {stats.map((stat) => (
-                  <StatCard 
-                    key={stat.title}
-                    title={stat.title}
-                    value={stat.value}
-                    icon={stat.icon}
-                    color={stat.color}
-                  />
-                ))}
-              </div>
+              {loading ? (
+                <div className="flex justify-center p-12 bg-foreground/5 rounded-3xl">
+                  <Loader2 className="size-8 text-cyan-500 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {stats.map((stat) => (
+                    <StatCard 
+                      key={stat.title}
+                      title={stat.title}
+                      value={stat.value}
+                      icon={stat.icon}
+                      color={stat.color}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -97,7 +153,7 @@ export default function DoctorDashboard() {
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-foreground/5 border border-border/50">
                   <div className={`size-3 ${doctorWallet ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'} rounded-full animate-pulse`} />
-                  <span className="text-sm font-black text-foreground/80">Polygon m-PoS L2</span>
+                  <span className="text-sm font-black text-foreground/80">Avalanche Fuji C-Chain</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-foreground/5 border border-border/50">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/40 mb-2">Connected Wallet</p>
@@ -109,24 +165,26 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            {/* Actividad Reciente */}
+            {/* Actividad Reciente (Logs de acceso) */}
             <div className="bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2rem] border border-border shadow-lg shadow-black/5">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-black text-foreground">Eventos</h3>
                 <Shield className="size-5 text-cyan-500 opacity-50" />
               </div>
               <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4 group p-2 hover:bg-foreground/5 rounded-2xl transition-all">
+                {dashboardStats.activeAccess > 0 ? (
+                  <div className="flex items-center gap-4 group p-2 hover:bg-foreground/5 rounded-2xl transition-all">
                     <div className="p-2 rounded-xl bg-foreground/5 group-hover:bg-cyan-500/10">
                        <Clock className="size-4 text-foreground/40 group-hover:text-cyan-500" />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-foreground/80">Acceso Paciente #{100+i}</p>
-                      <p className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">Hace {i}h</p>
+                      <p className="text-xs font-black text-foreground/80">Nuevos Accesos Autorizados</p>
+                      <p className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">Sincronizado</p>
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <p className="text-xs text-foreground/30 font-bold text-center py-4">No hay eventos recientes</p>
+                )}
               </div>
             </div>
           </div>
