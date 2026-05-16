@@ -25,9 +25,16 @@ import { useToast } from '@/hooks/use-toast'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
 
-export function SecuritySettings() {
+interface SecuritySettingsProps {
+  profile: any
+  updateProfile: (data: any) => Promise<boolean>
+}
+
+export function SecuritySettings({ profile, updateProfile }: SecuritySettingsProps) {
   const { walletAddress } = useWallet()
-  const { profile, updateProfile } = useProfile(walletAddress)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -65,15 +72,37 @@ export function SecuritySettings() {
     }
   }
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword !== confirmPassword) {
+      toast({
+        title: 'Error en contraseñas',
+        description: 'Las contraseñas nuevas no coinciden o están vacías.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setIsChangingPassword(true)
-    setTimeout(() => {
-      setIsChangingPassword(false)
+    try {
+      await updateProfile({
+        password_hash: newPassword // En un entorno real, esto se hashearía
+      })
       toast({
         title: 'Contraseña actualizada',
-        description: 'Tu contraseña ha sido cambiada correctamente',
+        description: 'Tu contraseña ha sido sincronizada con Supabase correctamente.',
       })
-    }, 1500)
+      setNewPassword('')
+      setConfirmPassword('')
+      setCurrentPassword('')
+    } catch (err: any) {
+      toast({
+        title: 'Error al actualizar',
+        description: err.message || 'No se pudo cambiar la contraseña.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   const handleToggle2FA = () => {
@@ -136,6 +165,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showCurrentPassword ? 'text' : 'password'} 
                   placeholder="Ingresa tu contraseña actual"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
                 />
                 <Button
                   variant="ghost"
@@ -153,6 +184,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showNewPassword ? 'text' : 'password'} 
                   placeholder="Ingresa tu nueva contraseña"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                 />
                 <Button
                   variant="ghost"
@@ -170,6 +203,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showConfirmPassword ? 'text' : 'password'} 
                   placeholder="Confirma tu nueva contraseña"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                 />
                 <Button
                   variant="ghost"

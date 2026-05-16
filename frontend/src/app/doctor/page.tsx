@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { StatCard } from '@/components/ui/stat-card'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { HealthTips } from '@/components/health-tips'
 
 export default function DoctorDashboard() {
   const { doctorName, doctorWallet, doctorId } = useDoctorAuth()
@@ -187,6 +188,9 @@ export default function DoctorDashboard() {
                 )}
               </div>
             </div>
+
+            {/* Tips de Salud */}
+            <HealthTips />
           </div>
         </div>
       </div>

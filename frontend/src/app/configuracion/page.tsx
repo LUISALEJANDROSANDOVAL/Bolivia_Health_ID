@@ -41,6 +41,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { useWallet, formatAddress } from '@/contexts/wallet-context'
 import { useToast } from '@/hooks/use-toast'
+import { useProfile } from '@/hooks/useProfile'
+import { useStorageStats } from '@/hooks/useStorageStats'
 import { supabase } from '@/lib/supabase'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProfileSettings, ProfileSettingsRef } from '@/components/profile-settings'
@@ -51,12 +53,15 @@ import { BlockchainSettings } from '@/components/blockchain-settings'
 import { DataManagement } from '@/components/data-management'
 
 export default function ConfiguracionPage() {
-  const { isConnected, walletAddress, userName } = useWallet()
+  const { isConnected, walletAddress } = useWallet()
+  const { profile, updateProfile, loading: profileLoading } = useProfile(walletAddress)
+  const { stats: storageStats, loading: storageLoading } = useStorageStats(walletAddress)
   const profileRef = useRef<ProfileSettingsRef>(null)
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState('perfil')
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [medicalCount, setMedicalCount] = useState(0)
   const { toast } = useToast()
 
   const [stats, setStats] = useState([
@@ -71,8 +76,8 @@ export default function ConfiguracionPage() {
     {
       icon: Database,
       label: 'Almacenamiento',
-      value: 'Calculando...',
-      description: 'de 10 GB',
+      value: '0.1 GB',
+      description: '0 registros médicos',
       color: 'text-blue-500',
       bg: 'bg-blue-50'
     },
@@ -87,71 +92,71 @@ export default function ConfiguracionPage() {
     {
       icon: CreditCard,
       label: 'Wallet',
-      value: 'Cargando...',
-      description: 'Verificando conexión',
-      color: 'text-amber-500',
-      bg: 'bg-amber-50'
+      value: 'Conectada',
+      description: 'Red Avalanche Fuji',
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-50'
     }
   ])
 
-  // Actualizar stats reales del paciente
-  const fetchRealStats = async () => {
-    // Si no hay wallet, marcamos como desconectada y salimos
-    if (!walletAddress) {
-      setStats(prev => {
-        const newStats = [...prev]
-        newStats[3] = {
-          ...newStats[3],
-          value: 'Desconectada',
-          description: 'Requiere conexión',
-          color: 'text-amber-500',
-          bg: 'bg-amber-50'
-        }
-        return newStats
-      })
-      return
-    }
-
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('wallet_address', walletAddress.toLowerCase())
-        .single()
-
-      if (!profile) return
-
-      const { count: medicalCount } = await supabase
-        .from('medical_background')
-        .select('id', { count: 'exact' })
-        .eq('patient_id', profile.id)
-
-      const usedGB = (((medicalCount || 0) * 0.15) / 1024 + 0.12).toFixed(1)
-
-      setStats(prev => {
-        const newStats = [...prev]
-        newStats[1] = {
-          ...newStats[1],
-          value: `${usedGB} GB`,
-          description: `${medicalCount || 0} registros médicos`
-        }
-        newStats[3] = {
-          ...newStats[3],
-          value: 'Conectada',
-          description: 'Red Avalanche Fuji',
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-50'
-        }
-        return newStats
-      })
-    } catch (err) {
-      console.error('Error fetching stats:', err)
-    }
-  }
-
+  // Cargar conteo de registros médicos (clinical records)
   useEffect(() => {
-    fetchRealStats()
-  }, [walletAddress, isConnected])
+    async function fetchCounts() {
+      if (!profile?.id) return
+      try {
+        const { count } = await supabase
+          .from('medical_background')
+          .select('id', { count: 'exact', head: true })
+          .eq('patient_id', profile.id)
+        
+        setMedicalCount(count || 0)
+      } catch (err) {
+        console.error('Error fetching counts:', err)
+      }
+    }
+    fetchCounts()
+  }, [profile?.id])
+
+  // Actualizar stats cuando cambia el perfil, la wallet o los archivos subidos
+  useEffect(() => {
+    const is2FA = profile?.preferences?.security?.twoFAEnabled ?? true
+    const usedGB = storageStats.usedGB.toFixed(2)
+
+    setStats([
+      {
+        icon: Shield,
+        label: 'Nivel de seguridad',
+        value: is2FA ? 'Alto' : 'Medio',
+        description: is2FA ? '2FA activada' : '2FA desactivada',
+        color: is2FA ? 'text-emerald-500' : 'text-amber-500',
+        bg: is2FA ? 'bg-emerald-50' : 'bg-amber-50'
+      },
+      {
+        icon: Database,
+        label: 'Almacenamiento',
+        value: `${usedGB} GB`,
+        description: `${storageStats.monthUploads} archivos subidos este mes`,
+        color: 'text-blue-500',
+        bg: 'bg-blue-50'
+      },
+      {
+        icon: Lock,
+        label: 'Cifrado',
+        value: 'AES-256',
+        description: 'End-to-end',
+        color: 'text-purple-500',
+        bg: 'bg-purple-50'
+      },
+      {
+        icon: CreditCard,
+        label: 'Wallet',
+        value: walletAddress ? 'Conectada' : 'Desconectada',
+        description: walletAddress ? 'Red Avalanche Fuji' : 'Sin conexión',
+        color: walletAddress ? 'text-emerald-500' : 'text-coral',
+        bg: walletAddress ? 'bg-emerald-50' : 'bg-coral/10'
+      }
+    ])
+  }, [profile, walletAddress, storageStats])
 
   const copyAddress = () => {
     if (walletAddress) {
@@ -314,19 +319,33 @@ export default function ConfiguracionPage() {
           </div>
 
           <TabsContent value="perfil">
-            <ProfileSettings ref={profileRef} userName={userName || undefined} />
+            <ProfileSettings 
+              ref={profileRef} 
+              profile={profile}
+              updateProfile={updateProfile}
+              loading={profileLoading}
+            />
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <SecuritySettings />
+            <SecuritySettings 
+              profile={profile}
+              updateProfile={updateProfile}
+            />
           </TabsContent>
 
           <TabsContent value="notificaciones">
-            <NotificationSettings />
+            <NotificationSettings 
+              profile={profile}
+              updateProfile={updateProfile}
+            />
           </TabsContent>
 
           <TabsContent value="privacidad">
-            <PrivacySettings />
+            <PrivacySettings 
+              profile={profile}
+              updateProfile={updateProfile}
+            />
           </TabsContent>
 
           <TabsContent value="blockchain">

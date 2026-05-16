@@ -36,9 +36,13 @@ interface NotificationSettings {
   inApp: NotificationChannel
 }
 
-export function NotificationSettings() {
+interface NotificationSettingsProps {
+  profile: any
+  updateProfile: (data: any) => Promise<boolean>
+}
+
+export function NotificationSettings({ profile, updateProfile }: NotificationSettingsProps) {
   const { walletAddress } = useWallet()
-  const { profile, updateProfile } = useProfile(walletAddress)
   const { toast } = useToast()
 
   const defaultNotifications: NotificationSettings = {

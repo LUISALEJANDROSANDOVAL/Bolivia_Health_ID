@@ -57,6 +57,12 @@ export const config = createConfig(
 );
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
@@ -69,9 +75,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 enableSystem
                 disableTransitionOnChange
               >
-                <RoleGuard>
-                  {children}
-                </RoleGuard>
+                {mounted ? (
+                  <RoleGuard>
+                    {children}
+                  </RoleGuard>
+                ) : (
+                  <div style={{ visibility: 'hidden' }}>{children}</div>
+                )}
               </ThemeProvider>
             </DoctorAuthProvider>
           </WalletProvider>

@@ -27,12 +27,14 @@ export interface ProfileSettingsRef {
 
 interface ProfileSettingsProps {
   userName?: string
+  profile: any
+  updateProfile: (data: any) => Promise<boolean>
+  loading: boolean
 }
 
 export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsProps>(
-  function ProfileSettings({ userName }, ref) {
+  function ProfileSettings({ userName, profile, updateProfile, loading }, ref) {
     const { walletAddress } = useWallet()
-    const { profile, loading, updateProfile } = useProfile(walletAddress)
     const { toast } = useToast()
 
     const [isSaving, setIsSaving] = useState(false)

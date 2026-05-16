@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useWallet } from '@/contexts/wallet-context'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useStorageStats } from '@/hooks/useStorageStats'
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,8 @@ export function DataManagement() {
   const [isExporting, setIsExporting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const { walletAddress } = useWallet()
+  const { stats: storageStats, loading: storageLoading } = useStorageStats(walletAddress)
   const [realStats, setRealStats] = useState({
     medicalCount: 0,
     appointmentCount: 0,
@@ -45,7 +48,6 @@ export function DataManagement() {
     isLoading: true
   })
   
-  const { walletAddress } = useWallet()
   const { toast } = useToast()
 
   // Fetch real data counts
@@ -95,22 +97,8 @@ export function DataManagement() {
     fetchRealData()
   }, [walletAddress])
 
-  // Cálculos dinámicos
-  const totalRecords = realStats.medicalCount + realStats.appointmentCount + realStats.vitalsCount
-  // Simulamos 0.2 MB por registro para que se vea un número realista en GB
-  const estimatedUsedGB = parseFloat(((totalRecords * 0.15) / 1024).toFixed(2)) + 0.12 // Base de 0.12 GB
-  
-  const storageStats = {
-    used: estimatedUsedGB,
-    total: 10,
-    documents: realStats.medicalCount,
-    images: Math.floor(realStats.medicalCount * 0.3),
-    pdfs: Math.floor(realStats.medicalCount * 0.8),
-    lastBackup: new Date().toISOString().split('T')[0]
-  }
-
   const fileTypes = [
-    { type: 'Documentos', count: realStats.medicalCount, size: `${(realStats.medicalCount * 0.5).toFixed(1)} MB`, icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50' },
+    { type: 'Documentos', count: storageStats.monthUploads, size: `${storageStats.usedGB.toFixed(2)} GB`, icon: FileText, color: 'text-blue-500', bg: 'bg-blue-50' },
     { type: 'Consultas', count: realStats.appointmentCount, size: `${(realStats.appointmentCount * 0.2).toFixed(1)} MB`, icon: RefreshCw, color: 'text-purple-500', bg: 'bg-purple-50' },
     { type: 'Análisis', count: realStats.vitalsCount, size: `${(realStats.vitalsCount * 0.1).toFixed(1)} MB`, icon: FileArchive, color: 'text-amber-500', bg: 'bg-amber-50' }
   ]
@@ -272,9 +260,9 @@ export function DataManagement() {
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-azul-profundo font-medium">Espacio utilizado</span>
-              <span className="text-gris-grafito">{storageStats.used} GB de {storageStats.total} GB</span>
+              <span className="text-gris-grafito">{storageStats.usedGB.toFixed(2)} GB de {storageStats.totalGB} GB</span>
             </div>
-            <Progress value={(storageStats.used / storageStats.total) * 100} className="h-2" />
+            <Progress value={(storageStats.usedGB / storageStats.totalGB) * 100} className="h-2" />
           </div>
           
           <div className="grid grid-cols-3 gap-3 mt-4">
@@ -296,7 +284,7 @@ export function DataManagement() {
           <div className="flex items-center justify-between text-xs text-gris-grafito pt-2">
             <div className="flex items-center gap-2">
               <Clock className="size-3" />
-              Última copia de seguridad: {storageStats.lastBackup}
+              Última subida: {storageStats.lastUploadDate || 'Sin registros'}
             </div>
             <Button variant="ghost" size="sm" className="text-azul-electrico">
               <RefreshCw className="size-3 mr-1" />

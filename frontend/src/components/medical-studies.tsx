@@ -278,7 +278,29 @@ export function MedicalStudies() {
                           variant="ghost"
                           size="sm"
                           className="text-foreground/40 hover:text-emerald-400 hover:bg-foreground/5"
-                          onClick={() => window.open(study.fileUrl, '_blank')}
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(study.fileUrl)
+                              const blob = await response.blob()
+                              const contentType = response.headers.get('content-type')
+                              let extension = '.pdf'
+                              if (contentType?.includes('image/png')) extension = '.png'
+                              else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                              else if (contentType?.includes('image/webp')) extension = '.webp'
+                              
+                              const url = window.URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = study.title.replace(/\s+/g, '_') + extension
+                              document.body.appendChild(a)
+                              a.click()
+                              window.URL.revokeObjectURL(url)
+                              document.body.removeChild(a)
+                            } catch (error) {
+                              console.error('Error downloading file:', error)
+                              window.open(study.fileUrl, '_blank')
+                            }
+                          }}
                         >
                           <Download className="size-4" />
                         </Button>

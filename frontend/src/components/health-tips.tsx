@@ -70,10 +70,10 @@ export function HealthTips() {
                   {tip.description}
                 </p>
                 <Link
-                  href="/mis-registros"
+                  href={tip.link}
                   className="inline-flex items-center text-[10px] font-black uppercase tracking-widest text-cyan-500/60 hover:text-cyan-400 mt-4 gap-2 transition-all"
                 >
-                  Ver mis registros <ArrowRight className="size-3" />
+                  {tip.linkText} <ArrowRight className="size-3" />
                 </Link>
               </div>
             </div>

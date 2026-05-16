@@ -17,6 +17,7 @@ import {
   HeartPulse,
   Syringe,
   Filter,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +44,7 @@ interface DiagnosisItem {
   diagnosisCode?: string
   diagnosisDescription?: string
   isChronic?: boolean
+  fileUrl?: string
 }
 
 const categoryConfig: Record<string, { icon: any; bg: string; color: string; border: string; label: string }> = {
@@ -139,6 +141,7 @@ export function MedicalRecords() {
             diagnosisCode: (r.diagnosis_catalog as any)?.code,
             diagnosisDescription: (r.diagnosis_catalog as any)?.description,
             isChronic: (r.diagnosis_catalog as any)?.is_chronic,
+            fileUrl: r.file_url ? (r.file_url.startsWith('http') ? r.file_url : `https://gateway.pinata.cloud/ipfs/${r.file_url}`) : undefined,
           }))
 
           setRecords(mapped)
@@ -322,6 +325,39 @@ export function MedicalRecords() {
                           <User className="size-3.5 text-cyan-500" />
                           <span>{record.doctor}{record.doctorSpecialty ? ` · ${record.doctorSpecialty}` : ''}</span>
                         </div>
+                      )}
+                      {record.fileUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5 ml-auto"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              const res = await fetch(record.fileUrl!)
+                              const blob = await res.blob()
+                              const contentType = res.headers.get('content-type')
+                              let extension = '.pdf'
+                              if (contentType?.includes('image/png')) extension = '.png'
+                              else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                              else if (contentType?.includes('image/webp')) extension = '.webp'
+
+                              const url = window.URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
+                              document.body.appendChild(a)
+                              a.click()
+                              window.URL.revokeObjectURL(url)
+                              document.body.removeChild(a)
+                            } catch (err) {
+                              window.open(record.fileUrl, '_blank')
+                            }
+                          }}
+                        >
+                          <Download className="size-3" />
+                          Descargar
+                        </Button>
                       )}
                     </div>
                   </div>

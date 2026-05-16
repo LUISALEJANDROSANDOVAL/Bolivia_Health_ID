@@ -21,9 +21,13 @@ import { useToast } from '@/hooks/use-toast'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
 
-export function PrivacySettings() {
+interface PrivacySettingsProps {
+  profile: any
+  updateProfile: (data: any) => Promise<boolean>
+}
+
+export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps) {
   const { walletAddress } = useWallet()
-  const { profile, updateProfile } = useProfile(walletAddress)
   const { toast } = useToast()
 
   const defaultPrivacy = {
