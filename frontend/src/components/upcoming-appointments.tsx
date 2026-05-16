@@ -4,6 +4,7 @@ import { Calendar, Clock, MapPin, Video, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppointments } from '@/hooks/useAppointments'
 import { useWallet } from '@/contexts/wallet-context'
+import Link from 'next/link'
 
 export function UpcomingAppointments() {
   const { walletAddress } = useWallet()
@@ -32,9 +33,11 @@ export function UpcomingAppointments() {
           <div className="card-premium p-8 text-center border-dashed">
             <Calendar className="size-12 text-foreground/10 mx-auto mb-4" />
             <p className="text-foreground/40 font-bold">No tienes citas programadas</p>
-            <Button variant="link" className="mt-4 text-cyan-500 font-black uppercase tracking-widest text-[10px]">
-              Agendar una cita →
-            </Button>
+            <Link href="/citas">
+              <Button variant="link" className="mt-4 text-cyan-500 font-black uppercase tracking-widest text-[10px]">
+                Agendar una cita →
+              </Button>
+            </Link>
           </div>
         ) : (
           appointments.map((apt) => (
@@ -82,9 +85,9 @@ export function UpcomingAppointments() {
                   </div>
                 </div>
                 
-                <button className="text-foreground/20 hover:text-cyan-500 transition-colors mt-1">
+                <Link href="/citas" className="text-foreground/20 hover:text-cyan-500 transition-colors mt-1">
                   <ChevronRight className="size-5" />
-                </button>
+                </Link>
               </div>
             </div>
           ))

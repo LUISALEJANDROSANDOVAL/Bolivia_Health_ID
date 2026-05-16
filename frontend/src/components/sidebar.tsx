@@ -8,6 +8,7 @@ import {
   Pill,
   Stethoscope,
   FlaskConical,
+  CalendarCheck
 } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
 import { SidebarBase, NavItem } from '@/components/ui/sidebar-base'
@@ -15,6 +16,7 @@ import { useRouter } from 'next/navigation'
 
 const navigationItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { title: 'Mis Citas', href: '/citas', icon: CalendarCheck },
   { title: 'Línea del Tiempo', href: '/historial', icon: ClipboardList },
   { title: 'Medicamentos', href: '/medicamentos', icon: Pill },
   { title: 'Mis Diagnósticos', href: '/diagnosticos', icon: Stethoscope },
