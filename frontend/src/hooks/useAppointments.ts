@@ -8,8 +8,11 @@ export interface AppointmentData {
   specialty: string;
   appointment_date: string;
   appointment_time: string;
+  end_time?: string;
   location: string;
   type: 'presencial' | 'virtual';
+  reason?: string;
+  notes?: string;
   status: 'scheduled' | 'completed' | 'cancelled';
 }
 
@@ -40,7 +43,13 @@ export function useAppointments(walletAddress: string | null) {
         if (profile) {
           const { data, error } = await supabase
             .from('appointments')
-            .select(`*`)
+            .select(`
+              *,
+              doctor:profiles!doctor_id (
+                full_name,
+                specialty
+              )
+            `)
             .eq('patient_id', profile.id)
             .in('status', ['scheduled'])
             .order('appointment_date', { ascending: true })
@@ -48,9 +57,13 @@ export function useAppointments(walletAddress: string | null) {
 
           if (error) throw error;
           
-          if (mounted) {
-             // Formateamos en base al arreglo
-             setAppointments((data || []) as AppointmentData[]);
+          if (mounted && data) {
+             const mapped = data.map((apt: any) => ({
+               ...apt,
+               doctor_name: apt.doctor?.full_name || apt.doctor_name || 'Médico',
+               specialty: apt.doctor?.specialty || apt.specialty || 'Especialista'
+             }))
+             setAppointments(mapped as AppointmentData[]);
           }
         }
       } catch (err) {

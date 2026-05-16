@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, User, Clock, Calendar as CalendarIcon, Loader2, Check, Sparkles, Search, ChevronRight, X, MapPin } from 'lucide-react'
+import { Plus, User, Clock, Calendar as CalendarIcon, Loader2, Check, Sparkles, Search, ChevronRight, X, MapPin, Video } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { toast } from 'sonner'
@@ -20,7 +20,7 @@ interface Patient {
 }
 
 export function QuickAppointmentCard({ onAppointmentCreated }: { onAppointmentCreated?: () => void }) {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName, doctorSpecialty } = useDoctorAuth()
   const [loading, setLoading] = useState(false)
   
   // Patient Search State (Replicating Prescriptions logic)
@@ -35,6 +35,7 @@ export function QuickAppointmentCard({ onAppointmentCreated }: { onAppointmentCr
     end_time: '09:30',
     reason: 'Consulta General',
     priority: 'normal',
+    type: 'presencial',
     location: 'Consultorio A-102',
     notes: ''
   })
@@ -117,6 +118,9 @@ export function QuickAppointmentCard({ onAppointmentCreated }: { onAppointmentCr
           reason: formData.reason,
           priority: formData.priority,
           location: formData.location,
+          type: formData.type,
+          doctor_name: doctorName || 'Médico',
+          specialty: doctorSpecialty || 'Especialista',
           status: 'scheduled'
         })
 
@@ -291,20 +295,38 @@ export function QuickAppointmentCard({ onAppointmentCreated }: { onAppointmentCr
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Ubicación</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Tipo de Cita</Label>
                   <Select 
-                    value={formData.location} 
-                    onValueChange={(val) => setFormData({...formData, location: val})}
+                    value={formData.type} 
+                    onValueChange={(val: 'presencial' | 'virtual') => setFormData({...formData, type: val})}
                   >
                     <SelectTrigger className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 text-sm font-bold">
-                      <SelectValue placeholder="Ubicación" />
+                      <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-border/50">
-                      <SelectItem value="Consultorio A-102" className="rounded-xl font-bold">Consultorio A-102</SelectItem>
-                      <SelectItem value="Consultorio B-205" className="rounded-xl font-bold">Consultorio B-205</SelectItem>
-                      <SelectItem value="Virtual / Telemedicina" className="rounded-xl font-bold">Virtual / Telemedicina</SelectItem>
+                      <SelectItem value="presencial" className="rounded-xl font-bold">Presencial</SelectItem>
+                      <SelectItem value="virtual" className="rounded-xl font-bold">Virtual / Telemedicina</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">
+                    {formData.type === 'virtual' ? 'Link de la Reunión' : 'Ubicación / Consultorio'}
+                  </Label>
+                  <div className="relative">
+                    {formData.type === 'virtual' ? (
+                      <Video className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-foreground/20" />
+                    ) : (
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-foreground/20" />
+                    )}
+                    <Input 
+                      placeholder={formData.type === 'virtual' ? "Pegue el link aquí (Zoom, Meet...)" : "Ej. Consultorio A-102"}
+                      className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 font-bold text-sm pl-11"
+                      value={formData.location}
+                      onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
