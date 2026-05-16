@@ -11,6 +11,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
 import { useWallet } from '@/contexts/wallet-context'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { supabase } from '@/lib/supabase'
 
 export interface DoctorProfileSettingsRef {
   save: () => Promise<void>
@@ -24,30 +26,41 @@ interface DoctorProfileSettingsProps {
 export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, DoctorProfileSettingsProps>(
   function DoctorProfileSettings({ userName }, ref) {
     const { walletAddress } = useWallet()
+    const { doctorName, doctorLicense, doctorSpecialty, refreshProfile } = useDoctorAuth()
     const { toast } = useToast()
 
     const [isSaving, setIsSaving] = useState(false)
     const [savedOk, setSavedOk] = useState(false)
     const [loading, setLoading] = useState(true)
     const [formData, setFormData] = useState({
-      full_name: 'Dr. Luis Fernández',
-      email: 'dr.fernandez@boliviahealth.id',
-      medical_license: 'LIC-BOL-2024-00815',
-      specialty: 'Medicina General',
-      hospital: 'Hospital de Clínicas, La Paz',
+      full_name: '',
+      email: '',
+      medical_license: '',
+      specialty: '',
+      hospital: '',
     })
 
-    // Simula carga inicial
+    // Sincroniza datos cuando carga el perfil del doctor
     useEffect(() => {
-      const timer = setTimeout(() => {
+      if (doctorName || doctorLicense) {
+        setFormData({
+          full_name: doctorName || '',
+          email: '', // El email podría extraerse de profiles si existiera
+          medical_license: doctorLicense || '',
+          specialty: doctorSpecialty || 'Medicina General',
+          hospital: 'Hospital de Clínicas, La Paz', // Default si no hay campo en DB
+        })
         setLoading(false)
-      }, 800)
-      return () => clearTimeout(timer)
-    }, [])
+      } else {
+        // Pequeño delay para simular carga si no hay datos inmediatos
+        const timer = setTimeout(() => setLoading(false), 800)
+        return () => clearTimeout(timer)
+      }
+    }, [doctorName, doctorLicense, doctorSpecialty])
 
     const handleChange = (field: string, value: string) => {
       setFormData(prev => ({ ...prev, [field]: value }))
-      setSavedOk(false) // Marca como no guardado cuando hay cambios
+      setSavedOk(false)
     }
 
     const handleSave = async () => {
@@ -59,21 +72,32 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
         })
         return
       }
+
       setIsSaving(true)
       try {
-        // Simulando una llamada a API
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: formData.full_name,
+            specialty: formData.specialty,
+            // Agrega otros campos si existen en tu tabla profiles
+          })
+          .eq('wallet_address', walletAddress.toLowerCase())
+
+        if (error) throw error
+
+        await refreshProfile()
         setSavedOk(true)
         toast({
-          title: '✅ Perfil guardado',
-          description: 'Tu información profesional fue guardada correctamente.',
+          title: '✅ Perfil actualizado',
+          description: 'Tu información profesional ha sido guardada en la base de datos.',
         })
-        // Reset el check de guardado después de 3s
         setTimeout(() => setSavedOk(false), 3000)
       } catch (err: any) {
+        console.error('Error al guardar perfil:', err)
         toast({
           title: 'Error al guardar',
-          description: 'Hubo un problema guardando tu perfil. Intenta de nuevo.',
+          description: err.message || 'No se pudo actualizar tu perfil profesional.',
           variant: 'destructive'
         })
       } finally {

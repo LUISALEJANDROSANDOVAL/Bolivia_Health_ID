@@ -24,10 +24,14 @@ import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
+import { useRouter } from 'next/navigation'
+import CryptoJS from 'crypto-js'
+import { supabase } from '@/lib/supabase'
 
 export function SecuritySettings() {
-  const { walletAddress } = useWallet()
+  const { walletAddress, disconnect } = useWallet()
   const { profile, updateProfile } = useProfile(walletAddress)
+  const router = useRouter()
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -36,13 +40,120 @@ export function SecuritySettings() {
   const [sessionActive, setSessionActive] = useState(true)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const { toast } = useToast()
+  const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' })
+
+  const [sessions, setSessions] = useState<any[]>([])
+
+  // Función para detectar el dispositivo actual
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent
+    let browser = "Navegador desconocido"
+    let os = "Sistema desconocido"
+
+    if (ua.includes("Firefox")) browser = "Firefox"
+    else if (ua.includes("Edg")) browser = "Edge"
+    else if (ua.includes("Chrome")) browser = "Chrome"
+    else if (ua.includes("Safari")) browser = "Safari"
+
+    if (ua.includes("Windows")) os = "en Windows"
+    else if (ua.includes("Mac")) os = "en macOS"
+    else if (ua.includes("Android")) os = "en Android"
+    else if (ua.includes("iPhone")) os = "en iPhone"
+
+    return `${browser} ${os}`
+  }
 
   useEffect(() => {
     if (profile?.preferences?.security) {
       setTwoFAEnabled(profile.preferences.security.twoFAEnabled ?? true)
       setBiometricEnabled(profile.preferences.security.biometricEnabled ?? false)
     }
-  }, [profile?.preferences?.security])
+
+    // Gestionar Sesiones Activas
+    const currentDevice = getDeviceInfo()
+    const storedSessions = profile?.preferences?.active_sessions || []
+    
+    // Identificador único para esta "pestaña/sesión" (usando localStorage para persistir el ID de este dispositivo)
+    let deviceId = localStorage.getItem('bolivia_health_device_id')
+    if (!deviceId) {
+      deviceId = Math.random().toString(36).substring(2, 15)
+      localStorage.setItem('bolivia_health_device_id', deviceId)
+    }
+
+    const currentSessionIndex = storedSessions.findIndex((s: any) => s.id === deviceId)
+    
+    if (currentSessionIndex === -1) {
+      // Registrar nueva sesión
+      const newSession = {
+        id: deviceId,
+        device: currentDevice,
+        location: 'La Paz, Bolivia', // Mock de ubicación
+        ip: '190.104.xxx.xxx',
+        lastActive: 'Activo ahora',
+        current: true,
+        timestamp: Date.now()
+      }
+      const updatedSessions = [...storedSessions, newSession]
+      setSessions(updatedSessions)
+      saveSessionsToDB(updatedSessions)
+    } else {
+      // Actualizar sesión existente como "Actual"
+      const updatedSessions = storedSessions.map((s: any) => ({
+        ...s,
+        current: s.id === deviceId,
+        lastActive: s.id === deviceId ? 'Activo ahora' : s.lastActive
+      }))
+      setSessions(updatedSessions)
+    }
+  }, [profile?.preferences?.security, profile?.preferences?.active_sessions])
+
+  const saveSessionsToDB = async (updatedSessions: any[]) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          active_sessions: updatedSessions
+        }
+      })
+    } catch (err) {
+      console.error('Error saving sessions:', err)
+    }
+  }
+
+  const handleRevokeSession = async (sessionId: string) => {
+    const updatedSessions = sessions.filter(s => s.id !== sessionId)
+    setSessions(updatedSessions)
+    await saveSessionsToDB(updatedSessions)
+    
+    // Si el usuario cierra su propia sesión actual, desconectar de la wallet/app
+    const deviceId = localStorage.getItem('bolivia_health_device_id')
+    if (sessionId === deviceId) {
+      toast({
+        title: 'Cerrando sesión...',
+        description: 'Has decidido cerrar la sesión en este dispositivo.'
+      })
+      setTimeout(() => {
+        disconnect()
+        router.push('/')
+      }, 1000)
+    } else {
+      toast({
+        title: 'Sesión cerrada',
+        description: 'El dispositivo ha sido desconectado correctamente.'
+      })
+    }
+  }
+
+  const handleRevokeOthers = async () => {
+    const deviceId = localStorage.getItem('bolivia_health_device_id')
+    const updatedSessions = sessions.filter(s => s.id === deviceId)
+    setSessions(updatedSessions)
+    await saveSessionsToDB(updatedSessions)
+    toast({
+      title: 'Sesiones limpias',
+      description: 'Se han cerrado todas las demás sesiones activas.'
+    })
+  }
 
   const saveToDatabase = async (newSecurity: any) => {
     try {
@@ -65,15 +176,61 @@ export function SecuritySettings() {
     }
   }
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
+    if (!passwords.new || !passwords.confirm) {
+      toast({
+        title: 'Campos incompletos',
+        description: 'Por favor, ingresa la nueva contraseña y su confirmación.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    if (passwords.new !== passwords.confirm) {
+      toast({
+        title: 'Error de coincidencia',
+        description: 'La nueva contraseña y la confirmación no coinciden.',
+        variant: 'destructive'
+      })
+      return
+    }
+
     setIsChangingPassword(true)
-    setTimeout(() => {
-      setIsChangingPassword(false)
+    try {
+      if (profile?.password_hash && passwords.current) {
+        const currentHash = CryptoJS.SHA256(passwords.current).toString()
+        if (currentHash !== profile.password_hash) {
+          throw new Error('La contraseña actual es incorrecta.')
+        }
+      }
+
+      const newHash = CryptoJS.SHA256(passwords.new).toString()
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ 
+          password_hash: newHash
+        })
+        .eq('wallet_address', walletAddress?.toLowerCase())
+
+      if (error) throw error
+
       toast({
         title: 'Contraseña actualizada',
-        description: 'Tu contraseña ha sido cambiada correctamente',
+        description: 'Tu contraseña ha sido cambiada correctamente en la base de datos.',
       })
-    }, 1500)
+      
+      localStorage.setItem('lastSessionPassword', passwords.new)
+      setPasswords({ current: passwords.new, new: '', confirm: '' })
+    } catch (err: any) {
+      toast({
+        title: 'Error al actualizar',
+        description: err.message || 'No se pudo cambiar la contraseña.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   const handleToggle2FA = () => {
@@ -92,30 +249,6 @@ export function SecuritySettings() {
     setBiometricEnabled(newState)
     saveToDatabase({ biometricEnabled: newState })
   }
-
-  const sessions = [
-    {
-      device: 'Chrome en Windows',
-      location: 'La Paz, Bolivia',
-      ip: '190.104.xxx.xxx',
-      lastActive: 'Activo ahora',
-      current: true
-    },
-    {
-      device: 'Safari en iPhone',
-      location: 'La Paz, Bolivia',
-      ip: '190.104.xxx.xxx',
-      lastActive: 'Hace 2 horas',
-      current: false
-    },
-    {
-      device: 'Firefox en MacBook',
-      location: 'Santa Cruz, Bolivia',
-      ip: '190.105.xxx.xxx',
-      lastActive: 'Hace 3 días',
-      current: false
-    }
-  ]
 
   return (
     <div className="space-y-6">
@@ -270,14 +403,22 @@ export function SecuritySettings() {
                   </p>
                 </div>
               </div>
-              {!session.current && (
-                <Button variant="ghost" size="sm" className="text-coral hover:text-coral">
-                  Cerrar sesión
-                </Button>
-              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={session.current ? "text-amber-500 hover:text-amber-600" : "text-coral hover:text-coral"}
+                onClick={() => handleRevokeSession(session.id)}
+              >
+                {session.current ? 'Cerrar esta sesión' : 'Cerrar sesión'}
+              </Button>
             </div>
           ))}
-          <Button variant="outline" className="w-full btn-outline-premium mt-2">
+          <Button 
+            variant="outline" 
+            className="w-full btn-outline-premium mt-2"
+            onClick={handleRevokeOthers}
+            disabled={sessions.length <= 1}
+          >
             Cerrar todas las demás sesiones
           </Button>
         </CardContent>

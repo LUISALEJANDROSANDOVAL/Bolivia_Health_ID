@@ -50,8 +50,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         setDoctorName(data.full_name)
         setDoctorId(data.id)
         setDoctorSpecialty(data.specialty || 'General')
-        // Usamos la cédula o un campo de licencia si existe, si no, uno por defecto
-        setDoctorLicense(data.cedula_identidad || 'LIC-BOL-ACTIVA')
+        // Usamos el campo oficial de licencia de la base de datos
+        setDoctorLicense(data.license_number || data.cedula_identidad || 'LIC-BOL-ACTIVA')
         setIsDoctorAuthenticated(true)
       } else {
         setIsDoctorAuthenticated(false)
