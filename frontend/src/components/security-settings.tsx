@@ -44,7 +44,141 @@ export function SecuritySettings() {
 
   const [sessions, setSessions] = useState<any[]>([])
 
-  // ... (rest of the helper functions remain same)
+  // Función para detectar el dispositivo actual
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent
+    let browser = "Navegador desconocido"
+    let os = "Sistema desconocido"
+
+    if (ua.includes("Firefox")) browser = "Firefox"
+    else if (ua.includes("Edg")) browser = "Edge"
+    else if (ua.includes("Chrome")) browser = "Chrome"
+    else if (ua.includes("Safari")) browser = "Safari"
+
+    if (ua.includes("Windows")) os = "en Windows"
+    else if (ua.includes("Mac")) os = "en macOS"
+    else if (ua.includes("Android")) os = "en Android"
+    else if (ua.includes("iPhone")) os = "en iPhone"
+
+    return `${browser} ${os}`
+  }
+
+  useEffect(() => {
+    if (profile?.preferences?.security) {
+      setTwoFAEnabled(profile.preferences.security.twoFAEnabled ?? true)
+      setBiometricEnabled(profile.preferences.security.biometricEnabled ?? false)
+    }
+
+    // Gestionar Sesiones Activas
+    const currentDevice = getDeviceInfo()
+    const storedSessions = profile?.preferences?.active_sessions || []
+    
+    // Identificador único para esta "pestaña/sesión" (usando localStorage para persistir el ID de este dispositivo)
+    let deviceId = localStorage.getItem('bolivia_health_device_id')
+    if (!deviceId) {
+      deviceId = Math.random().toString(36).substring(2, 15)
+      localStorage.setItem('bolivia_health_device_id', deviceId)
+    }
+
+    const currentSessionIndex = storedSessions.findIndex((s: any) => s.id === deviceId)
+    
+    if (currentSessionIndex === -1) {
+      // Registrar nueva sesión
+      const newSession = {
+        id: deviceId,
+        device: currentDevice,
+        location: 'La Paz, Bolivia', // Mock de ubicación
+        ip: '190.104.xxx.xxx',
+        lastActive: 'Activo ahora',
+        current: true,
+        timestamp: Date.now()
+      }
+      const updatedSessions = [...storedSessions, newSession]
+      setSessions(updatedSessions)
+      saveSessionsToDB(updatedSessions)
+    } else {
+      // Actualizar sesión existente como "Actual"
+      const updatedSessions = storedSessions.map((s: any) => ({
+        ...s,
+        current: s.id === deviceId,
+        lastActive: s.id === deviceId ? 'Activo ahora' : s.lastActive
+      }))
+      setSessions(updatedSessions)
+    }
+  }, [profile?.preferences?.security, profile?.preferences?.active_sessions])
+
+  const saveSessionsToDB = async (updatedSessions: any[]) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          active_sessions: updatedSessions
+        }
+      })
+    } catch (err) {
+      console.error('Error saving sessions:', err)
+    }
+  }
+
+  const handleRevokeSession = async (sessionId: string) => {
+    const updatedSessions = sessions.filter(s => s.id !== sessionId)
+    setSessions(updatedSessions)
+    await saveSessionsToDB(updatedSessions)
+    
+    // Si el usuario cierra su propia sesión actual, desconectar de la wallet/app
+    const deviceId = localStorage.getItem('bolivia_health_device_id')
+    if (sessionId === deviceId) {
+      toast({
+        title: 'Cerrando sesión...',
+        description: 'Has decidido cerrar la sesión en este dispositivo.'
+      })
+      setTimeout(() => {
+        disconnect()
+        router.push('/')
+      }, 1000)
+    } else {
+      toast({
+        title: 'Sesión cerrada',
+        description: 'El dispositivo ha sido desconectado correctamente.'
+      })
+    }
+  }
+
+  const handleRevokeOthers = async () => {
+    const deviceId = localStorage.getItem('bolivia_health_device_id')
+    const updatedSessions = sessions.filter(s => s.id === deviceId)
+    setSessions(updatedSessions)
+    await saveSessionsToDB(updatedSessions)
+    toast({
+      title: 'Sesiones limpias',
+      description: 'Se han cerrado todas las demás sesiones activas.'
+    })
+  }
+
+  const saveToDatabase = async (newSecurity: any) => {
+    try {
+      await updateProfile({
+        preferences: {
+          ...(profile.preferences || {}),
+          security: {
+            ...(profile.preferences?.security || {}),
+            ...newSecurity
+          }
+        }
+      })
+    } catch (err) {
+      console.error('Error saving security settings:', err)
+      toast({
+        title: 'Error de conexión',
+        description: 'No se pudieron guardar las configuraciones de seguridad.',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const handlePasswordChange = (field: keyof typeof passwords, value: string) => {
+    setPasswords(prev => ({ ...prev, [field]: value }))
+  }
 
   const handleChangePassword = async () => {
     if (!passwords.new || !passwords.confirm) {
@@ -139,8 +273,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showCurrentPassword ? 'text' : 'password'} 
                   placeholder="Ingresa tu contraseña actual"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  value={passwords.current}
+                  onChange={(e) => handlePasswordChange('current', e.target.value)}
                 />
                 <Button
                   variant="ghost"
@@ -158,8 +292,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showNewPassword ? 'text' : 'password'} 
                   placeholder="Ingresa tu nueva contraseña"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  value={passwords.new}
+                  onChange={(e) => handlePasswordChange('new', e.target.value)}
                 />
                 <Button
                   variant="ghost"
@@ -177,8 +311,8 @@ export function SecuritySettings() {
                 <Input 
                   type={showConfirmPassword ? 'text' : 'password'} 
                   placeholder="Confirma tu nueva contraseña"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  value={passwords.confirm}
+                  onChange={(e) => handlePasswordChange('confirm', e.target.value)}
                 />
                 <Button
                   variant="ghost"
