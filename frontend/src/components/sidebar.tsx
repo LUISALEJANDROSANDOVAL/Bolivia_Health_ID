@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
 import { SidebarBase, NavItem } from '@/components/ui/sidebar-base'
+import { useRouter } from 'next/navigation'
 
 const navigationItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -30,6 +31,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { disconnect, userName } = useWallet()
+  const router = useRouter()
 
   return (
     <SidebarBase
@@ -37,8 +39,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       onClose={onClose}
       navigationItems={navigationItems}
       onLogout={() => {
-        disconnect()
         onClose()
+        disconnect()
+        router.replace('/')
       }}
       panelTitle="Bolivia Health ID"
       panelTagline="Sistema Descentralizado"

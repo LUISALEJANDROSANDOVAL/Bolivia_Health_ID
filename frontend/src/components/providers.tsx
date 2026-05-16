@@ -8,8 +8,36 @@ import { WalletProvider } from "@/contexts/wallet-context";
 import { ThemeProvider } from "@/components/theme-provider";
 import { DoctorAuthProvider } from "@/contexts/doctor-auth-context";
 import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useWallet } from "@/contexts/wallet-context";
 
 const queryClient = new QueryClient();
+
+function RoleGuard({ children }: { children: React.ReactNode }) {
+  const { isConnected, role } = useWallet()
+  const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isConnected && role) {
+      const isDoctorPath = pathname.startsWith('/doctor')
+      const isVerificando = pathname === '/verificando'
+      const isPublic = pathname === '/'
+      const isRegister = pathname === '/register'
+
+      // Permitir páginas públicas y de registro/verificación
+      if (isPublic || isVerificando || isRegister) return
+
+      if (role === 'medico' && !isDoctorPath) {
+        router.push('/doctor')
+      } else if (role === 'paciente' && isDoctorPath) {
+        router.push('/dashboard')
+      }
+    }
+  }, [isConnected, role, pathname, router])
+
+  return <>{children}</>
+}
 
 // Configure Wagmi with Alchemy RPC or public RPC and Avalanche Fuji
 const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
@@ -29,30 +57,22 @@ export const config = createConfig(
 );
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <ConnectKitProvider>
           <WalletProvider>
             <DoctorAuthProvider>
-              {mounted ? (
-                <ThemeProvider
-                  attribute="class"
-                  defaultTheme="dark"
-                  enableSystem
-                  disableTransitionOnChange
-                >
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="dark"
+                enableSystem
+                disableTransitionOnChange
+              >
+                <RoleGuard>
                   {children}
-                </ThemeProvider>
-              ) : (
-                <>{children}</>
-              )}
+                </RoleGuard>
+              </ThemeProvider>
             </DoctorAuthProvider>
           </WalletProvider>
         </ConnectKitProvider>

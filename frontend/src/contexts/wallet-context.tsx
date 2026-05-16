@@ -41,6 +41,7 @@ interface WalletContextType {
   isDbConnected: boolean
   walletAddress: string | null
   userName: string | null
+  role: 'paciente' | 'medico' | null
   connect: () => void
   connectDb: () => void
   disconnect: () => void
@@ -51,6 +52,7 @@ const defaultValue: WalletContextType = {
   isDbConnected: false,
   walletAddress: null,
   userName: null,
+  role: null,
   connect: () => {},
   connectDb: () => {},
   disconnect: () => {},
@@ -131,7 +133,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (upsertError) throw upsertError
 
       setProfile(profileData)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error sincronizando perfil:', err)
     } finally {
       setLoading(false)
@@ -170,6 +172,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const userName = profile?.full_name || (activeIsConnected && activeAddress ? `Paciente (${activeAddress.slice(0, 4)})` : null)
 
   const connect = useCallback(async () => {
+    // Si ya está conectado, no permitir abrir el modal de login de nuevo
+    if (activeIsConnected) return;
+
     if (particle && particleProvider) {
       try {
         const userInfo: any = await particle.auth.login({ preferredAuthType: 'google' });
@@ -184,13 +189,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setParticleAddress(accounts[0]);
           setParticleConnected(true);
         }
-      } catch (error) {
-        console.error('Error logging in with Particle:', error);
+      } catch (error: any) {
+        console.error('--- ERROR PARTICLE (FULL) ---')
+        console.log(JSON.stringify(error, Object.getOwnPropertyNames(error), 2))
       }
     } else {
       setOpen(true);
     }
-  }, [setOpen])
+  }, [activeIsConnected, setOpen])
 
   const disconnect = useCallback(async () => {
     try {
@@ -214,6 +220,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isDbConnected: !!profile,
         walletAddress: activeAddress || null,
         userName,
+        role: profile?.role || null,
         connect,
         connectDb: connect,
         disconnect,

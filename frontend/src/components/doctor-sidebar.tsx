@@ -29,9 +29,9 @@ export function DoctorSidebar({ isOpen, onClose }: DoctorSidebarProps) {
   const { doctorDisconnect, doctorLicense } = useDoctorAuth()
 
   const handleLogout = () => {
-    doctorDisconnect()
-    router.push('/doctor/login')
     onClose()
+    doctorDisconnect()
+    router.replace('/doctor/login')
   }
 
   return (

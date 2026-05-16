@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { useToast } from '@/hooks/use-toast'
 import { useWallet } from '@/contexts/wallet-context'
+import { supabase } from '@/lib/supabase'
 
 export interface DoctorProfileSettingsRef {
   save: () => Promise<void>
@@ -30,20 +31,45 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
     const [savedOk, setSavedOk] = useState(false)
     const [loading, setLoading] = useState(true)
     const [formData, setFormData] = useState({
-      full_name: 'Dr. Luis Fernández',
-      email: 'dr.fernandez@boliviahealth.id',
-      medical_license: 'LIC-BOL-2024-00815',
-      specialty: 'Medicina General',
-      hospital: 'Hospital de Clínicas, La Paz',
+      full_name: '',
+      email: '',
+      medical_license: '',
+      specialty: '',
+      hospital: '',
     })
 
-    // Simula carga inicial
+    // Carga de perfil real
     useEffect(() => {
-      const timer = setTimeout(() => {
-        setLoading(false)
-      }, 800)
-      return () => clearTimeout(timer)
-    }, [])
+      async function fetchProfile() {
+        if (!walletAddress) return
+        
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('wallet_address', walletAddress.toLowerCase())
+            .single()
+
+          if (error) throw error
+
+          if (profile) {
+            setFormData({
+              full_name: profile.full_name || '',
+              email: profile.email || '',
+              medical_license: profile.license_number || '',
+              specialty: profile.specialty || '',
+              hospital: profile.address || '', // Usamos address como hospital/clínica
+            })
+          }
+        } catch (err) {
+          console.error('Error cargando perfil en settings:', err)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchProfile()
+    }, [walletAddress])
 
     const handleChange = (field: string, value: string) => {
       setFormData(prev => ({ ...prev, [field]: value }))
@@ -61,19 +87,31 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
       }
       setIsSaving(true)
       try {
-        // Simulando una llamada a API
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            full_name: formData.full_name,
+            email: formData.email,
+            specialty: formData.specialty,
+            address: formData.hospital, // Mapeamos hospital a address
+          })
+          .eq('wallet_address', walletAddress.toLowerCase())
+
+        if (error) throw error
+
         setSavedOk(true)
         toast({
           title: '✅ Perfil guardado',
           description: 'Tu información profesional fue guardada correctamente.',
         })
+        
         // Reset el check de guardado después de 3s
         setTimeout(() => setSavedOk(false), 3000)
       } catch (err: any) {
+        console.error('Error guardando perfil:', err)
         toast({
           title: 'Error al guardar',
-          description: 'Hubo un problema guardando tu perfil. Intenta de nuevo.',
+          description: err.message || 'Hubo un problema guardando tu perfil. Intenta de nuevo.',
           variant: 'destructive'
         })
       } finally {

@@ -240,7 +240,7 @@ export default function RegisterPage() {
         setVerificationMessage('No se detectó una CI válida. Intenta con una foto más clara y frontal.')
       }
     } catch (err) {
-      console.error('OCR error:', err)
+      console.error('OCR error:', JSON.stringify(err))
       setVerificationStatus('error')
       setVerificationMessage('Error al procesar la imagen. Intenta de nuevo.')
     }
@@ -301,14 +301,13 @@ export default function RegisterPage() {
       if (role === 'medico') {
         localStorage.setItem('doctorLicense', formData.licenciaMedica)
         localStorage.setItem('doctorSpecialty', formData.especialidad)
-        router.push('/doctor')
+        router.push('/verificando')
       } else {
         localStorage.setItem('patientSession', 'true')
         router.push('/dashboard')
       }
     } catch (err: any) {
-      console.error('Error actualizando perfil:', err)
-      // El alert ya se mostró arriba si era error de Supabase
+      console.error('Error sincronizando perfil:', err)
     } finally {
       setIsLoading(false)
     }

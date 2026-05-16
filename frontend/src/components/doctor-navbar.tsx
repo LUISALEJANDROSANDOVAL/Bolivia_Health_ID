@@ -35,7 +35,7 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
 
   const handleLogout = () => {
     doctorDisconnect()
-    router.push('/doctor/login')
+    router.replace('/doctor/login')
   }
 
   if (!mounted) return null
@@ -73,8 +73,8 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
           
           <div className="hidden sm:block">
             <Button 
-              onClick={connect} 
-              className="h-11 px-6 bg-foreground text-background font-black rounded-xl hover:scale-105 transition-all shadow-lg shadow-black/5 flex items-center justify-center"
+              onClick={isConnected ? undefined : connect} 
+              className={`h-11 px-6 bg-foreground text-background font-black rounded-xl transition-all shadow-lg shadow-black/5 flex items-center justify-center ${!isConnected ? 'hover:scale-105' : 'cursor-default'}`}
             >
               {isConnected ? (userName ?? formatAddress(walletAddress)) : "Conectar con Google"}
             </Button>
