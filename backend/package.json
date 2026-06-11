@@ -1,0 +1,16 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend database migrations and developer utility scripts for Bolivia Health ID",
+  "type": "module",
+  "scripts": {
+    "test-db": "node scripts/test_supabase.js",
+    "get-schema": "node scripts/get_schema.mjs",
+    "guess-table": "node scripts/guess_table.mjs",
+    "query-wallet": "node scripts/query_wallet.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.3",
+    "dotenv": "^16.4.5"
+  }
+}
