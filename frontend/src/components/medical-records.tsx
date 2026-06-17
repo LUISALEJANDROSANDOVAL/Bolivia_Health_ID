@@ -305,6 +305,14 @@ export function MedicalRecords() {
             const scfg = statusConfig[record.status] ?? statusConfig.default
             const StatusIcon = scfg.icon
 
+            const parts = (record.description || '')
+              .split(' | ')
+              .filter((p: string) =>
+                !p.startsWith('IPFS:') &&
+                !p.startsWith('Tx:') &&
+                !p.match(/^0x[a-fA-F0-9]{40,}/)
+              )
+
             return (
               <div
                 key={record.id}
@@ -372,10 +380,23 @@ export function MedicalRecords() {
                       </div>
                     )}
 
-                    {record.description && (
-                      <p className="text-sm text-foreground/50 mt-2 leading-relaxed line-clamp-2">
-                        {record.description}
-                      </p>
+                    {/* Description fields as chips */}
+                    {parts.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {parts.map((part: string, i: number) => {
+                          const [label, ...rest] = part.split(': ')
+                          const val = rest.join(': ')
+                          if (!val) return (
+                            <span key={i} className="text-sm text-foreground/70">{label}</span>
+                          )
+                          return (
+                            <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/50">{label}:</span>
+                              <span className="text-xs text-foreground font-semibold">{val}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
                     )}
 
                     {/* Meta */}
