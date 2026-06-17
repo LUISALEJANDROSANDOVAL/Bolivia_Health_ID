@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
 
@@ -36,14 +36,9 @@ interface NotificationSettings {
   inApp: NotificationChannel
 }
 
-interface NotificationSettingsProps {
-  profile: any
-  updateProfile: (data: any) => Promise<boolean>
-}
-
-export function NotificationSettings({ profile, updateProfile }: NotificationSettingsProps) {
+export function NotificationSettings() {
   const { walletAddress } = useWallet()
-  const { toast } = useToast()
+  const { profile, updateProfile } = useProfile(walletAddress)
 
   const defaultNotifications: NotificationSettings = {
     email: {
@@ -78,10 +73,8 @@ export function NotificationSettings({ profile, updateProfile }: NotificationSet
       })
     } catch (err) {
       console.error('Error saving notifications:', err)
-      toast({
-        title: 'Error de conexión',
-        description: 'No se pudieron guardar las preferencias en la base de datos.',
-        variant: 'destructive'
+      toast.error('Error de conexión', {
+        description: 'No se pudieron guardar las preferencias en la base de datos.'
       })
     }
   }
@@ -96,11 +89,17 @@ export function NotificationSettings({ profile, updateProfile }: NotificationSet
     }
     setNotifications(newNotifications)
     saveToDatabase(newNotifications)
-    
-    toast({
-      title: `${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'In-App'} ${!notifications[channel].enabled ? 'activado' : 'desactivado'}`,
-      description: `Las notificaciones por ${channel === 'email' ? 'correo' : channel === 'push' ? 'push' : 'dentro de la app'} han sido ${!notifications[channel].enabled ? 'activadas' : 'desactivadas'}`,
-    })
+
+    toast.success(
+      `${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'In-App'} ${
+        !notifications[channel].enabled ? 'activado' : 'desactivado'
+      }`,
+      {
+        description: `Las notificaciones por ${
+          channel === 'email' ? 'correo' : channel === 'push' ? 'push' : 'dentro de la app'
+        } han sido ${ !notifications[channel].enabled ? 'activadas' : 'desactivadas' }`
+      }
+    )
   }
 
   const handleToggleCategory = (channel: keyof NotificationSettings, category: NotificationCategory) => {

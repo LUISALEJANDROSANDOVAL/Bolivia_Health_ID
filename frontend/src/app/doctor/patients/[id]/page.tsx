@@ -106,7 +106,7 @@ export default function PatientView360() {
     } finally {
       setIsLoading(false)
     }
-  }, [patientId, toast])
+  }, [patientId])
 
   useEffect(() => {
     if (patientId) {
@@ -215,33 +215,38 @@ export default function PatientView360() {
       const pinataData = await pinataRes.json()
       const ipfsHash = pinataData.IpfsHash
 
-      // 2. Request digital signature off-chain (gasless)
-      toast.info('Blockchain', {
-        description: 'Por favor, firma la autorización en tu wallet para registrar el estudio (sin costo de gas)...'
-      })
-
-      const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
-      const signature = await signMessageAsync({ message })
-
-      // Send signature to Relayer API
-      const relayerRes = await fetch('/api/blockchain/add-record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patient: profile.wallet_address,
-          ipfsHash,
-          doctorAddress: walletAddress,
-          signature
+      // 2. Intentar registro on-chain (gasless) — con fallback si la wallet no está conectada
+      let txHash: string | null = null
+      try {
+        toast.info('Blockchain', {
+          description: 'Registrando estudio en la red blockchain...'
         })
-      })
 
-      if (!relayerRes.ok) {
-        const errData = await relayerRes.json()
-        throw new Error(errData.error || 'Error en el servidor Relayer')
+        const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
+        const signature = await signMessageAsync({ message })
+
+        const relayerRes = await fetch('/api/blockchain/add-record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patient: profile.wallet_address,
+            ipfsHash,
+            doctorAddress: walletAddress,
+            signature
+          })
+        })
+
+        if (relayerRes.ok) {
+          const relayerData = await relayerRes.json()
+          txHash = relayerData.txHash
+        }
+      } catch (blockchainErr: any) {
+        // Wallet no conectada o error de red — continuar guardando solo en base de datos
+        console.warn('Blockchain no disponible, guardando solo en Supabase:', blockchainErr.message)
+        toast.warning('Registro local', {
+          description: 'Wallet no conectada. El estudio se guardará sin registro blockchain.'
+        })
       }
-
-      const relayerData = await relayerRes.json()
-      const txHash = relayerData.txHash
 
       // 3. Insert into health_records table
       const fileExt = file.name.split('.').pop()
@@ -355,14 +360,7 @@ export default function PatientView360() {
               >
                 Historial
               </TabsTrigger>
-              <TabsTrigger 
-                value="consultation"
-                className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
-                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
-                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
-              >
-                Nueva Consulta
-              </TabsTrigger>
+
               <TabsTrigger 
                 value="studies"
                 className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
@@ -590,21 +588,31 @@ export default function PatientView360() {
               <CardContent>
                 <div className="space-y-4">
                   {background.length > 0 ? (
-                    background.map((record) => (
-                      <div key={record.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 group hover:bg-foreground/5 p-3 -mx-3 rounded-xl transition-colors">
-                        <div>
-                          <p className="font-semibold text-foreground text-lg">{record.title}</p>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{record.description}</p>
-                          <div className="flex gap-2 mt-2">
-                            <Badge variant="outline" className="text-[10px] uppercase bg-background">{record.category}</Badge>
-                            <span className="text-xs text-muted-foreground font-medium">{new Date(record.created_at).toLocaleDateString()}</span>
+                    background.map((record) => {
+                      // Limpiar la descripción: quitar partes técnicas de IPFS y Tx hash
+                      const cleanDescription = (record.description || '')
+                        .split(' | ')
+                        .filter((part: string) => !part.startsWith('IPFS:') && !part.startsWith('Tx:') && !part.match(/^0x[a-fA-F0-9]{40,}/))
+                        .join(' | ')
+
+                      return (
+                        <div key={record.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 group hover:bg-foreground/5 p-3 -mx-3 rounded-xl transition-colors">
+                          <div className="flex-1 min-w-0 pr-4">
+                            <p className="font-semibold text-foreground text-lg">{record.title}</p>
+                            {cleanDescription && (
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{cleanDescription}</p>
+                            )}
+                            <div className="flex gap-2 mt-2">
+                              <Badge variant="outline" className="text-[10px] uppercase bg-background">{record.category}</Badge>
+                              <span className="text-xs text-muted-foreground font-medium">{new Date(record.created_at).toLocaleDateString()}</span>
+                            </div>
                           </div>
+                          <Badge variant="default" className="shrink-0 bg-primary/20 text-primary hover:bg-primary/30 border-none">
+                            {record.status_detail || 'Registrado'}
+                          </Badge>
                         </div>
-                        <Badge variant="default" className="shrink-0 bg-primary/20 text-primary hover:bg-primary/30 border-none">
-                          {record.status_detail || 'Registrado'}
-                        </Badge>
-                      </div>
-                    ))
+                      )
+                    })
                   ) : (
                     <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
                       <Lock className="size-10 text-muted-foreground/30 mx-auto mb-3" />

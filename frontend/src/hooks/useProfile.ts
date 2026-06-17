@@ -15,6 +15,7 @@ export interface ProfileData {
   birth_date?: string | null;
   gender?: string | null;
   preferences?: any;
+  password_hash?: string | null;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
