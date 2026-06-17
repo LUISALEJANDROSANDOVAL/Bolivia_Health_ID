@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -32,6 +33,7 @@ export default function PatientView360() {
   const [background, setBackground] = useState<any[]>([])
   const [studies, setStudies] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
 
   // Vitals Edit State
   const [isEditingVitals, setIsEditingVitals] = useState(false)
@@ -48,7 +50,31 @@ export default function PatientView360() {
     try {
       setIsLoading(true)
 
-      // 1. Perfil
+      // 1. Verificar si hay sesión de doctor
+      if (!doctorId) {
+        setHasPermission(false)
+        setIsLoading(false)
+        return
+      }
+
+      // 2. Verificar si el doctor tiene autorización activa
+      const { data: permission, error: permErr } = await supabase
+        .from('access_permissions')
+        .select('status')
+        .eq('patient_id', patientId)
+        .eq('doctor_id', doctorId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (permErr || !permission) {
+        setHasPermission(false)
+        setIsLoading(false)
+        return
+      }
+
+      setHasPermission(true)
+
+      // 3. Perfil
       const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
@@ -106,13 +132,16 @@ export default function PatientView360() {
     } finally {
       setIsLoading(false)
     }
-  }, [patientId])
+  }, [patientId, doctorId])
 
   useEffect(() => {
-    if (patientId) {
+    if (patientId && doctorId) {
       fetchPatientData()
+    } else if (patientId && !doctorId) {
+      setIsLoading(false)
+      setHasPermission(false)
     }
-  }, [fetchPatientData, patientId])
+  }, [fetchPatientData, patientId, doctorId])
 
   const handleSaveVitals = async () => {
     setIsSavingVitals(true)
@@ -286,6 +315,34 @@ export default function PatientView360() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
           <Loader2 className="size-12 animate-spin text-primary" />
           <p className="text-muted-foreground animate-pulse">Cargando historia clínica...</p>
+        </div>
+      </DoctorLayout>
+    )
+  }
+
+  if (hasPermission === false) {
+    return (
+      <DoctorLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-slide-in">
+          <div className="size-20 rounded-[2rem] bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
+            <Lock className="size-10 text-red-500 animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-black text-foreground tracking-tight">Acceso No Autorizado</h2>
+          <p className="text-sm text-foreground/50 mt-2 max-w-md">
+            No tienes un permiso de acceso activo de este paciente para ver su historial clínico. Solicita autorización en el portal correspondiente.
+          </p>
+          <div className="mt-8 flex gap-4">
+            <Link href="/doctor/patients">
+              <Button className="bg-foreground/10 hover:bg-foreground/20 text-foreground font-bold rounded-2xl px-6 h-12 border-none">
+                Volver a Pacientes
+              </Button>
+            </Link>
+            <Link href="/doctor/authorizations">
+              <Button className="bg-gradient-electric hover:scale-105 text-white font-bold rounded-2xl px-6 h-12 border-none transition-all">
+                Solicitar Acceso
+              </Button>
+            </Link>
+          </div>
         </div>
       </DoctorLayout>
     )
