@@ -134,13 +134,14 @@ export default function DoctorPrescriptionsPage() {
   const [loadingMedsForDetail, setLoadingMedsForDetail] = useState(false)
   const [detailMeds, setDetailMeds] = useState<any[]>([])
 
-  const { walletAddress, signMessage } = useWallet()
+  const { walletAddress, signMessage, sessionActive, startClinicalSession, signMessageWithSession } = useWallet()
   const { doctorId: authDoctorId } = useDoctorAuth()
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const { writeContractAsync } = useWriteContract()
 
   // Success animation state
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false)
+  const [showGuideModal, setShowGuideModal] = useState(false)
 
   // Obtener ID del doctor actual
   useEffect(() => {
@@ -498,12 +499,25 @@ export default function DoctorPrescriptionsPage() {
           ipfsHash = pinataData.IpfsHash
 
           // 2. Request digital signature off-chain (gasless)
-          toast.info('Blockchain', {
-            description: 'Por favor, firma la autorización en tu wallet para registrar el diagnóstico (sin costo de gas)...'
-          })
-          
+          let signature = ''
+          let sessionAddress = undefined
+          let sessionAuthSignature = undefined
+
           const message = `Registrar expediente médico: Paciente = ${selectedPatient.walletAddress}, IPFS Hash = ${ipfsHash}`
-          const signature = await signMessage(message)
+
+          if (sessionActive) {
+            // Firma silenciosa automática con llave de sesión
+            const sessionData = await signMessageWithSession(message)
+            signature = sessionData.signature
+            sessionAddress = sessionData.sessionAddress
+            sessionAuthSignature = sessionData.sessionAuthSignature
+          } else {
+            // Fallback: Firma manual
+            toast.info('Blockchain', {
+              description: 'Por favor, firma la autorización en tu wallet para registrar el diagnóstico (sin costo de gas)...'
+            })
+            signature = await signMessage(message)
+          }
 
           // 3. Send signature to Relayer API
           const relayerRes = await fetch('/api/blockchain/add-record', {
@@ -513,7 +527,9 @@ export default function DoctorPrescriptionsPage() {
               patient: selectedPatient.walletAddress,
               ipfsHash,
               doctorAddress: walletAddress,
-              signature
+              signature,
+              sessionAddress,
+              sessionAuthSignature
             })
           })
 
@@ -667,13 +683,9 @@ export default function DoctorPrescriptionsPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="rounded-xl border-2">
+            <Button variant="outline" className="rounded-xl border-2" onClick={() => setShowGuideModal(true)}>
               <ClipboardList className="mr-2 h-4 w-4" />
               Guías Médicas
-            </Button>
-            <Button className="btn-premium shadow-lg">
-              <Plus className="mr-2 h-5 w-5" />
-              Nueva Receta
             </Button>
           </div>
         </div>
@@ -826,6 +838,35 @@ export default function DoctorPrescriptionsPage() {
                           <div>
                             <p className="text-sm font-black uppercase tracking-tight">Alerta Médica: Alergias Detectadas</p>
                             <p className="text-sm font-medium">{selectedPatient.allergies.join(', ')}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Control de Turno / Llaves de Sesión */}
+                      {!sessionActive && (
+                        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-cyan-500/10 p-4 border border-cyan-500/20 animate-slide-in">
+                          <div className="flex items-center gap-3">
+                            <Zap className="h-5 w-5 text-cyan-500 animate-pulse" />
+                            <div className="flex-1">
+                              <p className="text-sm font-black text-foreground">Firma Silenciosa Desactivada</p>
+                              <p className="text-xs text-foreground/50">Habilita el modo de consulta rápida para firmar de forma automática sin popups.</p>
+                            </div>
+                          </div>
+                          <Button 
+                            type="button"
+                            onClick={() => startClinicalSession()} 
+                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs h-9 px-4 rounded-xl shadow-md border-none shrink-0"
+                          >
+                            Iniciar Turno
+                          </Button>
+                        </div>
+                      )}
+                      {sessionActive && (
+                        <div className="mt-4 flex items-center gap-3 rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/20">
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                          <div>
+                            <p className="text-sm font-black text-foreground">Sesión Blockchain Activa</p>
+                            <p className="text-xs text-foreground/50">Las recetas y diagnósticos se firmarán de forma silenciosa en segundo plano.</p>
                           </div>
                         </div>
                       )}
@@ -1568,6 +1609,72 @@ export default function DoctorPrescriptionsPage() {
               </div>
             )
           })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showGuideModal} onOpenChange={setShowGuideModal}>
+        <DialogContent className="max-w-md rounded-2xl bg-background/95 backdrop-blur-xl border border-border/50 text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Guía de Emisión de Recetas
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Pasos para emitir una receta criptográfica digital en Bolivia Health ID.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 my-2">
+            <div className="flex gap-3 items-start">
+              <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                1
+              </div>
+              <div>
+                <p className="font-bold text-sm text-foreground">Seleccionar Paciente</p>
+                <p className="text-xs text-muted-foreground">Busca al paciente en el selector por nombre o número de cédula de identidad.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start">
+              <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                2
+              </div>
+              <div>
+                <p className="font-bold text-sm text-foreground">Evaluación Clínica (SOAP)</p>
+                <p className="text-xs text-muted-foreground">Completa la Anamnesis, el Examen Físico y el Diagnóstico en base al catálogo estándar CIE-10.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start">
+              <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                3
+              </div>
+              <div>
+                <p className="font-bold text-sm text-foreground">Prescribir Medicación</p>
+                <p className="text-xs text-muted-foreground">Añade medicamentos desde el catálogo digital con sus especificaciones de dosis y duración.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start">
+              <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                4
+              </div>
+              <div>
+                <p className="font-bold text-sm text-foreground">Activar Firma Silenciosa (Recomendado)</p>
+                <p className="text-xs text-muted-foreground">Inicia sesión clínica (turno diario) en la barra superior o en la sección del paciente para habilitar la Llave de Sesión y firmar de forma automática y silenciosa.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-start">
+              <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                5
+              </div>
+              <div>
+                <p className="font-bold text-sm text-foreground">Emitir y Registrar en Blockchain</p>
+                <p className="text-xs text-muted-foreground">Presiona "Emitir Receta". Los datos se subirán de forma encriptada a IPFS y se registrarán en la red (gasless via Relayer). El paciente recibirá un aviso de email al instante.</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => setShowGuideModal(false)} className="bg-primary hover:bg-primary/90 rounded-xl font-bold">
+              Entendido
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

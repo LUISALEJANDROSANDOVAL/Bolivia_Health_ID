@@ -8,6 +8,8 @@ interface Stat {
   label: string
   value: string
   icon: LucideIcon
+  onClick?: () => void
+  buttonText?: string
 }
 
 interface WelcomeAction {
@@ -118,20 +120,35 @@ export function WelcomeBannerBase({
         
         {stats && stats.length > 0 && (
           <div className="flex flex-wrap gap-4 shrink-0">
-            {stats.map((stat, index) => (
-              <div key={index} className={cn(
-                "rounded-2xl p-6 min-w-[200px] border border-white/10",
-                index % 2 === 0 ? "glass-dark" : "bg-white/10 backdrop-blur-xl border-white/20"
-              )}>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/10 rounded-lg">
-                    <stat.icon className="size-5 text-turquesa" />
+            {stats.map((stat, index) => {
+              const CardElement = stat.onClick ? 'button' : 'div'
+              return (
+                <CardElement 
+                  key={index} 
+                  onClick={stat.onClick}
+                  type={stat.onClick ? 'button' : undefined}
+                  className={cn(
+                    "text-left rounded-2xl p-6 min-w-[200px] border border-white/10 transition-all duration-200 select-none",
+                    stat.onClick ? "hover:scale-[1.02] active:scale-[0.98] cursor-pointer hover:border-white/30 hover:shadow-lg hover:shadow-cyan-500/5 focus:outline-none" : "",
+                    index % 2 === 0 ? "glass-dark" : "bg-white/10 backdrop-blur-xl border-white/20"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 rounded-lg">
+                      <stat.icon className="size-5 text-turquesa" />
+                    </div>
+                    <span className="text-xs font-black uppercase text-white/40 tracking-tighter">{stat.label}</span>
                   </div>
-                  <span className="text-xs font-black uppercase text-white/40 tracking-tighter">{stat.label}</span>
-                </div>
-                <p className="text-4xl font-black text-white mt-3">{stat.value}</p>
-              </div>
-            ))}
+                  <p className="text-4xl font-black text-white mt-3">{stat.value}</p>
+                  {stat.onClick && stat.buttonText && (
+                    <div className="mt-3 text-[10px] font-black uppercase tracking-wider text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
+                      <span>{stat.buttonText}</span>
+                      <ArrowRight className="size-3" />
+                    </div>
+                  )}
+                </CardElement>
+              )
+            })}
           </div>
         )}
       </div>

@@ -54,7 +54,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isUploadingAll, setIsUploadingAll] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string>('Laboratorio')
+  const [selectedCategory, setSelectedCategory] = useState<string>('Estudios')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { walletAddress } = useWallet()
@@ -308,11 +308,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               <SelectValue placeholder="Selecciona una categoría" />
             </SelectTrigger>
             <SelectContent className="bg-background border-border">
-              <SelectItem value="Laboratorio" className="cursor-pointer">Laboratorio</SelectItem>
-              <SelectItem value="Receta" className="cursor-pointer">Receta</SelectItem>
-              <SelectItem value="Imágenes" className="cursor-pointer">Imágenes</SelectItem>
-              <SelectItem value="Certificado" className="cursor-pointer">Certificado</SelectItem>
-              <SelectItem value="Otros" className="cursor-pointer">Otros</SelectItem>
+              <SelectItem value="Estudios" className="cursor-pointer">Estudios</SelectItem>
+              <SelectItem value="Medicamentos" className="cursor-pointer">Medicamentos</SelectItem>
+              <SelectItem value="Diagnósticos" className="cursor-pointer">Diagnósticos</SelectItem>
             </SelectContent>
           </Select>
         </div>

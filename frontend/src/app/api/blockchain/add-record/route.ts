@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { patient, ipfsHash, doctorAddress, signature } = body
+    const { patient, ipfsHash, doctorAddress, signature, sessionAddress, sessionAuthSignature } = body
 
     if (!patient || !ipfsHash || !doctorAddress || !signature) {
       return NextResponse.json(
@@ -22,11 +22,44 @@ export async function POST(request: Request) {
     
     let isValidSignature = false
     try {
-      isValidSignature = await verifyMessage({
-        address: doctorAddress as `0x${string}`,
-        message,
-        signature: signature as `0x${string}`
-      })
+      if (sessionAddress && sessionAuthSignature) {
+        // Flujo de Session Keys (Llaves de Sesión)
+        // A. Verificar que el médico firmó la delegación para la llave temporal de sesión
+        const messageAuth = `Autorizar sesión clínica de Bolivia Health ID para la billetera temporal: ${sessionAddress}`
+        let isValidAuth = false
+        
+        if (sessionAuthSignature.startsWith('mock_session_auth_')) {
+          // Bypassear la firma criptográfica para pruebas rápidas sin popup de Particle
+          isValidAuth = true
+        } else {
+          isValidAuth = await verifyMessage({
+            address: doctorAddress as `0x${string}`,
+            message: messageAuth,
+            signature: sessionAuthSignature as `0x${string}`
+          })
+        }
+
+        if (!isValidAuth) {
+          return NextResponse.json(
+            { error: 'La firma de autorización de sesión es inválida o no coincide con la dirección del médico.' },
+            { status: 401 }
+          )
+        }
+
+        // B. Verificar que la firma del expediente provenga de la llave temporal de sesión
+        isValidSignature = await verifyMessage({
+          address: sessionAddress as `0x${string}`,
+          message,
+          signature: signature as `0x${string}`
+        })
+      } else {
+        // Flujo tradicional: Firma directa
+        isValidSignature = await verifyMessage({
+          address: doctorAddress as `0x${string}`,
+          message,
+          signature: signature as `0x${string}`
+        })
+      }
     } catch (sigErr) {
       return NextResponse.json(
         { error: 'Firma criptográfica con formato inválido.' },
@@ -36,7 +69,7 @@ export async function POST(request: Request) {
 
     if (!isValidSignature) {
       return NextResponse.json(
-        { error: 'La firma criptográfica es inválida o no coincide con la dirección del médico.' },
+        { error: 'La firma criptográfica es inválida o no coincide con la identidad autorizada.' },
         { status: 401 }
       )
     }

@@ -225,7 +225,7 @@ export default function DoctorAuthorizationsPage() {
               <Shield className="size-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-azul-profundo">Autorizaciones Web3</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold text-azul-profundo">Autorizaciones</h1>
               <p className="text-sm text-gris-grafito">
                 Centro de solicitudes de acceso registradas en la base de datos de salud
               </p>
@@ -281,8 +281,12 @@ export default function DoctorAuthorizationsPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-azul-profundo">Solicitudes de Acceso</h3>
-            <Button variant="ghost" size="sm" onClick={fetchAuthorizations} className="text-xs text-azul-electrico">
-              {loading ? <Loader2 className="size-3 animate-spin mr-2" /> : <Activity className="size-3 mr-2" />}
+            <Button 
+              onClick={fetchAuthorizations} 
+              disabled={loading}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold h-10 px-5 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 border-none shrink-0"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <Activity className="size-4 animate-pulse" />}
               Actualizar
             </Button>
           </div>
@@ -321,23 +325,23 @@ export default function DoctorAuthorizationsPage() {
             </Card>
           ) : (
             authorizations.map((auth, i) => (
-              <Card key={auth.id || i} className="card-premium hover:border-azul-electrico/30 transition-all group">
+              <Card key={auth.id || i} className="bg-foreground/[0.03] backdrop-blur-xl border border-border/50 shadow-md shadow-black/5 hover:border-cyan-500/20 rounded-[2rem] transition-all duration-300 group overflow-hidden">
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      <div className="rounded-full bg-slate-100 p-3 group-hover:bg-azul-hielo transition-colors">
-                        <FileText className="size-5 text-slate-600 group-hover:text-azul-electrico" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-500 border border-cyan-500/20 shadow-inner group-hover:scale-105 transition-transform shrink-0">
+                        <FileText className="size-5" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-azul-profundo">{auth.patient?.full_name || 'Paciente Desconocido'}</h3>
-                        <div className="flex items-center gap-4 text-xs text-gris-grafito/80 mt-1">
-                          <span className="flex items-center gap-1">
-                            <Clock className="size-3" /> 
+                        <h3 className="font-black text-lg text-foreground group-hover:text-cyan-400 transition-colors">{auth.patient?.full_name || 'Paciente Desconocido'}</h3>
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-bold uppercase tracking-wider text-muted-foreground mt-1.5">
+                          <span className="flex items-center gap-1.5 bg-foreground/5 dark:bg-white/5 px-2.5 py-1 rounded-lg">
+                            <Clock className="size-3.5 text-cyan-500" /> 
                             Solicitado: {auth.created_at ? format(new Date(auth.created_at), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                           </span>
                           {auth.expires_at && (
-                            <span className="flex items-center gap-1">
-                              <Activity className="size-3" /> 
+                            <span className="flex items-center gap-1.5 bg-foreground/5 dark:bg-white/5 px-2.5 py-1 rounded-lg">
+                              <Activity className="size-3.5 text-orange-500" /> 
                               Expira: {format(new Date(auth.expires_at), 'dd MMM yyyy', { locale: es })}
                             </span>
                           )}
@@ -347,17 +351,17 @@ export default function DoctorAuthorizationsPage() {
                     
                     <div className="flex flex-col sm:items-end gap-3">
                       {(auth.status?.toLowerCase() === 'pending' || auth.status === 'Pendiente') && (
-                        <Badge className="bg-amber-100/50 text-amber-700 border-amber-200">
+                        <Badge className="bg-amber-100/50 text-amber-700 border-amber-200 font-bold rounded-lg px-2.5 py-1">
                           <Clock className="size-3 mr-1" /> Pendiente
                         </Badge>
                       )}
                       {(auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
-                        <Badge className="bg-emerald-100/50 text-emerald-700 border-emerald-200">
+                        <Badge className="bg-emerald-100/50 text-emerald-700 border-emerald-200 font-bold rounded-lg px-2.5 py-1">
                           <CheckCircle className="size-3 mr-1" /> Aprobado
                         </Badge>
                       )}
                       {(auth.status?.toLowerCase() === 'rejected' || auth.status === 'Rechazado') && (
-                        <Badge className="bg-red-100/50 text-red-700 border-red-200">
+                        <Badge className="bg-red-100/50 text-red-700 border-red-200 font-bold rounded-lg px-2.5 py-1">
                           <XCircle className="size-3 mr-1" /> Rechazado
                         </Badge>
                       )}
@@ -367,7 +371,7 @@ export default function DoctorAuthorizationsPage() {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            className="text-xs hover:bg-slate-100 border-slate-200"
+                            className="text-xs h-9 px-4 rounded-xl border-border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 font-bold transition-all"
                             onClick={() => handleCancel(auth.id)}
                             disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
                           >
@@ -375,22 +379,13 @@ export default function DoctorAuthorizationsPage() {
                           </Button>
                           <Button 
                             size="sm" 
-                            className="btn-premium py-1 h-8 text-xs"
+                            className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold h-9 px-4 rounded-xl shadow-md transition-all text-xs border-none"
                             onClick={() => handleRemind(auth)}
                             disabled={actionLoading === auth.id || actionLoading === 'remind-' + auth.id}
                           >
                             {actionLoading === 'remind-' + auth.id ? 'Enviando...' : 'Recordar'}
                           </Button>
                         </div>
-                      )}
-                      {(auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado') && (
-                        <Button 
-                          size="sm" 
-                          className="btn-outline-premium py-1 h-8 text-xs"
-                          onClick={() => router.push(`/doctor/patients/${auth.patientId}`)}
-                        >
-                          Ver Historial
-                        </Button>
                       )}
                     </div>
                   </div>

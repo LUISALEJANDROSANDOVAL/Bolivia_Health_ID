@@ -15,7 +15,7 @@ const navigationItems: NavItem[] = [
   { title: 'Pacientes', href: '/doctor/patients', icon: Users },
   { title: 'Recetas', href: '/doctor/prescriptions', icon: Pill },
   { title: 'Agenda', href: '/doctor/agenda', icon: Calendar },
-  { title: 'Autorizaciones Web3', href: '/doctor/authorizations', icon: Lock },
+  { title: 'Autorizaciones', href: '/doctor/authorizations', icon: Lock },
   { title: 'Configuración', href: '/doctor/settings', icon: Settings },
 ]
 

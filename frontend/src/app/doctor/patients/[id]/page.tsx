@@ -10,20 +10,27 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
-import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock } from 'lucide-react'
+import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useWriteContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
 import { toast } from 'sonner'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function PatientView360() {
   const params = useParams()
   const patientId = params.id as string
   const { doctorId } = useDoctorAuth()
   const { writeContractAsync } = useWriteContract()
-  const { walletAddress, signMessage } = useWallet()
+  const { walletAddress, signMessage, sessionActive, startClinicalSession, signMessageWithSession } = useWallet()
 
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
@@ -44,6 +51,7 @@ export default function PatientView360() {
     weight: '',
     height: ''
   })
+  const [selectedCategory, setSelectedCategory] = useState<string>('Estudios')
 
   const fetchPatientData = useCallback(async () => {
     try {
@@ -246,12 +254,25 @@ export default function PatientView360() {
       // 2. Intentar registro on-chain (gasless) — con fallback si la wallet no está conectada
       let txHash: string | null = null
       try {
-        toast.info('Blockchain', {
-          description: 'Registrando estudio en la red blockchain...'
-        })
+        let signature = ''
+        let sessionAddress = undefined
+        let sessionAuthSignature = undefined
 
         const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
-        const signature = await signMessage(message)
+
+        if (sessionActive) {
+          // Firma silenciosa automática con llave de sesión
+          const sessionData = await signMessageWithSession(message)
+          signature = sessionData.signature
+          sessionAddress = sessionData.sessionAddress
+          sessionAuthSignature = sessionData.sessionAuthSignature
+        } else {
+          // Fallback: Firma manual
+          toast.info('Blockchain', {
+            description: 'Registrando estudio en la red blockchain...'
+          })
+          signature = await signMessage(message)
+        }
 
         const relayerRes = await fetch('/api/blockchain/add-record', {
           method: 'POST',
@@ -260,7 +281,9 @@ export default function PatientView360() {
             patient: profile.wallet_address,
             ipfsHash,
             doctorAddress: walletAddress,
-            signature
+            signature,
+            sessionAddress,
+            sessionAuthSignature
           })
         })
 
@@ -280,12 +303,12 @@ export default function PatientView360() {
       const fileExt = file.name.split('.').pop()
       const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
 
-      const { error: dbError } = await supabase
+        const { error: dbError } = await supabase
         .from('health_records')
         .insert({
           patient_id: patientId,
           title: file.name,
-          category: 'Otros', // Default
+          category: selectedCategory,
           file_size: `${fileSizeInMB} MB`,
           file_url: ipfsHash,
           file_type: fileExt,
@@ -395,6 +418,35 @@ export default function PatientView360() {
             </div>
           )}
         </div>
+
+        {/* Control de Turno / Llaves de Sesión */}
+        {!sessionActive && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-cyan-500/10 p-4 border border-cyan-500/20 animate-slide-in">
+            <div className="flex items-center gap-3">
+              <Zap className="size-5 text-cyan-500 animate-pulse" />
+              <div>
+                <p className="text-sm font-black text-foreground">Firma Silenciosa Desactivada</p>
+                <p className="text-xs text-foreground/50">Habilita el modo de consulta rápida para subir estudios y registrar recetas al instante sin popups.</p>
+              </div>
+            </div>
+            <Button 
+              type="button"
+              onClick={() => startClinicalSession()} 
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs h-9 px-4 rounded-xl shadow-md border-none shrink-0"
+            >
+              Iniciar Turno
+            </Button>
+          </div>
+        )}
+        {sessionActive && (
+          <div className="flex items-center gap-3 rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/20 animate-in fade-in duration-300">
+            <Check className="size-5 text-emerald-500 animate-bounce" />
+            <div>
+              <p className="text-sm font-black text-foreground">Sesión Blockchain Activa</p>
+              <p className="text-xs text-foreground/50">Los estudios clínicos y recetas se firmarán automáticamente en segundo plano.</p>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
@@ -780,6 +832,20 @@ export default function PatientView360() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Category Selector */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold text-foreground">Categoría del documento</label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-full sm:w-[250px] bg-foreground/5 border-border text-foreground hover:border-cyan-500/50 transition-colors h-11 rounded-xl">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border">
+                      <SelectItem value="Estudios" className="cursor-pointer">Estudios</SelectItem>
+                      <SelectItem value="Medicamentos" className="cursor-pointer">Medicamentos</SelectItem>
+                      <SelectItem value="Diagnósticos" className="cursor-pointer">Diagnósticos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {/* Upload Area */}
                 <div className="relative rounded-xl border-2 border-dashed border-border/50 bg-foreground/5 hover:bg-foreground/10 transition-colors p-10 text-center group cursor-pointer">

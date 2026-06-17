@@ -193,35 +193,7 @@ export default function DoctorAgendaPage() {
               {format(currentDate, 'eeee, d', { locale: es })}
             </h1>
           </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10" onClick={fetchAgenda}>
-              <Filter className="size-4 mr-2" />
-              Actualizar
-            </Button>
-            <Button 
-              variant="outline" 
-              className="border-red-500/20 text-red-500 hover:bg-red-500/10 rounded-2xl font-bold h-12 px-6"
-              onClick={async () => {
-                if (!doctorId) return;
-                const { error } = await supabase.from('appointments').insert({
-                  doctor_id: doctorId,
-                  patient_id: '00000000-0000-0000-0000-000000000000', // Dummy patient
-                  doctor_name: doctorName || 'Doctor Test',
-                  appointment_date: format(new Date(), 'yyyy-MM-dd'),
-                  appointment_time: '12:00:00',
-                  end_time: '12:30:00',
-                  reason: 'TEST DE DIAGNÓSTICO',
-                  status: 'scheduled',
-                  priority: 'normal',
-                  location: 'Consultorio Test'
-                });
-                if (error) alert('Error en test: ' + error.message);
-                else fetchAgenda();
-              }}
-            >
-              Diagnosticar
-            </Button>
-          </div>
+
         </div>
 
         {/* Stats Grid */}

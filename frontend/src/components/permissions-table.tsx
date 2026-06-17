@@ -189,11 +189,6 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
   const handleRevokeConfirm = async () => {
     if (selectedPermission) {
       try {
-        // Sign message before revoking
-        const message = `Revocar acceso médico para el doctor/institución "${selectedPermission.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${selectedPermission.id}`
-        toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para revocar el acceso...' })
-        await signMessage(message)
-
         const { error } = await supabase
           .from('access_permissions')
           .update({ status: 'revoked' })
@@ -207,7 +202,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
         }
       } catch (err: any) {
         console.error('Error revoking permission:', err)
-        toast({ title: 'Error', description: err.message || 'No se pudo revocar el acceso o firma cancelada.', variant: 'destructive' })
+        toast({ title: 'Error', description: err.message || 'No se pudo revocar el acceso.', variant: 'destructive' })
       }
     }
     setRevokeDialogOpen(false)
@@ -219,11 +214,6 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
       if (!walletAddress) return
       const perm = permissions.find(p => p.id === id)
       if (!perm) return
-
-      // Sign message before approving
-      const message = `Aprobar acceso médico para el doctor/institución "${perm.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${id}`
-      toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para autorizar el acceso...' })
-      await signMessage(message)
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -263,11 +253,6 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
     try {
       const perm = permissions.find(p => p.id === id)
       if (!perm) return
-
-      // Sign message before rejecting
-      const message = `Rechazar acceso médico para el doctor/institución "${perm.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${id}`
-      toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para rechazar la solicitud...' })
-      await signMessage(message)
 
       const { error } = await supabase
         .from('access_permissions')
