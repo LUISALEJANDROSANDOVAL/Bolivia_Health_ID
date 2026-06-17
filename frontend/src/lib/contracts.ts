@@ -1,4 +1,4 @@
-export const MEDICAL_RECORDS_ADDRESS = '0x871d518d641daff21a7339faf6e1c287979f3e34' as const
+export const MEDICAL_RECORDS_ADDRESS = '0xE686E3F1Eb3F8122beA698FD8e40eb65873985ca' as const
 
 export const MEDICAL_RECORDS_ABI = [
   {

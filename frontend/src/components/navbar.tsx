@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { useWallet } from '@/contexts/wallet-context'
-import { NotificationPanel } from '@/components/notification-panel'
+import dynamic from 'next/dynamic'
+const NotificationPanel = dynamic(
+  () => import('@/components/notification-panel').then(m => m.NotificationPanel),
+  { ssr: false, loading: () => <div className="h-11 w-11 rounded-xl bg-foreground/5 animate-pulse" /> }
+)
 import { useProfile } from '@/hooks/useProfile'
 
 interface NavbarProps {

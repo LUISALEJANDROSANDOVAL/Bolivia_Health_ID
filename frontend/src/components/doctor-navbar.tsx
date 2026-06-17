@@ -11,7 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { NotificationPanel } from '@/components/notification-panel'
+import dynamic from 'next/dynamic'
+const NotificationPanel = dynamic(
+  () => import('@/components/notification-panel').then(m => m.NotificationPanel),
+  { ssr: false, loading: () => <div className="h-11 w-11 rounded-xl bg-foreground/5 animate-pulse" /> }
+)
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'

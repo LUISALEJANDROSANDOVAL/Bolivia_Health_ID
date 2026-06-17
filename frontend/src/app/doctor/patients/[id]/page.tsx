@@ -11,12 +11,19 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useToast } from '@/hooks/use-toast'
+import { useWriteContract, useSignMessage } from 'wagmi'
+import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { useWallet } from '@/contexts/wallet-context'
+import { toast } from 'sonner'
 
 export default function PatientView360() {
   const params = useParams()
   const patientId = params.id as string
-  const { toast } = useToast()
+  const { doctorId } = useDoctorAuth()
+  const { writeContractAsync } = useWriteContract()
+  const { signMessageAsync } = useSignMessage()
+  const { walletAddress } = useWallet()
 
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
@@ -95,7 +102,7 @@ export default function PatientView360() {
 
     } catch (err: any) {
       console.error(err)
-      toast({ title: 'Error', description: 'No se pudieron cargar los datos del paciente', variant: 'destructive' })
+      toast.error('No se pudieron cargar los datos del paciente')
     } finally {
       setIsLoading(false)
     }
@@ -152,14 +159,10 @@ export default function PatientView360() {
 
       setVitals({ ...vitals, ...editVitalsForm })
       setIsEditingVitals(false)
-      toast({ title: 'Éxito', description: 'Signos vitales actualizados correctamente' })
+      toast.success('Signos vitales actualizados correctamente')
     } catch (err: any) {
       console.error("Error guardando vitales:", err)
-      toast({
-        title: 'Error al guardar',
-        description: err.message || 'Revisa la consola para más detalles',
-        variant: 'destructive'
-      })
+      toast.error('Error al guardar: ' + (err.message || 'Revisa la consola para más detalles'))
     } finally {
       setIsSavingVitals(false)
     }
@@ -183,26 +186,65 @@ export default function PatientView360() {
 
     setUploading(true)
     try {
-      // 1. Upload to Supabase Storage (Bucket: health_records)
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}.${fileExt}`
-      const filePath = `${patientId}/${fileName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('health_records')
-        .upload(filePath, file)
-
-      if (uploadError) {
-        // Create bucket if it doesn't exist? (Often needs to be done via dashboard due to RLS, but we catch it)
-        throw new Error('Error al subir a Storage. Asegúrate de tener un bucket llamado "health_records" creado y público. Detalle: ' + uploadError.message)
+      if (!profile?.wallet_address) {
+        throw new Error('El paciente no tiene una dirección de billetera configurada para registrar en blockchain.')
       }
 
-      // 2. Get Public URL or save path
-      const { data: { publicUrl } } = supabase.storage
-        .from('health_records')
-        .getPublicUrl(filePath)
+      // 1. Upload to Pinata IPFS
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('pinataMetadata', JSON.stringify({ name: file.name }))
+      
+      const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
+      if (!pinataJwt) {
+        throw new Error('Falta configuración: NEXT_PUBLIC_PINATA_JWT. Añádelo a tu .env.local')
+      }
+
+      const pinataRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pinataJwt}`
+        },
+        body: formData
+      })
+
+      if (!pinataRes.ok) {
+        throw new Error('Error al subir el archivo a IPFS (Pinata).')
+      }
+
+      const pinataData = await pinataRes.json()
+      const ipfsHash = pinataData.IpfsHash
+
+      // 2. Request digital signature off-chain (gasless)
+      toast.info('Blockchain', {
+        description: 'Por favor, firma la autorización en tu wallet para registrar el estudio (sin costo de gas)...'
+      })
+
+      const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
+      const signature = await signMessageAsync({ message })
+
+      // Send signature to Relayer API
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: profile.wallet_address,
+          ipfsHash,
+          doctorAddress: walletAddress,
+          signature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer')
+      }
+
+      const relayerData = await relayerRes.json()
+      const txHash = relayerData.txHash
 
       // 3. Insert into health_records table
+      const fileExt = file.name.split('.').pop()
       const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
 
       const { error: dbError } = await supabase
@@ -212,18 +254,20 @@ export default function PatientView360() {
           title: file.name,
           category: 'Otros', // Default
           file_size: `${fileSizeInMB} MB`,
-          file_url: publicUrl,
-          file_type: fileExt
+          file_url: ipfsHash,
+          file_type: fileExt,
+          tx_hash: txHash,
+          doctor_id: doctorId
         })
 
       if (dbError) throw dbError
 
-      toast({ title: 'Éxito', description: 'Estudio subido correctamente' })
+      toast.success('Estudio subido a IPFS y registrado on-chain correctamente')
       fetchPatientData() // Recargar estudios
 
     } catch (err: any) {
       console.error('Error uploading:', err)
-      toast({ title: 'Error', description: err.message || 'Error al subir el archivo', variant: 'destructive' })
+      toast.error('Error: ' + (err.message || 'Error al subir el archivo'))
     } finally {
       setUploading(false)
       // Reset input value to allow uploading the same file again if needed

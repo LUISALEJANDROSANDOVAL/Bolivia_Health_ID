@@ -1,14 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger,
-  DialogFooter
-} from '@/components/ui/card' // Usando una aproximación si no existe el de UI, pero idealmente usamos radix directamente o el de shadcn
+// Dialog imports from card deleted as they are unused and imported from dialog instead
 // Nota: Veo que en otros archivos usas '@/components/ui/dialog', lo usaré por consistencia.
 import { Dialog as ShadcnDialog, DialogContent as ShadcnContent, DialogHeader as ShadcnHeader, DialogTitle as ShadcnTitle, DialogFooter as ShadcnFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -19,6 +12,7 @@ import { Plus, User, Clock, Calendar as CalendarIcon, MapPin, FileText, Loader2,
 import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 
 interface Patient {
   id: string
@@ -35,7 +29,7 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
   
   const [formData, setFormData] = useState({
     patient_id: '',
-    appointment_date: new Date().toISOString().split('T')[0],
+    appointment_date: format(new Date(), 'yyyy-MM-dd'),
     appointment_time: '09:00',
     end_time: '09:30',
     location: 'Consultorio A-102',
@@ -121,7 +115,7 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
       // Reset form
       setFormData({
         patient_id: '',
-        appointment_date: new Date().toISOString().split('T')[0],
+        appointment_date: format(new Date(), 'yyyy-MM-dd'),
         appointment_time: '09:00',
         end_time: '09:30',
         location: 'Consultorio A-102',

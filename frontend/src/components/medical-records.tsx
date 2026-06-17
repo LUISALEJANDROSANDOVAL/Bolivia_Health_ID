@@ -31,6 +31,10 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 import Link from 'next/link'
+import { useReadContract } from 'wagmi'
+import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
+import { useMemo } from 'react'
+import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
 
 interface DiagnosisItem {
   id: string
@@ -45,6 +49,9 @@ interface DiagnosisItem {
   diagnosisDescription?: string
   isChronic?: boolean
   fileUrl?: string
+  ipfsHash?: string | null
+  txHash?: string | null
+  verificationStatus: 'verified' | 'unverified' | 'tampered'
 }
 
 const categoryConfig: Record<string, { icon: any; bg: string; color: string; border: string; label: string }> = {
@@ -98,6 +105,39 @@ export function MedicalRecords() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('todos')
 
+  // 1. Fetch blockchain records
+  const { data: blockchainRecords } = useReadContract({
+    address: MEDICAL_RECORDS_ADDRESS,
+    abi: MEDICAL_RECORDS_ABI,
+    functionName: 'getRecords',
+    args: walletAddress ? [walletAddress.toLowerCase() as `0x${string}`] : undefined,
+  })
+
+  // 2. Cross-reference records with blockchain
+  const verifiedRecords = useMemo(() => {
+    const onChainHashes = blockchainRecords ? (blockchainRecords as any[]).map(r => r.ipfsHash) : []
+    return records.map(record => {
+      const desc = record.description || ''
+      const ipfsMatch = desc.match(/IPFS:\s*([a-zA-Z0-9]+)/)
+      const txMatch = desc.match(/Tx:\s*(0x[a-fA-F0-9]+)/)
+      const ipfs = ipfsMatch ? ipfsMatch[1] : null
+      const tx = txMatch ? txMatch[1] : null
+
+      let verificationStatus: 'verified' | 'unverified' | 'tampered' = 'unverified'
+      if (ipfs) {
+        const existsOnChain = onChainHashes.includes(ipfs)
+        verificationStatus = existsOnChain ? 'verified' : 'tampered'
+      }
+
+      return {
+        ...record,
+        ipfsHash: ipfs,
+        txHash: tx,
+        verificationStatus
+      }
+    })
+  }, [records, blockchainRecords])
+
   useEffect(() => {
     async function fetchDiagnoses() {
       if (!walletAddress) return
@@ -142,6 +182,7 @@ export function MedicalRecords() {
             diagnosisDescription: (r.diagnosis_catalog as any)?.description,
             isChronic: (r.diagnosis_catalog as any)?.is_chronic,
             fileUrl: r.file_url ? (r.file_url.startsWith('http') ? r.file_url : `https://gateway.pinata.cloud/ipfs/${r.file_url}`) : undefined,
+            verificationStatus: 'unverified',
           }))
 
           setRecords(mapped)
@@ -156,7 +197,7 @@ export function MedicalRecords() {
     fetchDiagnoses()
   }, [walletAddress])
 
-  const filteredRecords = records.filter(record => {
+  const filteredRecords = verifiedRecords.filter(record => {
     const matchesSearch =
       record.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (record.diagnosisCode?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
@@ -166,10 +207,10 @@ export function MedicalRecords() {
   })
 
   const stats = {
-    total:     records.length,
-    consultas: records.filter(r => r.category === 'consulta').length,
-    recetas:   records.filter(r => r.category === 'chronic').length,
-    certs:     records.filter(r => r.category === 'vaccine' || r.category === 'surgery').length,
+    total:     verifiedRecords.length,
+    consultas: verifiedRecords.filter(r => r.category === 'consulta').length,
+    recetas:   verifiedRecords.filter(r => r.category === 'chronic').length,
+    certs:     verifiedRecords.filter(r => r.category === 'vaccine' || r.category === 'surgery').length,
   }
 
   return (
@@ -291,6 +332,25 @@ export function MedicalRecords() {
                           <StatusIcon className={`size-3 ${scfg.color}`} />
                           <span className={`text-[10px] font-bold uppercase ${scfg.color}`}>{scfg.label}</span>
                         </div>
+                        {/* Blockchain Verification Badge */}
+                        {record.verificationStatus === 'verified' && (
+                          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            <ShieldCheck className="size-3 text-emerald-400" />
+                            <span className="text-[10px] font-black uppercase text-[9px]">Verificado Blockchain</span>
+                          </div>
+                        )}
+                        {record.verificationStatus === 'tampered' && (
+                          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse">
+                            <ShieldAlert className="size-3 text-red-400" />
+                            <span className="text-[10px] font-black uppercase text-[9px]">Datos Alterados</span>
+                          </div>
+                        )}
+                        {record.verificationStatus === 'unverified' && record.ipfsHash && (
+                          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                            <Shield className="size-3 text-amber-400" />
+                            <span className="text-[10px] font-black uppercase text-[9px]">Falta Firma On-Chain</span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-foreground/40">
                         <Calendar className="size-3.5 text-cyan-500" />
@@ -358,6 +418,29 @@ export function MedicalRecords() {
                           <Download className="size-3" />
                           Descargar
                         </Button>
+                      )}
+                      {/* IPFS & Tx Links */}
+                      {record.ipfsHash && (
+                        <a
+                          href={`https://gateway.pinata.cloud/ipfs/${record.ipfsHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-cyan-500 hover:underline hover:text-cyan-400"
+                        >
+                          <FileText className="size-3.5" />
+                          <span>IPFS</span>
+                        </a>
+                      )}
+                      {record.txHash && (
+                        <a
+                          href={`https://testnet.snowtrace.io/tx/${record.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-purple-500 hover:underline hover:text-purple-400"
+                        >
+                          <Share2 className="size-3.5" />
+                          <span>Transacción</span>
+                        </a>
                       )}
                     </div>
                   </div>

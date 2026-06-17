@@ -31,7 +31,7 @@ import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { format, addDays, startOfWeek, eachDayOfInterval, isSameDay } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { NewAppointmentModal } from '@/components/new-appointment-modal'
+// Unused NewAppointmentModal import removed
 import { StatCard } from '@/components/ui/stat-card'
 import { QuickAppointmentCard } from '@/components/quick-appointment-card'
 
@@ -50,7 +50,7 @@ interface Appointment {
 }
 
 export default function DoctorAgendaPage() {
-  const { doctorId } = useDoctorAuth()
+  const { doctorId, doctorName } = useDoctorAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,37 +63,41 @@ export default function DoctorAgendaPage() {
   })
 
   const fetchAgenda = useCallback(async () => {
-    if (!doctorId) return
+    if (!doctorId) {
+      setLoading(false)
+      return
+    }
+    
     setLoading(true)
     try {
       const dateStr = format(currentDate, 'yyyy-MM-dd')
 
+      // Fetch appointments for this doctor
       const { data, error } = await supabase
         .from('appointments')
         .select(`
-          id,
-          appointment_time,
-          end_time,
-          location,
-          status,
-          priority,
-          reason,
-          notes,
-          patient_id,
-          profiles!patient_id (full_name)
+          *,
+          patient_profile:profiles!patient_id (full_name)
         `)
-        .eq('doctor_id', doctorId)
-        .eq('appointment_date', dateStr)
+        .or(`doctor_id.eq.${doctorId}${doctorName ? `,doctor_name.ilike.%${doctorName}%` : ''}`)
         .order('appointment_time', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching appointments:', error)
+        throw error
+      }
 
       if (data) {
-        const mapped: Appointment[] = data.map((apt: any) => ({
+        // Filter by date in memory to be safer with timezones
+        const dayAppointments = data.filter((apt: any) => apt.appointment_date === dateStr)
+
+        const mapped: Appointment[] = dayAppointments.map((apt: any) => ({
           id: apt.id,
           time: apt.appointment_time?.slice(0, 5) || '--:--',
           endTime: apt.end_time?.slice(0, 5) || '--:--',
-          patientName: apt.profiles?.full_name || 'Paciente Desconocido',
+          patientName: Array.isArray(apt.patient_profile) 
+            ? (apt.patient_profile[0]?.full_name || 'Paciente Desconocido')
+            : (apt.patient_profile?.full_name || 'Paciente Desconocido'),
           patientId: apt.patient_id,
           reason: apt.reason || 'Consulta General',
           type: apt.type || 'presencial',
@@ -109,11 +113,16 @@ export default function DoctorAgendaPage() {
 
         setAppointments(mapped)
 
-        // Calcular estadísticas
+        // Calculate stats for the selected day
         const total = mapped.length
         const uniquePatients = new Set(mapped.map(a => a.patientName)).size
         const completed = mapped.filter(a => a.status === 'Completada').length
-        const upcoming = mapped.filter(a => a.status === 'Confirmada' || a.status === 'Pendiente').length
+        const upcoming = mapped.filter(a => 
+          a.status === 'Confirmada' || 
+          a.status === 'Pendiente' || 
+          a.status === 'Programada' ||
+          a.status === 'En Curso'
+        ).length
 
         setStats({
           total,
@@ -123,7 +132,7 @@ export default function DoctorAgendaPage() {
         })
       }
     } catch (err) {
-      console.error('Error fetching agenda:', err)
+      console.error('Error in fetchAgenda:', err)
     } finally {
       setLoading(false)
     }
@@ -135,7 +144,7 @@ export default function DoctorAgendaPage() {
     if (!doctorId) return
 
     const channel = supabase
-      .channel('agenda-changes')
+      .channel(`agenda-changes-${doctorId}`)
       .on(
         'postgres_changes',
         {
@@ -156,11 +165,11 @@ export default function DoctorAgendaPage() {
   }, [fetchAgenda, doctorId])
 
   const filteredAppointments = appointments.filter(apt => 
-    apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apt.reason.toLowerCase().includes(searchTerm.toLowerCase())
+    (apt.patientName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (apt.reason?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
-  // Generar días para el selector de calendario pequeño
+  // Calendar days generation
   const weekStart = startOfWeek(currentDate, { locale: es })
   const weekDays = eachDayOfInterval({
     start: weekStart,
@@ -170,7 +179,7 @@ export default function DoctorAgendaPage() {
   return (
     <DoctorLayout>
       <div className="space-y-8 animate-slide-in">
-        {/* Header Premium */}
+        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -187,12 +196,35 @@ export default function DoctorAgendaPage() {
           <div className="flex gap-2">
             <Button variant="ghost" className="bg-foreground/5 rounded-2xl font-bold h-12 px-6 hover:bg-foreground/10" onClick={fetchAgenda}>
               <Filter className="size-4 mr-2" />
-              Filtrar
+              Actualizar
+            </Button>
+            <Button 
+              variant="outline" 
+              className="border-red-500/20 text-red-500 hover:bg-red-500/10 rounded-2xl font-bold h-12 px-6"
+              onClick={async () => {
+                if (!doctorId) return;
+                const { error } = await supabase.from('appointments').insert({
+                  doctor_id: doctorId,
+                  patient_id: '00000000-0000-0000-0000-000000000000', // Dummy patient
+                  doctor_name: doctorName || 'Doctor Test',
+                  appointment_date: format(new Date(), 'yyyy-MM-dd'),
+                  appointment_time: '12:00:00',
+                  end_time: '12:30:00',
+                  reason: 'TEST DE DIAGNÓSTICO',
+                  status: 'scheduled',
+                  priority: 'normal',
+                  location: 'Consultorio Test'
+                });
+                if (error) alert('Error en test: ' + error.message);
+                else fetchAgenda();
+              }}
+            >
+              Diagnosticar
             </Button>
           </div>
         </div>
 
-        {/* Stats Grid Glassmorphism */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard 
             title="Citas Hoy" 
@@ -221,9 +253,8 @@ export default function DoctorAgendaPage() {
         </div>
 
         <div className="grid gap-8 lg:grid-cols-12">
-          {/* Main Timeline Column */}
+          {/* Main Column */}
           <div className="lg:col-span-9 space-y-8">
-            {/* Integrated Quick Appointment Card - Centralized Form */}
             <QuickAppointmentCard onAppointmentCreated={fetchAgenda} />
 
             <div className="relative group">
@@ -239,7 +270,7 @@ export default function DoctorAgendaPage() {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 animate-pulse">
                 <Loader2 className="size-12 text-cyan-500 animate-spin mb-4" />
-                <p className="text-sm font-black uppercase tracking-widest text-foreground/40">Sincronizando agenda...</p>
+                <p className="text-sm font-black uppercase tracking-widest text-foreground/40">Cargando agenda...</p>
               </div>
             ) : filteredAppointments.length === 0 ? (
               <div className="bg-foreground/[0.03] backdrop-blur-xl p-20 rounded-[3rem] border border-border/50 text-center">
@@ -255,13 +286,11 @@ export default function DoctorAgendaPage() {
               <div className="space-y-4 relative before:absolute before:left-[1.85rem] before:top-4 before:bottom-4 before:w-px before:bg-foreground/5">
                 {filteredAppointments.map((apt) => (
                   <div key={apt.id} className="relative flex gap-6 group pl-12">
-                    {/* Time dot indicator */}
                     <div className={`absolute left-6 top-1/2 -translate-y-1/2 size-3 rounded-full border-[3px] border-background z-10 transition-all ${
                       apt.status === 'Completada' ? 'bg-green-500' : 
                       apt.status === 'Confirmada' ? 'bg-cyan-500' : 'bg-orange-500'
                     } group-hover:scale-125`} />
 
-                    {/* Appointment Card Premium */}
                     <div className={`flex-1 bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2rem] border border-border group hover:border-cyan-500/20 transition-all shadow-lg shadow-black/5 ${
                       apt.status === 'Completada' ? 'opacity-60' : ''
                     }`}>
@@ -325,14 +354,12 @@ export default function DoctorAgendaPage() {
             )}
           </div>
 
-          {/* Sidebar Section */}
+          {/* Sidebar */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Calendar Widget Glassmorphism - Narrower */}
             <div className="bg-azul-profundo/95 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/10 shadow-2xl overflow-hidden relative">
               <div className="absolute top-0 right-0 p-6 opacity-10">
                  <Shield className="size-24 text-cyan-500" />
               </div>
-              
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-black text-white tracking-tight">Calendario</h3>
@@ -357,7 +384,6 @@ export default function DoctorAgendaPage() {
                 </div>
 
                 <div className="space-y-4">
-                  {/* Selector de días de la semana */}
                   <div className="grid grid-cols-7 gap-1">
                     {weekDays.map((day, i) => {
                       const isSelected = isSameDay(day, currentDate)
@@ -389,7 +415,6 @@ export default function DoctorAgendaPage() {
               </div>
             </div>
 
-            {/* Daily Reminders Premium - Narrower */}
             <div className="bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2.5rem] border border-border shadow-lg shadow-black/5">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/40 mb-4">Recordatorios</h3>
               <div className="space-y-3">
