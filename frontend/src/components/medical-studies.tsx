@@ -100,15 +100,16 @@ export function MedicalStudies() {
             .from('health_records')
             .select('*')
             .eq('patient_id', profile.id)
-            .in('category', ['Laboratorio', 'Imágenes', 'Radiología', 'Genético'])
             .order('created_at', { ascending: false })
 
           const mapped: StudyItem[] = (data || []).map(r => {
             let mappedType: StudyItem['type'] = 'otro'
-            if (r.category === 'Laboratorio') mappedType = 'laboratorio'
-            else if (r.category === 'Imágenes') mappedType = 'imagen'
-            else if (r.category === 'Radiología') mappedType = 'radiologia'
-            else if (r.category === 'Genético') mappedType = 'genetico'
+            const cat = (r.category || '').toLowerCase()
+            if (cat === 'laboratorio') mappedType = 'laboratorio'
+            else if (cat === 'imágenes' || cat === 'imagenes' || cat === 'imagen') mappedType = 'imagen'
+            else if (cat === 'radiología' || cat === 'radiologia') mappedType = 'radiologia'
+            else if (cat === 'genético' || cat === 'genetico') mappedType = 'genetico'
+            // 'Otros', 'Otro', y cualquier otra categoría cae en 'otro'
 
             return {
               id: r.id,
@@ -116,8 +117,10 @@ export function MedicalStudies() {
               date: new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
               type: mappedType,
               description: r.description || `${r.category} · ${r.file_size}`,
-              fileSize: r.file_size,
-              fileUrl: r.file_url ? `https://gateway.pinata.cloud/ipfs/${r.file_url}` : '#',
+              fileSize: r.file_size || 'N/A',
+              fileUrl: r.file_url
+                ? (r.file_url.startsWith('http') ? r.file_url : `https://gateway.pinata.cloud/ipfs/${r.file_url}`)
+                : '#',
             }
           })
 
