@@ -577,49 +577,139 @@ export default function PatientView360() {
 
           {/* Historial Tab */}
           <TabsContent value="history" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="size-5 text-primary" />
-                  Historial Clínico Blockchain
-                </CardTitle>
-                <CardDescription>Timeline inmutable de todas las consultas y registros médicos</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {background.length > 0 ? (
-                    background.map((record) => {
-                      // Limpiar la descripción: quitar partes técnicas de IPFS y Tx hash
-                      const cleanDescription = (record.description || '')
-                        .split(' | ')
-                        .filter((part: string) => !part.startsWith('IPFS:') && !part.startsWith('Tx:') && !part.match(/^0x[a-fA-F0-9]{40,}/))
-                        .join(' | ')
 
-                      return (
-                        <div key={record.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 group hover:bg-foreground/5 p-3 -mx-3 rounded-xl transition-colors">
-                          <div className="flex-1 min-w-0 pr-4">
-                            <p className="font-semibold text-foreground text-lg">{record.title}</p>
-                            {cleanDescription && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{cleanDescription}</p>
-                            )}
-                            <div className="flex gap-2 mt-2">
-                              <Badge variant="outline" className="text-[10px] uppercase bg-background">{record.category}</Badge>
-                              <span className="text-xs text-muted-foreground font-medium">{new Date(record.created_at).toLocaleDateString()}</span>
+            {/* Stats summary */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-azul-electrico/8 border border-azul-electrico/20 p-4 text-center">
+                <p className="text-2xl font-black text-azul-profundo">{background.length}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Total Registros</p>
+              </div>
+              <div className="rounded-2xl bg-emerald-500/8 border border-emerald-500/20 p-4 text-center">
+                <p className="text-2xl font-black text-emerald-600">
+                  {background.filter((r: any) => r.status_detail === 'Activo' || !r.status_detail).length}
+                </p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Activos</p>
+              </div>
+              <div className="rounded-2xl bg-violet-500/8 border border-violet-500/20 p-4 text-center">
+                <p className="text-2xl font-black text-violet-600">
+                  {background.length > 0 ? new Date(background[0]?.created_at).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                </p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Último Registro</p>
+              </div>
+            </div>
+
+            {/* Timeline */}
+            <Card className="card-premium overflow-hidden">
+              <CardHeader className="border-b border-border/40 bg-foreground/[0.02]">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-azul-profundo">
+                    <Lock className="size-5 text-azul-electrico" />
+                    Historial Clínico
+                  </CardTitle>
+                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold">
+                    🔒 Inmutable · Blockchain
+                  </Badge>
+                </div>
+                <CardDescription>Línea de tiempo clínica del paciente — registros verificados en cadena</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {background.length > 0 ? (
+                  <div className="relative">
+                    {/* Vertical line */}
+                    <div className="absolute left-[22px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-azul-electrico/40 via-azul-electrico/20 to-transparent rounded-full" />
+
+                    <div className="space-y-6">
+                      {background.map((record: any, idx: number) => {
+                        // Limpiar descripción: quitar IPFS y Tx
+                        const parts = (record.description || '')
+                          .split(' | ')
+                          .filter((p: string) =>
+                            !p.startsWith('IPFS:') &&
+                            !p.startsWith('Tx:') &&
+                            !p.match(/^0x[a-fA-F0-9]{40,}/)
+                          )
+
+                        const categoryColors: Record<string, string> = {
+                          'Consulta': 'bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20',
+                          'Diagnóstico': 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+                          'Procedimiento': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                          'Laboratorio': 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+                          'Receta': 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                          'Antecedente': 'bg-red-500/10 text-red-600 border-red-500/20',
+                        }
+                        const catColor = categoryColors[record.category] || 'bg-gris-grafito/10 text-gris-grafito border-gris-grafito/20'
+                        const dotColors = ['bg-azul-electrico', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-cyan-500']
+                        const dotColor = dotColors[idx % dotColors.length]
+
+                        return (
+                          <div key={record.id} className="relative flex gap-5 group">
+                            {/* Timeline dot */}
+                            <div className={`relative z-10 flex-shrink-0 size-11 rounded-full ${dotColor}/10 border-2 ${dotColor.replace('bg-', 'border-')}/30 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
+                              <div className={`size-3.5 rounded-full ${dotColor}`} />
+                            </div>
+
+                            {/* Content card */}
+                            <div className="flex-1 min-w-0 bg-foreground/[0.02] hover:bg-foreground/[0.04] border border-border/40 hover:border-azul-electrico/30 rounded-2xl p-4 transition-all">
+                              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-bold text-azul-profundo text-base leading-tight">{record.title}</h4>
+                                  <Badge className={`text-[10px] uppercase font-bold border ${catColor} px-2 py-0`}>
+                                    {record.category || 'Registro'}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-xs text-gris-grafito/50 bg-foreground/5 px-2.5 py-1 rounded-lg font-medium">
+                                    {new Date(record.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Description fields as chips */}
+                              {parts.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {parts.map((part: string, i: number) => {
+                                    const [label, ...rest] = part.split(': ')
+                                    const val = rest.join(': ')
+                                    if (!val) return (
+                                      <span key={i} className="text-sm text-gris-grafito/70">{label}</span>
+                                    )
+                                    return (
+                                      <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-gris-grafito/50">{label}:</span>
+                                        <span className="text-xs text-azul-profundo font-semibold">{val}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
+                                <div className="flex items-center gap-1.5 text-[10px] text-gris-grafito/40 font-medium">
+                                  <Lock className="size-3" />
+                                  Verificado en blockchain
+                                </div>
+                                <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[10px] font-bold">
+                                  {record.status_detail || 'Registrado'}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
-                          <Badge variant="default" className="shrink-0 bg-primary/20 text-primary hover:bg-primary/30 border-none">
-                            {record.status_detail || 'Registrado'}
-                          </Badge>
-                        </div>
-                      )
-                    })
-                  ) : (
-                    <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
-                      <Lock className="size-10 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm font-semibold text-muted-foreground">No hay registros en el historial.</p>
+                        )
+                      })}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-16 flex flex-col items-center">
+                    <div className="size-20 rounded-2xl bg-foreground/5 border border-dashed border-border flex items-center justify-center mb-6">
+                      <Lock className="size-9 text-muted-foreground/20" />
+                    </div>
+                    <h3 className="text-lg font-black text-azul-profundo tracking-tight">Sin registros en el historial</h3>
+                    <p className="text-sm text-gris-grafito/50 mt-1 max-w-xs">
+                      Los registros clínicos del paciente aparecerán aquí cuando se añadan consultas o antecedentes.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
