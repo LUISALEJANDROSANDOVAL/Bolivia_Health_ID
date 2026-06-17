@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useSignMessage } from 'wagmi'
+
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -100,10 +100,9 @@ interface PermissionsTableProps {
 }
 
 export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
-  const { isDbConnected, walletAddress } = useWallet()
+  const { isDbConnected, walletAddress, signMessage } = useWallet()
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [loading, setLoading] = useState(false)
-  const { signMessageAsync } = useSignMessage()
   const { toast } = useToast()
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
   const [viewDoctorOpen, setViewDoctorOpen] = useState(false)
@@ -193,7 +192,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
         // Sign message before revoking
         const message = `Revocar acceso médico para el doctor/institución "${selectedPermission.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${selectedPermission.id}`
         toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para revocar el acceso...' })
-        await signMessageAsync({ message })
+        await signMessage(message)
 
         const { error } = await supabase
           .from('access_permissions')
@@ -224,7 +223,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
       // Sign message before approving
       const message = `Aprobar acceso médico para el doctor/institución "${perm.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${id}`
       toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para autorizar el acceso...' })
-      await signMessageAsync({ message })
+      await signMessage(message)
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -268,7 +267,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
       // Sign message before rejecting
       const message = `Rechazar acceso médico para el doctor/institución "${perm.hospitalName}" en Bolivia Health ID.\n\nID de Permiso: ${id}`
       toast({ title: 'Firma Requerida', description: 'Por favor, firma el mensaje en tu wallet para rechazar la solicitud...' })
-      await signMessageAsync({ message })
+      await signMessage(message)
 
       const { error } = await supabase
         .from('access_permissions')

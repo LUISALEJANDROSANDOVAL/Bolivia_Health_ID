@@ -2,10 +2,11 @@
 
 import { createContext, useContext, useCallback, useState, useEffect, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAccount, useDisconnect } from 'wagmi'
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { useModal } from 'connectkit'
 import { ParticleNetwork } from '@particle-network/auth'
 import { ParticleProvider } from '@particle-network/provider'
+import { stringToHex } from 'viem'
 
 let particle: ParticleNetwork | null = null;
 let particleProvider: ParticleProvider | null = null;
@@ -45,6 +46,7 @@ interface WalletContextType {
   connect: () => void
   connectDb: () => void
   disconnect: () => void
+  signMessage: (message: string) => Promise<string>
 }
 
 const defaultValue: WalletContextType = {
@@ -56,6 +58,7 @@ const defaultValue: WalletContextType = {
   connect: () => {},
   connectDb: () => {},
   disconnect: () => {},
+  signMessage: async () => '',
 }
 
 const WalletContext = createContext<WalletContextType>(defaultValue)
@@ -70,6 +73,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
   const { disconnect: wagmiDisconnect } = useDisconnect()
   const { setOpen } = useModal()
+  const { signMessageAsync } = useSignMessage()
 
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -213,6 +217,37 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [wagmiDisconnect, particleConnected])
 
+  const signMessage = useCallback(async (message: string): Promise<string> => {
+    if (particleConnected && particleProvider && particleAddress) {
+      try {
+        const hexMsg = stringToHex(message)
+        const signature = await particleProvider.request({
+          method: 'personal_sign',
+          params: [hexMsg, particleAddress]
+        })
+        if (typeof signature === 'string') {
+          return signature
+        }
+        throw new Error('Firma con formato inválido devuelta por el proveedor social')
+      } catch (err: any) {
+        console.error('Error firmando con Particle Network:', err)
+        throw err
+      }
+    }
+
+    if (isConnected) {
+      try {
+        const signature = await signMessageAsync({ message })
+        return signature
+      } catch (err: any) {
+        console.error('Error firmando con Wagmi/Wallet:', err)
+        throw err
+      }
+    }
+
+    throw new Error('No hay ninguna billetera conectada para realizar la firma digital.')
+  }, [particleConnected, particleAddress, isConnected, signMessageAsync])
+
   return (
     <WalletContext.Provider
       value={{
@@ -224,6 +259,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connect,
         connectDb: connect,
         disconnect,
+        signMessage,
       }}
     >
       {children}
@@ -236,3 +272,4 @@ export function useWallet() {
 }
 
 export { formatAddress }
+

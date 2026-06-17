@@ -62,23 +62,7 @@ export async function POST(request: Request) {
       transport: http(rpcUrl)
     })
 
-    // 4. Validar si el médico tiene el rol DOCTOR_ROLE on-chain
-    const DOCTOR_ROLE = keccak256(stringToBytes('DOCTOR_ROLE'))
-    const hasDoctorRoleOnChain = await publicClient.readContract({
-      address: MEDICAL_RECORDS_ADDRESS,
-      abi: MEDICAL_RECORDS_ABI,
-      functionName: 'hasRole',
-      args: [DOCTOR_ROLE, doctorAddress as `0x${string}`]
-    })
-
-    if (!hasDoctorRoleOnChain) {
-      return NextResponse.json(
-        { error: 'El médico no tiene asignado el rol DOCTOR_ROLE on-chain en el contrato inteligente.' },
-        { status: 403 }
-      )
-    }
-
-    // 5. Configurar Wallet Client para enviar la transacción usando la clave privada del deployer/relayer
+    // 4. Configurar Wallet Client y obtener la cuenta del Relayer
     const privateKey = process.env.PRIVATE_KEY
     if (!privateKey) {
       return NextResponse.json(
@@ -87,9 +71,25 @@ export async function POST(request: Request) {
       )
     }
 
-    // Asegurarse de que la clave privada tenga formato correcto
     const formattedPrivateKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`
     const account = privateKeyToAccount(formattedPrivateKey as `0x${string}`)
+
+    // 5. Validar si el Relayer tiene el rol DOCTOR_ROLE on-chain para poder escribir en el contrato
+    const DOCTOR_ROLE = keccak256(stringToBytes('DOCTOR_ROLE'))
+    const hasDoctorRoleOnChain = await publicClient.readContract({
+      address: MEDICAL_RECORDS_ADDRESS,
+      abi: MEDICAL_RECORDS_ABI,
+      functionName: 'hasRole',
+      args: [DOCTOR_ROLE, account.address]
+    })
+
+    if (!hasDoctorRoleOnChain) {
+      return NextResponse.json(
+        { error: 'El Relayer del servidor (billetera administradora) no tiene asignado el rol DOCTOR_ROLE on-chain en el contrato inteligente.' },
+        { status: 403 }
+      )
+    }
+
     const walletClient = createWalletClient({
       account,
       chain: avalancheFuji,

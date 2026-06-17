@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useWriteContract, useSignMessage } from 'wagmi'
+import { useWriteContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
@@ -23,8 +23,7 @@ export default function PatientView360() {
   const patientId = params.id as string
   const { doctorId } = useDoctorAuth()
   const { writeContractAsync } = useWriteContract()
-  const { signMessageAsync } = useSignMessage()
-  const { walletAddress } = useWallet()
+  const { walletAddress, signMessage } = useWallet()
 
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
@@ -252,7 +251,7 @@ export default function PatientView360() {
         })
 
         const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
-        const signature = await signMessageAsync({ message })
+        const signature = await signMessage(message)
 
         const relayerRes = await fetch('/api/blockchain/add-record', {
           method: 'POST',

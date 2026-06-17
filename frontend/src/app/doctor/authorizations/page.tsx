@@ -330,8 +330,7 @@ export default function DoctorAuthorizationsPage() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-azul-profundo">{auth.patient?.full_name || 'Paciente Desconocido'}</h3>
-                        <p className="text-xs font-mono text-gris-grafito/60 mb-2">{auth.patient?.wallet_address}</p>
-                        <div className="flex items-center gap-4 text-xs text-gris-grafito/80">
+                        <div className="flex items-center gap-4 text-xs text-gris-grafito/80 mt-1">
                           <span className="flex items-center gap-1">
                             <Clock className="size-3" /> 
                             Solicitado: {auth.created_at ? format(new Date(auth.created_at), 'dd MMM yyyy', { locale: es }) : 'N/A'}

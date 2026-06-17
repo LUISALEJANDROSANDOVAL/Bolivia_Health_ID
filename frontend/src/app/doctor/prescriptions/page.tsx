@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 import { DoctorLayout } from '@/components/doctor-layout'
-import { useWriteContract, useSignMessage } from 'wagmi'
+import { useWriteContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { toast } from 'sonner'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
@@ -134,11 +134,10 @@ export default function DoctorPrescriptionsPage() {
   const [loadingMedsForDetail, setLoadingMedsForDetail] = useState(false)
   const [detailMeds, setDetailMeds] = useState<any[]>([])
 
-  const { walletAddress } = useWallet()
+  const { walletAddress, signMessage } = useWallet()
   const { doctorId: authDoctorId } = useDoctorAuth()
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const { writeContractAsync } = useWriteContract()
-  const { signMessageAsync } = useSignMessage()
 
   // Success animation state
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false)
@@ -504,7 +503,7 @@ export default function DoctorPrescriptionsPage() {
           })
           
           const message = `Registrar expediente médico: Paciente = ${selectedPatient.walletAddress}, IPFS Hash = ${ipfsHash}`
-          const signature = await signMessageAsync({ message })
+          const signature = await signMessage(message)
 
           // 3. Send signature to Relayer API
           const relayerRes = await fetch('/api/blockchain/add-record', {
