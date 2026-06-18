@@ -35,6 +35,7 @@ import { useReadContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useMemo } from 'react'
 import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
+import { getAddress } from 'viem'
 
 interface DiagnosisItem {
   id: string
@@ -99,18 +100,21 @@ const statusConfig: Record<string, { icon: any; color: string; bg: string; label
 }
 
 export function MedicalRecords() {
-  const { walletAddress } = useWallet()
+  const { walletAddress, isDbConnected } = useWallet()
   const [records, setRecords] = useState<DiagnosisItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('todos')
 
-  // 1. Fetch blockchain records
+  // 1. Fetch blockchain records — usar checksum EIP-55 para que viem acepte la dirección
+  const checksumWallet = walletAddress ? (() => { try { return getAddress(walletAddress) } catch { return null } })() : null
+
   const { data: blockchainRecords } = useReadContract({
     address: MEDICAL_RECORDS_ADDRESS,
     abi: MEDICAL_RECORDS_ABI,
     functionName: 'getRecords',
-    args: walletAddress ? [walletAddress.toLowerCase() as `0x${string}`] : undefined,
+    args: checksumWallet ? [checksumWallet as `0x${string}`] : undefined,
+    query: { enabled: !!checksumWallet }
   })
 
   // 2. Cross-reference records with blockchain
@@ -140,7 +144,7 @@ export function MedicalRecords() {
 
   useEffect(() => {
     async function fetchDiagnoses() {
-      if (!walletAddress) return
+      if (!walletAddress || !isDbConnected) return
       setLoading(true)
       try {
         const { data: profile } = await supabase
@@ -195,7 +199,7 @@ export function MedicalRecords() {
     }
 
     fetchDiagnoses()
-  }, [walletAddress])
+  }, [walletAddress, isDbConnected])
 
   const filteredRecords = verifiedRecords.filter(record => {
     const matchesSearch =

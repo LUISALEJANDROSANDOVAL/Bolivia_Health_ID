@@ -98,7 +98,37 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       const wallet = walletAddr.toLowerCase()
+      const emailAuth = `${wallet}@boliviahealth.com`
+      const passwordAuth = `${wallet}_boliviahealth_secure_2026!`
 
+      // A. Silent Auth Sign-In / Sign-Up determinista
+      let { error: authError } = await supabase.auth.signInWithPassword({
+        email: emailAuth,
+        password: passwordAuth
+      })
+
+      if (authError && authError.message.toLowerCase().includes('invalid login credentials')) {
+        // Registrar usuario si no existe en Supabase Auth
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: emailAuth,
+          password: passwordAuth
+        })
+        if (!signUpError) {
+          const signInRes = await supabase.auth.signInWithPassword({
+            email: emailAuth,
+            password: passwordAuth
+          })
+          if (signInRes.error) {
+            console.error('Error in secondary sign-in:', signInRes.error)
+          }
+        } else {
+          console.error('Error signing up deterministic user:', signUpError)
+        }
+      } else if (authError) {
+        console.error('Error signing in deterministic user:', authError)
+      }
+
+      // B. Sincronización de Perfil Público en Supabase
       const { data: existing, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -227,6 +257,9 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setSessionActive(false)
       setSessionAddress(null)
       
+      // Cerrar sesión en Supabase Auth silenciosamente
+      await supabase.auth.signOut()
+
       if (particle && particleConnected) {
         await particle.auth.logout();
         setParticleConnected(false);

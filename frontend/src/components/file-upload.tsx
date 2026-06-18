@@ -67,7 +67,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Estudios')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
-  const { walletAddress } = useWallet()
+  const { walletAddress, signMessage, sessionActive, signMessageWithSession } = useWallet()
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [extractWithAi, setExtractWithAi] = useState(true)
@@ -170,7 +170,47 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       const ipfsHash = await uploadToPinata(file)
       setUploadedFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress: 80, status: 'encrypting' as const } : f))
 
-      // 2. SUPABASE DB INSERT
+      // 2. REGISTRO EN BLOCKCHAIN (Gasless patrocinado por el Relayer del Servidor)
+      let txHash = null
+      let signature = ''
+      let sessionAddress = undefined
+      let sessionAuthSignature = undefined
+
+      const message = `Registrar expediente médico: Paciente = ${walletAddress}, IPFS Hash = ${ipfsHash}`
+
+      if (sessionActive) {
+        // Firma silenciosa automática con llave de sesión
+        const sessionData = await signMessageWithSession(message)
+        signature = sessionData.signature
+        sessionAddress = sessionData.sessionAddress
+        sessionAuthSignature = sessionData.sessionAuthSignature
+      } else {
+        // Fallback: Firma manual en wallet
+        signature = await signMessage(message)
+      }
+
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: walletAddress,
+          ipfsHash,
+          doctorAddress: walletAddress, // Paciente actúa como firmante de su propio registro
+          signature,
+          sessionAddress,
+          sessionAuthSignature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer de Blockchain')
+      }
+
+      const relayerData = await relayerRes.json()
+      txHash = relayerData.txHash
+
+      // 3. SUPABASE DB INSERT
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
@@ -187,7 +227,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           category: selectedCategory === 'Estudios' ? 'Laboratorio' : selectedCategory === 'Medicamentos' ? 'Recetas' : 'Otros',
           file_size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
           file_url: ipfsHash,
-          file_type: file.type.includes('pdf') ? 'pdf' : 'image'
+          file_type: file.type.includes('pdf') ? 'pdf' : 'image',
+          tx_hash: txHash
         })
 
       if (dbError) throw dbError
@@ -201,7 +242,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       )
       toast({
         title: 'Archivo subido correctamente',
-        description: `${file.name} ha sido cifrado y almacenado en IPFS y Supabase`,
+        description: `${file.name} ha sido cifrado, registrado en Blockchain y guardado en Supabase`,
       })
       onUploadComplete?.()
     } catch (err: any) {
@@ -218,7 +259,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     } finally {
       setIsUploadingAll(false)
     }
-  }, [toast, walletAddress, onUploadComplete, selectedCategory])
+  }, [toast, walletAddress, onUploadComplete, selectedCategory, signMessage, sessionActive, signMessageWithSession])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -395,7 +436,47 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
       if (!profile) throw new Error('Perfil no encontrado')
 
-      // 2. Registrar en health_records (documento)
+      // 2. REGISTRO EN BLOCKCHAIN (Gasless patrocinado por el Relayer del Servidor)
+      let txHash = null
+      let signature = ''
+      let sessionAddress = undefined
+      let sessionAuthSignature = undefined
+
+      const message = `Registrar expediente médico: Paciente = ${walletAddress}, IPFS Hash = ${tempUploadRecord.ipfsHash}`
+
+      if (sessionActive) {
+        // Firma silenciosa automática con llave de sesión
+        const sessionData = await signMessageWithSession(message)
+        signature = sessionData.signature
+        sessionAddress = sessionData.sessionAddress
+        sessionAuthSignature = sessionData.sessionAuthSignature
+      } else {
+        // Fallback: Firma manual en wallet
+        signature = await signMessage(message)
+      }
+
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: walletAddress,
+          ipfsHash: tempUploadRecord.ipfsHash,
+          doctorAddress: walletAddress, // Paciente actúa como firmante de su propio registro
+          signature,
+          sessionAddress,
+          sessionAuthSignature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer de Blockchain')
+      }
+
+      const relayerData = await relayerRes.json()
+      txHash = relayerData.txHash
+
+      // 3. Registrar en health_records (documento)
       const { error: dbError } = await supabase
         .from('health_records')
         .insert({
@@ -404,7 +485,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           category: selectedCategory === 'Estudios' ? 'Laboratorio' : selectedCategory === 'Medicamentos' ? 'Recetas' : 'Otros',
           file_size: tempUploadRecord.size,
           file_url: tempUploadRecord.ipfsHash,
-          file_type: tempUploadRecord.type
+          file_type: tempUploadRecord.type,
+          tx_hash: txHash
         })
 
       if (dbError) throw dbError
@@ -415,6 +497,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           .filter((d: any) => d.description?.trim())
           .map((d: any) => ({
             patient_id: profile.id,
+            // doctor_id es null: el paciente sube su propio documento (la política RLS lo permite)
+            doctor_id: null,
             title: d.description,
             description: d.description,
             category: 'consulta',
@@ -437,6 +521,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           .filter((m: any) => m.name?.trim())
           .map((m: any) => ({
             patient_id: profile.id,
+            // doctor_id es null: el paciente sube su propia receta (la política RLS lo permite)
+            doctor_id: null,
             name: m.name,
             dosage: m.dosage || '',
             frequency: m.frequency || '',
@@ -453,6 +539,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           if (medError) console.error('Error saving medications to Supabase:', medError)
         }
       }
+
 
       // Actualizar estado visual de completado
       setUploadedFiles((prev) =>

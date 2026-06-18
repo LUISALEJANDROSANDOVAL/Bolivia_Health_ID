@@ -78,7 +78,7 @@ const studyTypeConfig = {
 }
 
 export function MedicalStudies() {
-  const { walletAddress } = useWallet()
+  const { walletAddress, isDbConnected } = useWallet()
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -86,7 +86,7 @@ export function MedicalStudies() {
 
   useEffect(() => {
     async function fetchStudies() {
-      if (!walletAddress) return
+      if (!walletAddress || !isDbConnected) return
       setLoading(true)
       try {
         const { data: profile } = await supabase
@@ -135,7 +135,7 @@ export function MedicalStudies() {
     }
 
     fetchStudies()
-  }, [walletAddress])
+  }, [walletAddress, isDbConnected])
 
   const filteredStudies = studies.filter(s => {
     const matchesSearch = s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

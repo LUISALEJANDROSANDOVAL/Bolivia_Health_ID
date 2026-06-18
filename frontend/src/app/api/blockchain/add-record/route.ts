@@ -74,16 +74,27 @@ export async function POST(request: Request) {
       )
     }
 
-    // 2. Validar que la dirección firmante sea de un médico registrado en la base de datos local
-    const { data: profile, error: supabaseError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('wallet_address', doctorAddress.toLowerCase())
-      .single()
+    // 2. Validar que la dirección firmante sea de un médico registrado en la base de datos local o que el paciente firme su propio registro
+    const isSelfSigning = doctorAddress.toLowerCase() === patient.toLowerCase()
+    let isAuthorized = false
 
-    if (supabaseError || !profile || profile.role !== 'medico') {
+    if (isSelfSigning) {
+      isAuthorized = true
+    } else {
+      const { data: profile, error: supabaseError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('wallet_address', doctorAddress.toLowerCase())
+        .single()
+
+      if (!supabaseError && profile && profile.role === 'medico') {
+        isAuthorized = true
+      }
+    }
+
+    if (!isAuthorized) {
       return NextResponse.json(
-        { error: 'El firmante no está registrado como médico en el sistema.' },
+        { error: 'El firmante no está registrado como médico en el sistema ni es el paciente firmando su propio registro.' },
         { status: 403 }
       )
     }
