@@ -13,7 +13,7 @@ import { Shield, Fingerprint, Wallet } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
-export default function LoginScreen() {
+export default function LoginScreen({ navigation }: any) {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -39,7 +39,7 @@ export default function LoginScreen() {
         disableDeviceFallback: false,
       });
       if (biometricAuth.success) {
-        alert('¡Autenticado con éxito!');
+        navigation?.navigate('Home');
       }
     } catch (error) {
       console.error(error);
@@ -92,7 +92,7 @@ export default function LoginScreen() {
         {/* BOTONES */}
         <View style={styles.buttonsSection}>
           {/* Botón Google */}
-          <TouchableOpacity style={styles.googleButton} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.googleButton} activeOpacity={0.7} onPress={() => navigation?.navigate('Home')}>
             <Text style={styles.googleIcon}>G</Text>
             <Text style={styles.googleButtonText}>Continuar con Google</Text>
           </TouchableOpacity>
