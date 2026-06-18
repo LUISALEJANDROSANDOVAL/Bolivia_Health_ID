@@ -202,7 +202,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
         {/* ── RESUMEN ── */}
         {formularioCompleto ? (
           <View style={styles.resumenCard}>
-            <Text style={styles.resumenTitle}>✅ Resumen de tu solicitud</Text>
+            <Text style={styles.resumenTitle}>Resumen de tu solicitud</Text>
             <View style={styles.resumenRow}>
               <Text style={styles.resumenLabel}>Hospital:</Text>
               <Text style={styles.resumenValor}>{hospitalActual?.nombre}</Text>
