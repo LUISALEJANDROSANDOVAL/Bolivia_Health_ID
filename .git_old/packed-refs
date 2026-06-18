@@ -1,0 +1,9 @@
+# pack-refs with: peeled fully-peeled sorted 
+1d2e2c2e0de43a847da773b2a36743b9f42a70aa refs/remotes/origin/develop
+665b84b05cc4804f5d4b7ee5b4cbb8b95e5968a4 refs/remotes/origin/feature-Maciel
+1d2e2c2e0de43a847da773b2a36743b9f42a70aa refs/remotes/origin/feature/Arnez
+e4f9fc40642268dfd22c5bf01549bc3e65ae21b7 refs/remotes/origin/feature/Ayala
+90da1778e22a67cafdbaac9b17d4539586dfbf85 refs/remotes/origin/feature/Luis
+013537b87ddd3ee41aa7549bf2581446d3fa4830 refs/remotes/origin/feature/eddy
+a4fda3098729082e5a47d27f932ae80ba0f1f63a refs/remotes/origin/feature/joseca
+06c8dc1b563716d700fc8bc797e6bd3084664c55 refs/remotes/origin/main

@@ -61,42 +61,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-
-    // Evitar que errores de extensiones del navegador (como Aave Account o de proveedores EIP1193)
-    // interrumpan el desarrollo y bloqueen la pantalla con el Overlay de Next.js
-    const handleWindowError = (event: ErrorEvent) => {
-      const msg = event.message || '';
-      if (
-        msg.includes('Aave Account') ||
-        msg.includes('AaveAccountSdk') ||
-        msg.includes('EIP1193')
-      ) {
-        console.warn('Ignorado error de extensión del navegador:', msg);
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    const handleRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason?.message || '';
-      if (
-        reason.includes('Aave Account') ||
-        reason.includes('AaveAccountSdk') ||
-        reason.includes('EIP1193')
-      ) {
-        console.warn('Ignorada promesa rechazada de extensión del navegador:', reason);
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-
-    window.addEventListener('error', handleWindowError);
-    window.addEventListener('unhandledrejection', handleRejection);
-
-    return () => {
-      window.removeEventListener('error', handleWindowError);
-      window.removeEventListener('unhandledrejection', handleRejection);
-    };
   }, []);
 
   return (

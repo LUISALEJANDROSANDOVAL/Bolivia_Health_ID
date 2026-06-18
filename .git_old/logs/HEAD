@@ -1,0 +1,20 @@
+0000000000000000000000000000000000000000 06c8dc1b563716d700fc8bc797e6bd3084664c55 eddy2002214 <eddyygalvaan@gmail.com> 1778945919 -0400	clone: from https://github.com/LUISALEJANDROSANDOVAL/Bolivia_Health_ID.git
+06c8dc1b563716d700fc8bc797e6bd3084664c55 013537b87ddd3ee41aa7549bf2581446d3fa4830 eddy2002214 <eddyygalvaan@gmail.com> 1778945944 -0400	checkout: moving from main to feature/eddy
+013537b87ddd3ee41aa7549bf2581446d3fa4830 2a85f9b50e819190d492786b7e65883efcf2a59c eddy2002214 <eddyygalvaan@gmail.com> 1778946898 -0400	commit: Descripcion de cambios
+2a85f9b50e819190d492786b7e65883efcf2a59c 2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce eddy2002214 <eddyygalvaan@gmail.com> 1778955388 -0400	commit: agenda de docotr y de paciente mejorado
+2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce 1d2e2c2e0de43a847da773b2a36743b9f42a70aa eddy2002214 <eddyygalvaan@gmail.com> 1778955455 -0400	checkout: moving from feature/eddy to develop
+1d2e2c2e0de43a847da773b2a36743b9f42a70aa c44b179cdd4d107e06a52daea2e0a7d586a85d1d eddy2002214 <eddyygalvaan@gmail.com> 1778955468 -0400	pull origin develop: Fast-forward
+c44b179cdd4d107e06a52daea2e0a7d586a85d1d c44b179cdd4d107e06a52daea2e0a7d586a85d1d eddy2002214 <eddyygalvaan@gmail.com> 1778955628 -0400	reset: moving to HEAD
+c44b179cdd4d107e06a52daea2e0a7d586a85d1d 2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce eddy2002214 <eddyygalvaan@gmail.com> 1778955661 -0400	checkout: moving from develop to feature/eddy
+2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce c44b179cdd4d107e06a52daea2e0a7d586a85d1d eddy2002214 <eddyygalvaan@gmail.com> 1778956066 -0400	checkout: moving from feature/eddy to develop
+c44b179cdd4d107e06a52daea2e0a7d586a85d1d 781892db0ef671453bbdc5521f7bc4fff46386bc eddy2002214 <eddyygalvaan@gmail.com> 1778956365 -0400	commit (merge): Finalizar fusion: Integrando citas virtuales y mejoras de perfil
+781892db0ef671453bbdc5521f7bc4fff46386bc 2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce eddy2002214 <eddyygalvaan@gmail.com> 1778956449 -0400	checkout: moving from develop to feature/eddy
+2d6bb2edd13cb92952fb2c767ccfe1b26ad278ce 781892db0ef671453bbdc5521f7bc4fff46386bc eddy2002214 <eddyygalvaan@gmail.com> 1778956882 -0400	pull origin develop: Fast-forward
+781892db0ef671453bbdc5521f7bc4fff46386bc 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1778957305 -0400	commit: configuracion de seguridad
+293ab9334cd31b7002e03a576e296d25a2a1c749 781892db0ef671453bbdc5521f7bc4fff46386bc eddy2002214 <eddyygalvaan@gmail.com> 1778957337 -0400	checkout: moving from feature/eddy to develop
+781892db0ef671453bbdc5521f7bc4fff46386bc 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1778957357 -0400	merge feature/eddy: Fast-forward
+293ab9334cd31b7002e03a576e296d25a2a1c749 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1778957374 -0400	checkout: moving from develop to feature/eddy
+293ab9334cd31b7002e03a576e296d25a2a1c749 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1781737959 -0400	checkout: moving from feature/eddy to develop
+293ab9334cd31b7002e03a576e296d25a2a1c749 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1781738058 -0400	checkout: moving from develop to feature/eddy
+293ab9334cd31b7002e03a576e296d25a2a1c749 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1781743950 -0400	checkout: moving from feature/eddy to develop
+293ab9334cd31b7002e03a576e296d25a2a1c749 293ab9334cd31b7002e03a576e296d25a2a1c749 eddy2002214 <eddyygalvaan@gmail.com> 1781743964 -0400	checkout: moving from develop to feature/eddy
