@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { format } from 'date-fns'
 
 interface Patient {
   id: string
@@ -30,7 +31,7 @@ export function QuickAppointmentCard({ onAppointmentCreated }: { onAppointmentCr
   const [isSearching, setIsSearching] = useState(false)
   
   const [formData, setFormData] = useState({
-    appointment_date: new Date().toISOString().split('T')[0],
+    appointment_date: format(new Date(), 'yyyy-MM-dd'),
     appointment_time: '09:00',
     end_time: '09:30',
     reason: 'Consulta General',

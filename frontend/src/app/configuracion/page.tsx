@@ -328,24 +328,15 @@ export default function ConfiguracionPage() {
           </TabsContent>
 
           <TabsContent value="seguridad">
-            <SecuritySettings 
-              profile={profile}
-              updateProfile={updateProfile}
-            />
+            <SecuritySettings />
           </TabsContent>
 
           <TabsContent value="notificaciones">
-            <NotificationSettings 
-              profile={profile}
-              updateProfile={updateProfile}
-            />
+            <NotificationSettings />
           </TabsContent>
 
           <TabsContent value="privacidad">
-            <PrivacySettings 
-              profile={profile}
-              updateProfile={updateProfile}
-            />
+            <PrivacySettings />
           </TabsContent>
 
           <TabsContent value="blockchain">

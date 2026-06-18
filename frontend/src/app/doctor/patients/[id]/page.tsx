@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -9,14 +10,27 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
-import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock } from 'lucide-react'
+import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useToast } from '@/hooks/use-toast'
+import { useWriteContract } from 'wagmi'
+import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
+import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { useWallet } from '@/contexts/wallet-context'
+import { toast } from 'sonner'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export default function PatientView360() {
   const params = useParams()
   const patientId = params.id as string
-  const { toast } = useToast()
+  const { doctorId } = useDoctorAuth()
+  const { writeContractAsync } = useWriteContract()
+  const { walletAddress, signMessage, sessionActive, startClinicalSession, signMessageWithSession } = useWallet()
 
   const [isLoading, setIsLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
@@ -25,6 +39,7 @@ export default function PatientView360() {
   const [background, setBackground] = useState<any[]>([])
   const [studies, setStudies] = useState<any[]>([])
   const [uploading, setUploading] = useState(false)
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
 
   // Vitals Edit State
   const [isEditingVitals, setIsEditingVitals] = useState(false)
@@ -36,12 +51,37 @@ export default function PatientView360() {
     weight: '',
     height: ''
   })
+  const [selectedCategory, setSelectedCategory] = useState<string>('Estudios')
 
   const fetchPatientData = useCallback(async () => {
     try {
       setIsLoading(true)
 
-      // 1. Perfil
+      // 1. Verificar si hay sesión de doctor
+      if (!doctorId) {
+        setHasPermission(false)
+        setIsLoading(false)
+        return
+      }
+
+      // 2. Verificar si el doctor tiene autorización activa
+      const { data: permission, error: permErr } = await supabase
+        .from('access_permissions')
+        .select('status')
+        .eq('patient_id', patientId)
+        .eq('doctor_id', doctorId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (permErr || !permission) {
+        setHasPermission(false)
+        setIsLoading(false)
+        return
+      }
+
+      setHasPermission(true)
+
+      // 3. Perfil
       const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
@@ -95,17 +135,20 @@ export default function PatientView360() {
 
     } catch (err: any) {
       console.error(err)
-      toast({ title: 'Error', description: 'No se pudieron cargar los datos del paciente', variant: 'destructive' })
+      toast.error('No se pudieron cargar los datos del paciente')
     } finally {
       setIsLoading(false)
     }
-  }, [patientId, toast])
+  }, [patientId, doctorId])
 
   useEffect(() => {
-    if (patientId) {
+    if (patientId && doctorId) {
       fetchPatientData()
+    } else if (patientId && !doctorId) {
+      setIsLoading(false)
+      setHasPermission(false)
     }
-  }, [fetchPatientData, patientId])
+  }, [fetchPatientData, patientId, doctorId])
 
   const handleSaveVitals = async () => {
     setIsSavingVitals(true)
@@ -152,14 +195,10 @@ export default function PatientView360() {
 
       setVitals({ ...vitals, ...editVitalsForm })
       setIsEditingVitals(false)
-      toast({ title: 'Éxito', description: 'Signos vitales actualizados correctamente' })
+      toast.success('Signos vitales actualizados correctamente')
     } catch (err: any) {
       console.error("Error guardando vitales:", err)
-      toast({
-        title: 'Error al guardar',
-        description: err.message || 'Revisa la consola para más detalles',
-        variant: 'destructive'
-      })
+      toast.error('Error al guardar: ' + (err.message || 'Revisa la consola para más detalles'))
     } finally {
       setIsSavingVitals(false)
     }
@@ -183,47 +222,103 @@ export default function PatientView360() {
 
     setUploading(true)
     try {
-      // 1. Upload to Supabase Storage (Bucket: health_records)
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}.${fileExt}`
-      const filePath = `${patientId}/${fileName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('health_records')
-        .upload(filePath, file)
-
-      if (uploadError) {
-        // Create bucket if it doesn't exist? (Often needs to be done via dashboard due to RLS, but we catch it)
-        throw new Error('Error al subir a Storage. Asegúrate de tener un bucket llamado "health_records" creado y público. Detalle: ' + uploadError.message)
+      if (!profile?.wallet_address) {
+        throw new Error('El paciente no tiene una dirección de billetera configurada para registrar en blockchain.')
       }
 
-      // 2. Get Public URL or save path
-      const { data: { publicUrl } } = supabase.storage
-        .from('health_records')
-        .getPublicUrl(filePath)
+      // 1. Upload to Pinata IPFS
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('pinataMetadata', JSON.stringify({ name: file.name }))
+      
+      const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
+      if (!pinataJwt) {
+        throw new Error('Falta configuración: NEXT_PUBLIC_PINATA_JWT. Añádelo a tu .env.local')
+      }
+
+      const pinataRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pinataJwt}`
+        },
+        body: formData
+      })
+
+      if (!pinataRes.ok) {
+        throw new Error('Error al subir el archivo a IPFS (Pinata).')
+      }
+
+      const pinataData = await pinataRes.json()
+      const ipfsHash = pinataData.IpfsHash
+
+      // 2. Intentar registro on-chain (gasless)
+      let txHash: string | null = null
+      let signature = ''
+      let sessionAddress = undefined
+      let sessionAuthSignature = undefined
+
+      const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
+
+      if (sessionActive) {
+        // Firma silenciosa automática con llave de sesión
+        const sessionData = await signMessageWithSession(message)
+        signature = sessionData.signature
+        sessionAddress = sessionData.sessionAddress
+        sessionAuthSignature = sessionData.sessionAuthSignature
+      } else {
+        // Fallback: Firma manual
+        toast.info('Blockchain', {
+          description: 'Registrando estudio en la red blockchain...'
+        })
+        signature = await signMessage(message)
+      }
+
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: profile.wallet_address,
+          ipfsHash,
+          doctorAddress: walletAddress,
+          signature,
+          sessionAddress,
+          sessionAuthSignature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer de Blockchain')
+      }
+
+      const relayerData = await relayerRes.json()
+      txHash = relayerData.txHash
 
       // 3. Insert into health_records table
+      const fileExt = file.name.split('.').pop()
       const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
 
-      const { error: dbError } = await supabase
+        const { error: dbError } = await supabase
         .from('health_records')
         .insert({
           patient_id: patientId,
           title: file.name,
-          category: 'Otros', // Default
+          category: selectedCategory === 'Estudios' ? 'Laboratorio' : selectedCategory === 'Medicamentos' ? 'Recetas' : 'Otros',
           file_size: `${fileSizeInMB} MB`,
-          file_url: publicUrl,
-          file_type: fileExt
+          file_url: ipfsHash,
+          file_type: fileExt,
+          tx_hash: txHash,
+          doctor_id: doctorId
         })
 
       if (dbError) throw dbError
 
-      toast({ title: 'Éxito', description: 'Estudio subido correctamente' })
+      toast.success('Estudio subido a IPFS y registrado on-chain correctamente')
       fetchPatientData() // Recargar estudios
 
     } catch (err: any) {
       console.error('Error uploading:', err)
-      toast({ title: 'Error', description: err.message || 'Error al subir el archivo', variant: 'destructive' })
+      toast.error('Error: ' + (err.message || 'Error al subir el archivo'))
     } finally {
       setUploading(false)
       // Reset input value to allow uploading the same file again if needed
@@ -237,6 +332,34 @@ export default function PatientView360() {
         <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
           <Loader2 className="size-12 animate-spin text-primary" />
           <p className="text-muted-foreground animate-pulse">Cargando historia clínica...</p>
+        </div>
+      </DoctorLayout>
+    )
+  }
+
+  if (hasPermission === false) {
+    return (
+      <DoctorLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-slide-in">
+          <div className="size-20 rounded-[2rem] bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
+            <Lock className="size-10 text-red-500 animate-pulse" />
+          </div>
+          <h2 className="text-2xl font-black text-foreground tracking-tight">Acceso No Autorizado</h2>
+          <p className="text-sm text-foreground/50 mt-2 max-w-md">
+            No tienes un permiso de acceso activo de este paciente para ver su historial clínico. Solicita autorización en el portal correspondiente.
+          </p>
+          <div className="mt-8 flex gap-4">
+            <Link href="/doctor/patients">
+              <Button className="bg-foreground/10 hover:bg-foreground/20 text-foreground font-bold rounded-2xl px-6 h-12 border-none">
+                Volver a Pacientes
+              </Button>
+            </Link>
+            <Link href="/doctor/authorizations">
+              <Button className="bg-gradient-electric hover:scale-105 text-white font-bold rounded-2xl px-6 h-12 border-none transition-all">
+                Solicitar Acceso
+              </Button>
+            </Link>
+          </div>
         </div>
       </DoctorLayout>
     )
@@ -291,6 +414,35 @@ export default function PatientView360() {
           )}
         </div>
 
+        {/* Control de Turno / Llaves de Sesión */}
+        {!sessionActive && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-cyan-500/10 p-4 border border-cyan-500/20 animate-slide-in">
+            <div className="flex items-center gap-3">
+              <Zap className="size-5 text-cyan-500 animate-pulse" />
+              <div>
+                <p className="text-sm font-black text-foreground">Firma Silenciosa Desactivada</p>
+                <p className="text-xs text-foreground/50">Habilita el modo de consulta rápida para subir estudios y registrar recetas al instante sin popups.</p>
+              </div>
+            </div>
+            <Button 
+              type="button"
+              onClick={() => startClinicalSession()} 
+              className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold text-xs h-9 px-4 rounded-xl shadow-md border-none shrink-0"
+            >
+              Iniciar Turno
+            </Button>
+          </div>
+        )}
+        {sessionActive && (
+          <div className="flex items-center gap-3 rounded-2xl bg-emerald-500/10 p-4 border border-emerald-500/20 animate-in fade-in duration-300">
+            <Check className="size-5 text-emerald-500 animate-bounce" />
+            <div>
+              <p className="text-sm font-black text-foreground">Sesión Blockchain Activa</p>
+              <p className="text-xs text-foreground/50">Los estudios clínicos y recetas se firmarán automáticamente en segundo plano.</p>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <div className="bg-white/50 dark:bg-azul-profundo/30 backdrop-blur-md p-1 rounded-2xl border border-azul-electrico/10 shadow-sm inline-block w-full overflow-x-auto whitespace-nowrap">
@@ -311,14 +463,7 @@ export default function PatientView360() {
               >
                 Historial
               </TabsTrigger>
-              <TabsTrigger 
-                value="consultation"
-                className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
-                           text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
-                           data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
-              >
-                Nueva Consulta
-              </TabsTrigger>
+
               <TabsTrigger 
                 value="studies"
                 className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
@@ -535,39 +680,139 @@ export default function PatientView360() {
 
           {/* Historial Tab */}
           <TabsContent value="history" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="size-5 text-primary" />
-                  Historial Clínico Blockchain
-                </CardTitle>
-                <CardDescription>Timeline inmutable de todas las consultas y registros médicos</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {background.length > 0 ? (
-                    background.map((record) => (
-                      <div key={record.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 group hover:bg-foreground/5 p-3 -mx-3 rounded-xl transition-colors">
-                        <div>
-                          <p className="font-semibold text-foreground text-lg">{record.title}</p>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{record.description}</p>
-                          <div className="flex gap-2 mt-2">
-                            <Badge variant="outline" className="text-[10px] uppercase bg-background">{record.category}</Badge>
-                            <span className="text-xs text-muted-foreground font-medium">{new Date(record.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <Badge variant="default" className="shrink-0 bg-primary/20 text-primary hover:bg-primary/30 border-none">
-                          {record.status_detail || 'Registrado'}
-                        </Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
-                      <Lock className="size-10 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm font-semibold text-muted-foreground">No hay registros en el historial.</p>
-                    </div>
-                  )}
+
+            {/* Stats summary */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-azul-electrico/8 border border-azul-electrico/20 p-4 text-center">
+                <p className="text-2xl font-black text-azul-profundo">{background.length}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Total Registros</p>
+              </div>
+              <div className="rounded-2xl bg-emerald-500/8 border border-emerald-500/20 p-4 text-center">
+                <p className="text-2xl font-black text-emerald-600">
+                  {background.filter((r: any) => r.status_detail === 'Activo' || !r.status_detail).length}
+                </p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Activos</p>
+              </div>
+              <div className="rounded-2xl bg-violet-500/8 border border-violet-500/20 p-4 text-center">
+                <p className="text-2xl font-black text-violet-600">
+                  {background.length > 0 ? new Date(background[0]?.created_at).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                </p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Último Registro</p>
+              </div>
+            </div>
+
+            {/* Timeline */}
+            <Card className="card-premium overflow-hidden">
+              <CardHeader className="border-b border-border/40 bg-foreground/[0.02]">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-azul-profundo">
+                    <Lock className="size-5 text-azul-electrico" />
+                    Historial Clínico
+                  </CardTitle>
+                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold">
+                    🔒 Inmutable · Blockchain
+                  </Badge>
                 </div>
+                <CardDescription>Línea de tiempo clínica del paciente — registros verificados en cadena</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {background.length > 0 ? (
+                  <div className="relative">
+                    {/* Vertical line */}
+                    <div className="absolute left-[22px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-azul-electrico/40 via-azul-electrico/20 to-transparent rounded-full" />
+
+                    <div className="space-y-6">
+                      {background.map((record: any, idx: number) => {
+                        // Limpiar descripción: quitar IPFS y Tx
+                        const parts = (record.description || '')
+                          .split(' | ')
+                          .filter((p: string) =>
+                            !p.startsWith('IPFS:') &&
+                            !p.startsWith('Tx:') &&
+                            !p.match(/^0x[a-fA-F0-9]{40,}/)
+                          )
+
+                        const categoryColors: Record<string, string> = {
+                          'Consulta': 'bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20',
+                          'Diagnóstico': 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+                          'Procedimiento': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                          'Laboratorio': 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+                          'Receta': 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                          'Antecedente': 'bg-red-500/10 text-red-600 border-red-500/20',
+                        }
+                        const catColor = categoryColors[record.category] || 'bg-gris-grafito/10 text-gris-grafito border-gris-grafito/20'
+                        const dotColors = ['bg-azul-electrico', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-cyan-500']
+                        const dotColor = dotColors[idx % dotColors.length]
+
+                        return (
+                          <div key={record.id} className="relative flex gap-5 group">
+                            {/* Timeline dot */}
+                            <div className={`relative z-10 flex-shrink-0 size-11 rounded-full ${dotColor}/10 border-2 ${dotColor.replace('bg-', 'border-')}/30 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
+                              <div className={`size-3.5 rounded-full ${dotColor}`} />
+                            </div>
+
+                            {/* Content card */}
+                            <div className="flex-1 min-w-0 bg-foreground/[0.02] hover:bg-foreground/[0.04] border border-border/40 hover:border-azul-electrico/30 rounded-2xl p-4 transition-all">
+                              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-bold text-azul-profundo text-base leading-tight">{record.title}</h4>
+                                  <Badge className={`text-[10px] uppercase font-bold border ${catColor} px-2 py-0`}>
+                                    {record.category || 'Registro'}
+                                  </Badge>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-xs text-gris-grafito/50 bg-foreground/5 px-2.5 py-1 rounded-lg font-medium">
+                                    {new Date(record.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Description fields as chips */}
+                              {parts.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {parts.map((part: string, i: number) => {
+                                    const [label, ...rest] = part.split(': ')
+                                    const val = rest.join(': ')
+                                    if (!val) return (
+                                      <span key={i} className="text-sm text-gris-grafito/70">{label}</span>
+                                    )
+                                    return (
+                                      <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-gris-grafito/50">{label}:</span>
+                                        <span className="text-xs text-azul-profundo font-semibold">{val}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
+                                <div className="flex items-center gap-1.5 text-[10px] text-gris-grafito/40 font-medium">
+                                  <Lock className="size-3" />
+                                  Verificado en blockchain
+                                </div>
+                                <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[10px] font-bold">
+                                  {record.status_detail || 'Registrado'}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-16 flex flex-col items-center">
+                    <div className="size-20 rounded-2xl bg-foreground/5 border border-dashed border-border flex items-center justify-center mb-6">
+                      <Lock className="size-9 text-muted-foreground/20" />
+                    </div>
+                    <h3 className="text-lg font-black text-azul-profundo tracking-tight">Sin registros en el historial</h3>
+                    <p className="text-sm text-gris-grafito/50 mt-1 max-w-xs">
+                      Los registros clínicos del paciente aparecerán aquí cuando se añadan consultas o antecedentes.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -582,6 +827,20 @@ export default function PatientView360() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Category Selector */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold text-foreground">Categoría del documento</label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-full sm:w-[250px] bg-foreground/5 border-border text-foreground hover:border-cyan-500/50 transition-colors h-11 rounded-xl">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border-border">
+                      <SelectItem value="Estudios" className="cursor-pointer">Estudios</SelectItem>
+                      <SelectItem value="Medicamentos" className="cursor-pointer">Medicamentos</SelectItem>
+                      <SelectItem value="Diagnósticos" className="cursor-pointer">Diagnósticos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 {/* Upload Area */}
                 <div className="relative rounded-xl border-2 border-dashed border-border/50 bg-foreground/5 hover:bg-foreground/10 transition-colors p-10 text-center group cursor-pointer">
@@ -619,7 +878,9 @@ export default function PatientView360() {
                             <div className="truncate">
                               <p className="font-semibold text-foreground truncate">{study.title}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">{study.category}</Badge>
+                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
+                                  {study.category === 'Laboratorio' || study.category === 'Imágenes' ? 'Estudios' : study.category === 'Recetas' ? 'Medicamentos' : study.category === 'Otros' ? 'Diagnósticos' : study.category}
+                                </Badge>
                                 <span className="text-xs text-muted-foreground font-medium">{study.file_size}</span>
                                 <span className="text-xs text-muted-foreground">• {new Date(study.created_at).toLocaleDateString()}</span>
                               </div>

@@ -11,7 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { NotificationPanel } from '@/components/notification-panel'
+import dynamic from 'next/dynamic'
+const NotificationPanel = dynamic(
+  () => import('@/components/notification-panel').then(m => m.NotificationPanel),
+  { ssr: false, loading: () => <div className="h-11 w-11 rounded-xl bg-foreground/5 animate-pulse" /> }
+)
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -23,7 +27,7 @@ interface DoctorNavbarProps {
 }
 
 export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
-  const { doctorId, doctorWallet, doctorName, doctorDisconnect } = useDoctorAuth()
+  const { doctorId, doctorWallet, doctorName, doctorDisconnect, isDoctorAuthenticated } = useDoctorAuth()
   const { isConnected, walletAddress, userName, connect } = useWallet()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -85,26 +89,36 @@ export function DoctorNavbar({ onMenuClick }: DoctorNavbarProps) {
               <button className="flex h-11 items-center gap-3 rounded-xl pl-1 pr-4 bg-foreground/5 hover:bg-foreground/10 transition-all border border-border/50 group">
                 <Avatar className="size-9 rounded-lg border border-white/10">
                   <AvatarFallback className="bg-gradient-electric text-azul-profundo font-black text-xs">
-                    {doctorName?.split(' ').map(n => n[0]).join('')}
+                    {doctorName ? doctorName.split(' ').map(n => n[0]).join('') : '?'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden lg:flex flex-col items-start leading-none gap-0.5">
-                  <span className="text-xs font-black text-foreground truncate max-w-[100px]">{doctorName?.split(' ')[0]}</span>
-                  <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-tighter">Dr. Verificado</span>
+                  <span className="text-xs font-black text-foreground truncate max-w-[100px]">
+                    {doctorName ? doctorName.split(' ')[0] : 'No Registrado'}
+                  </span>
+                  <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-tighter">
+                    {isDoctorAuthenticated ? 'Dr. Verificado' : 'Sin Acceso'}
+                  </span>
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-background/95 backdrop-blur-xl border-border shadow-2xl">
               <div className="px-3 py-3 bg-foreground/5 rounded-xl mb-2">
-                <p className="text-sm font-black text-foreground">{doctorName}</p>
-                <p className="text-[10px] font-mono text-muted-foreground mt-1 select-all">{doctorWallet && formatAddress(doctorWallet)}</p>
+                <p className="text-sm font-black text-foreground">{doctorName || 'Usuario No Registrado'}</p>
+                <p className="text-[10px] font-mono text-muted-foreground mt-1 select-all">
+                  {doctorWallet ? formatAddress(doctorWallet) : 'Sin billetera'}
+                </p>
               </div>
               <DropdownMenuSeparator className="bg-border/50" />
-              <DropdownMenuItem className="rounded-lg h-10 font-bold focus:bg-cyan-500/10 focus:text-cyan-500">Mi Perfil</DropdownMenuItem>
-              <DropdownMenuItem className="rounded-lg h-10 font-bold focus:bg-cyan-500/10 focus:text-cyan-500">Configuración</DropdownMenuItem>
+              <DropdownMenuItem 
+                className="rounded-lg h-10 font-bold focus:bg-cyan-500/10 focus:text-cyan-500 cursor-pointer"
+                onClick={() => router.push('/doctor/settings')}
+              >
+                Configuración
+              </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-border/50" />
               <DropdownMenuItem
-                className="rounded-lg h-10 font-bold text-destructive focus:bg-destructive/10 focus:text-destructive"
+                className="rounded-lg h-10 font-bold text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                 onClick={handleLogout}
               >
                 Cerrar Sesión

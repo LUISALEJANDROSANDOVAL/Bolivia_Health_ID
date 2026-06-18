@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { 
   ClipboardList, 
@@ -12,11 +12,14 @@ import {
   Syringe,
   FileText,
   Clock,
+  XCircle,
+  Filter,
+  Lock,
   User,
   Hospital,
   CheckCircle2,
-  XCircle,
-  Filter,
+  Eye,
+  Link2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +33,9 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 import { MockDataGenerator } from '@/components/mock-data-generator'
+import { useReadContract } from 'wagmi'
+import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
+import { getAddress } from 'viem'
 
 interface HistoryRecord {
   id: string
@@ -42,6 +48,8 @@ interface HistoryRecord {
   institution?: string
   status: 'completado' | 'pendiente' | 'cancelado'
   attachments?: number
+  fileUrl?: string
+  source: 'blockchain' | 'supabase'
 }
 
 const typeConfig = {
@@ -60,14 +68,52 @@ const statusConfig = {
 
 export default function HistorialPage() {
   const { walletAddress } = useWallet()
-  const [records, setRecords] = useState<HistoryRecord[]>([])
+  const [supabaseRecords, setSupabaseRecords] = useState<HistoryRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('todos')
 
+  // 1. Leer registros directo de la blockchain (fuente primaria)
+  // getAddress() convierte a checksum EIP-55 que viem requiere para address types
+  const checksumWallet = walletAddress ? (() => { try { return getAddress(walletAddress) } catch { return null } })() : null
+
+  const { data: blockchainData, isLoading: blockchainLoading, error: blockchainError } = useReadContract({
+    address: MEDICAL_RECORDS_ADDRESS,
+    abi: MEDICAL_RECORDS_ABI,
+    functionName: 'getRecords',
+    args: checksumWallet ? [checksumWallet as `0x${string}`] : undefined,
+    query: { enabled: !!checksumWallet }
+  })
+
+  // 2. Convertir registros de blockchain en HistoryRecord (fuente de verdad)
+  const blockchainRecords = useMemo<HistoryRecord[]>(() => {
+    if (!blockchainData) return []
+    return (blockchainData as any[]).map((r, idx) => {
+      const ipfsHash = r.ipfsHash as string
+      const timestamp = Number(r.timestamp) * 1000 // unix -> ms
+      const date = new Date(timestamp)
+      return {
+        id: `chain-${idx}-${ipfsHash.slice(0, 8)}`,
+        title: `Documento Médico #${idx + 1}`,
+        description: `Archivo registrado en Bolivia Health Network`,
+        date: date.toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        rawDate: date,
+        type: 'examen' as const,
+        status: 'completado' as const,
+        attachments: 1,
+        fileUrl: `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
+        source: 'blockchain' as const,
+      }
+    })
+  }, [blockchainData])
+
+  // 3. Fetch Supabase (fuente secundaria con metadatos)
   useEffect(() => {
     async function fetchHistory() {
-      if (!walletAddress) return
+      if (!walletAddress) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       try {
         const { data: profile } = await supabase
@@ -88,31 +134,39 @@ export default function HistorialPage() {
             .eq('patient_id', profile.id)
 
           const combined: HistoryRecord[] = [
-            ...(background || []).map(b => ({
-              id: b.id,
-              title: b.title,
-              description: b.description,
-              rawDate: new Date(b.created_at),
-              date: new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-              type: (b.category === 'surgery' ? 'cirugia' : b.category === 'vaccine' ? 'vacuna' : 'consulta') as any,
-              status: (b.status_detail === 'Completa' ? 'completado' : 'pendiente') as any,
-              institution: b.institution,
-              doctor: b.doctor,
-              attachments: 0,
-            })),
+            ...(background || []).map(b => {
+              const ipfsMatch = (b.description || '').match(/IPFS:\s*([a-zA-Z0-9]+)/)
+              const ipfs = ipfsMatch ? ipfsMatch[1] : null
+              return {
+                id: b.id,
+                title: b.title,
+                description: b.description,
+                rawDate: new Date(b.created_at),
+                date: new Date(b.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                type: (b.category === 'surgery' ? 'cirugia' : b.category === 'vaccine' ? 'vacuna' : 'consulta') as any,
+                status: (b.status_detail === 'Completa' ? 'completado' : 'pendiente') as any,
+                institution: b.institution,
+                doctor: b.doctor,
+                attachments: ipfs ? 1 : 0,
+                fileUrl: ipfs ? `https://gateway.pinata.cloud/ipfs/${ipfs}` : undefined,
+                source: 'supabase' as const,
+              }
+            }),
             ...(healthDocs || []).map(h => ({
               id: h.id,
               title: h.title,
-              description: `${h.category} · ${h.file_size}`,
+              description: `${h.category === 'Laboratorio' || h.category === 'Imágenes' ? 'Estudios' : h.category === 'Recetas' ? 'Medicamentos' : h.category === 'Otros' ? 'Diagnósticos' : h.category} · ${h.file_size}`,
               rawDate: new Date(h.created_at),
               date: new Date(h.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               type: (h.category === 'Recetas' ? 'receta' : 'examen') as any,
               status: 'completado' as any,
               attachments: 1,
+              fileUrl: h.file_url ? (h.file_url.startsWith('http') ? h.file_url : `https://gateway.pinata.cloud/ipfs/${h.file_url}`) : undefined,
+              source: 'supabase' as const,
             }))
           ]
 
-          setRecords(combined.sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime()))
+          setSupabaseRecords(combined)
         }
       } catch (err) {
         console.error('Error fetching history:', err)
@@ -123,6 +177,15 @@ export default function HistorialPage() {
 
     fetchHistory()
   }, [walletAddress])
+
+  // 4. Fusionar: Supabase enriquece los datos de blockchain. Si Supabase está vacío, se muestran solo los de blockchain.
+  const records = useMemo<HistoryRecord[]>(() => {
+    // Si hay datos en Supabase, úsalos como base (tienen metadatos ricos)
+    if (supabaseRecords.length > 0) return supabaseRecords
+
+    // Si Supabase está vacío, mostrar los registros de la blockchain directamente
+    return blockchainRecords
+  }, [supabaseRecords, blockchainRecords])
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = record.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -211,7 +274,7 @@ export default function HistorialPage() {
         </div>
 
         {/* Timeline */}
-        {loading ? (
+        {(loading || blockchainLoading) ? (
           <div className="space-y-6">
             {[1, 2, 3].map(i => (
               <div key={i} className="flex gap-6 animate-pulse">
@@ -264,6 +327,14 @@ export default function HistorialPage() {
                       const StatusIcon = StatusCfg.icon
                       const isLast = idx === groupedByYear[year].length - 1 && yearIdx === sortedYears.length - 1
 
+                      const parts = (record.description || '')
+                        .split(' | ')
+                        .filter((p: string) =>
+                          !p.startsWith('IPFS:') &&
+                          !p.startsWith('Tx:') &&
+                          !p.match(/^0x[a-fA-F0-9]{40,}/)
+                        )
+
                       return (
                         <div key={record.id} className="relative flex gap-5 pb-4">
                           {/* Timeline dot */}
@@ -285,6 +356,12 @@ export default function HistorialPage() {
                                   <StatusIcon className={`size-3 ${StatusCfg.color}`} />
                                   <span className={`text-[10px] font-bold uppercase ${StatusCfg.color}`}>{StatusCfg.label}</span>
                                 </div>
+                                {record.source === 'blockchain' && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+                                    <Link2 className="size-2.5 text-cyan-400" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-cyan-400">Blockchain</span>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-1.5 text-xs text-foreground/40">
                                 <Calendar className="size-3.5 text-cyan-500" />
@@ -296,26 +373,61 @@ export default function HistorialPage() {
                             <h3 className={`text-base font-black text-foreground tracking-tight group-hover:${cfg.color} transition-colors`}>
                               {record.title}
                             </h3>
-                            <p className="text-sm text-foreground/50 mt-1 leading-relaxed">{record.description}</p>
+                            
+                            {/* Description fields as chips */}
+                            {parts.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {parts.map((part: string, i: number) => {
+                                  const [label, ...rest] = part.split(': ')
+                                  const val = rest.join(': ')
+                                  if (!val) return (
+                                    <span key={i} className="text-sm text-foreground/70">{label}</span>
+                                  )
+                                  return (
+                                    <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/50">{label}:</span>
+                                      <span className="text-xs text-foreground font-semibold">{val}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
 
                             {/* Meta */}
-                            <div className="mt-4 flex flex-wrap gap-4 text-xs text-foreground/40">
-                              {record.doctor && (
+                            <div className="mt-4 flex items-center justify-between gap-4 flex-wrap">
+                              <div className="flex flex-wrap gap-4 text-xs text-foreground/40">
+                                {record.doctor && (
+                                  <div className="flex items-center gap-1.5">
+                                    <User className="size-3.5 text-cyan-500" />
+                                    <span>{record.doctor}</span>
+                                  </div>
+                                )}
                                 <div className="flex items-center gap-1.5">
-                                  <User className="size-3.5 text-cyan-500" />
-                                  <span>{record.doctor}</span>
+                                  <Hospital className="size-3.5 text-cyan-500" />
+                                  <span>{record.institution || 'Bolivia Health Network'}</span>
                                 </div>
-                              )}
-                              <div className="flex items-center gap-1.5">
-                                <Hospital className="size-3.5 text-cyan-500" />
-                                <span>{record.institution || 'Bolivia Health Network'}</span>
+                                {record.attachments ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <FileText className="size-3.5 text-amber-400" />
+                                    <span>{record.attachments} archivo{record.attachments > 1 ? 's' : ''} adjunto{record.attachments > 1 ? 's' : ''}</span>
+                                  </div>
+                                ) : null}
                               </div>
-                              {record.attachments ? (
-                                <div className="flex items-center gap-1.5">
-                                  <FileText className="size-3.5 text-amber-400" />
-                                  <span>{record.attachments} archivo{record.attachments > 1 ? 's' : ''} adjunto{record.attachments > 1 ? 's' : ''}</span>
-                                </div>
-                              ) : null}
+
+                              {record.fileUrl && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-foreground/40 hover:text-cyan-500 hover:bg-cyan-500/5 text-[10px] font-black uppercase tracking-widest h-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    window.open(record.fileUrl, '_blank')
+                                  }}
+                                >
+                                  <Eye className="size-4 mr-1.5 text-cyan-500 animate-pulse" />
+                                  Ver Documento Completo
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

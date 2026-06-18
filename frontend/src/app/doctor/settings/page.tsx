@@ -22,7 +22,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useWallet, formatAddress } from '@/contexts/wallet-context'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { SecuritySettings } from '@/components/security-settings'
 import { NotificationSettings } from '@/components/notification-settings'
 import { PrivacySettings } from '@/components/privacy-settings'
@@ -72,7 +72,7 @@ export default function DoctorSettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [copied, setCopied] = useState(false)
-  const { toast } = useToast()
+
 
   // Actualizar stats reales
   const fetchRealStats = async () => {
@@ -123,9 +123,8 @@ export default function DoctorSettingsPage() {
     if (walletAddress) {
       navigator.clipboard.writeText(walletAddress)
       setCopied(true)
-      toast({
-        title: 'Dirección copiada',
-        description: 'La dirección de wallet ha sido copiada al portapapeles',
+      toast.success('Dirección copiada', {
+        description: 'La dirección de wallet ha sido copiada al portapapeles'
       })
       setTimeout(() => setCopied(false), 2000)
     }
@@ -138,16 +137,13 @@ export default function DoctorSettingsPage() {
         await profileRef.current.save()
       }
       setLastSaved(new Date())
-      toast({
-        title: 'Configuración guardada',
-        description: 'Todos los cambios han sido guardados correctamente.',
+      toast.success('Configuración guardada', {
+        description: 'Todos los cambios han sido guardados correctamente.'
       })
       fetchRealStats() // Refrescar stats después de guardar
     } catch {
-      toast({
-        title: 'Error al guardar',
-        description: 'Hubo un problema al guardar los cambios.',
-        variant: 'destructive'
+      toast.error('Error al guardar', {
+        description: 'Hubo un problema al guardar los cambios.'
       })
     } finally {
       setIsSaving(false)

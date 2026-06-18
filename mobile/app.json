@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Bolivia Health ID",
+    "slug": "bolivia-health-id",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.boliviahealthid.app"
+    },
+    "android": {
+      "package": "com.boliviahealthid.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F2B3D"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "109512f5-b318-4601-930f-bf319b324d2f"
+      }
+    },
+    "owner": "dantehse"
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useWallet } from '@/contexts/wallet-context';
 
 export interface ProfileData {
   id?: string;
@@ -15,6 +16,7 @@ export interface ProfileData {
   birth_date?: string | null;
   gender?: string | null;
   preferences?: any;
+  password_hash?: string | null;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
@@ -32,6 +34,7 @@ const DEFAULT_PROFILE: ProfileData = {
 };
 
 export function useProfile(walletAddress: string | null) {
+  const { isDbConnected } = useWallet();
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +43,7 @@ export function useProfile(walletAddress: string | null) {
     let mounted = true;
 
     async function fetchProfile() {
-      if (!walletAddress) {
+      if (!walletAddress || !isDbConnected) {
         if (mounted) {
           setProfile(DEFAULT_PROFILE);
           setLoading(false);
@@ -107,7 +110,7 @@ export function useProfile(walletAddress: string | null) {
     return () => {
       mounted = false;
     };
-  }, [walletAddress]);
+  }, [walletAddress, isDbConnected]);
 
   const updateProfile = async (dataToUpdate: Partial<ProfileData>) => {
     if (!walletAddress) throw new Error('Conecta tu wallet para guardar cambios.');

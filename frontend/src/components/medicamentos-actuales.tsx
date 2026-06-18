@@ -19,13 +19,13 @@ interface Medicamento {
 }
 
 export function MedicamentosActuales() {
-  const { walletAddress } = useWallet()
+  const { walletAddress, isDbConnected } = useWallet()
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchMedications() {
-      if (!walletAddress) return
+      if (!walletAddress || !isDbConnected) return
       
       try {
         setLoading(true)
@@ -66,7 +66,7 @@ export function MedicamentosActuales() {
     }
 
     fetchMedications()
-  }, [walletAddress])
+  }, [walletAddress, isDbConnected])
 
   const activos = medicamentos.filter((m) => m.estado === 'Activo').length
 

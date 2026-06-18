@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { Shield, TrendingUp, Wallet, Download } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
 import { WelcomeBannerBase } from '@/components/ui/welcome-banner-base'
@@ -5,8 +8,32 @@ import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 
 export function WelcomeBanner() {
-  const { isConnected, walletAddress, userName, connect } = useWallet()
+  const { isConnected, isDbConnected, walletAddress, userName, connect } = useWallet()
   const { toast } = useToast()
+  const [profileData, setProfileData] = useState<any>(null)
+
+  useEffect(() => {
+    if (walletAddress && isDbConnected) {
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) setProfileData(data)
+        })
+    }
+  }, [walletAddress, isDbConnected])
+
+  // Evaluar parámetros de seguridad para Paciente
+  let securityScore = 0
+  if (isConnected) {
+    securityScore += 20 // Billetera conectada
+    if (profileData?.email) securityScore += 20 // Email configurado
+    if (profileData?.identity_verified) securityScore += 20 // Identidad verificada (SEGIP)
+    if (profileData?.preferences?.security?.twoFAEnabled !== false) securityScore += 20 // 2FA activo
+    if (profileData?.preferences?.security?.biometricEnabled === true) securityScore += 20 // Biometría facial/dactilar activa
+  }
 
   const handleDownloadHistory = async () => {
     if (!walletAddress) return
@@ -76,7 +103,7 @@ export function WelcomeBanner() {
       subtitle="Tu historial médico está sincronizado y protegido en la red Avalanche Fuji."
       stats={[
         { label: 'Cumplimiento', value: '98%', icon: TrendingUp },
-        { label: 'Seguridad', value: 'Máxima', icon: Shield }
+        { label: 'Seguridad', value: isConnected ? `${securityScore}%` : '0%', icon: Shield }
       ]}
     />
   )

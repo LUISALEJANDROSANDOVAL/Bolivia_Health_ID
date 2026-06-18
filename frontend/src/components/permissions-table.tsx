@@ -24,6 +24,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
+import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,7 +50,7 @@ interface Permission {
   hospitalName: string
   accessDate: string
   expirationDate: string
-  status: 'active' | 'expired' | 'revoked'
+  status: 'active' | 'expired' | 'revoked' | 'pending'
   accessType: string
   description?: string
 }
@@ -98,9 +100,10 @@ interface PermissionsTableProps {
 }
 
 export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
-  const { isDbConnected, walletAddress } = useWallet()
+  const { isDbConnected, walletAddress, signMessage } = useWallet()
   const [permissions, setPermissions] = useState<Permission[]>([])
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
   const [viewDoctorOpen, setViewDoctorOpen] = useState(false)
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null)
@@ -195,9 +198,11 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
           setPermissions(prev => 
             prev.map(p => p.id === selectedPermission.id ? { ...p, status: 'revoked' } : p)
           )
+          toast({ title: 'Acceso Revocado', description: `Se ha revocado el acceso para ${selectedPermission.hospitalName}.` })
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error revoking permission:', err)
+        toast({ title: 'Error', description: err.message || 'No se pudo revocar el acceso.', variant: 'destructive' })
       }
     }
     setRevokeDialogOpen(false)
@@ -206,46 +211,60 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
 
   const handleApprove = async (id: string) => {
     try {
+      if (!walletAddress) return
+      const perm = permissions.find(p => p.id === id)
+      if (!perm) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+
       const { error } = await supabase
         .from('access_permissions')
         .update({ status: 'active' })
         .eq('id', id)
       if (!error) {
         setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'active' } : p))
+        toast({ title: 'Acceso Autorizado', description: `Se ha aprobado el acceso para ${perm.hospitalName}.` })
         
         // Notificar al doctor (con try/catch para no bloquear)
         try {
-          const perm = permissions.find(p => p.id === id)
-          if (perm) {
-            await sendNotification({
-              recipientId: perm.doctorId,
-              senderId: profile?.id,
-              title: 'Solicitud Aprobada',
-              message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
-              type: 'approval',
-              link: '/doctor/authorizations'
-            })
-          }
+          await sendNotification({
+            recipientId: perm.doctorId,
+            senderId: profile?.id,
+            title: 'Solicitud Aprobada',
+            message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
+            type: 'approval',
+            link: '/doctor/authorizations'
+          })
         } catch (notifyErr) {
           console.warn('No se pudo notificar al doctor:', notifyErr)
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error approving permission:', err)
+      toast({ title: 'Error', description: err.message || 'No se pudo aprobar el acceso o firma cancelada.', variant: 'destructive' })
     }
   }
 
   const handleReject = async (id: string) => {
     try {
+      const perm = permissions.find(p => p.id === id)
+      if (!perm) return
+
       const { error } = await supabase
         .from('access_permissions')
         .update({ status: 'revoked' })
         .eq('id', id)
       if (!error) {
         setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'revoked' } : p))
+        toast({ title: 'Solicitud Rechazada', description: `Se ha rechazado la solicitud de ${perm.hospitalName}.` })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error rejecting permission:', err)
+      toast({ title: 'Error', description: err.message || 'No se pudo rechazar la solicitud o firma cancelada.', variant: 'destructive' })
     }
   }
 
@@ -345,6 +364,12 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
                           <TableCell className="hidden sm:table-cell">
                             <div className="text-sm text-foreground">{permission.accessDate}</div>
                             <div className="text-xs text-foreground/40">Exp: {permission.expirationDate}</div>
+                            {permission.status !== 'pending' && (
+                              <div className="flex items-center gap-1 text-[10px] text-cyan-500 font-black uppercase mt-1">
+                                <Lock className="size-3 text-cyan-500" />
+                                <span>Firmado Cripto</span>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge className={`${statusConf.badgeBg} ${statusConf.badgeText} hover:${statusConf.badgeBg} border-0 px-2 py-1`}>
@@ -444,14 +469,14 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
           <div className="p-6 pt-12 space-y-6">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-black text-foreground tracking-tight">
+                <AlertDialogTitle className="text-2xl font-black text-foreground tracking-tight">
                   {loadingDoctor ? 'Cargando...' : doctorDetails?.full_name}
-                </h2>
+                </AlertDialogTitle>
                 <BadgeCheck className="size-5 text-cyan-500" />
               </div>
-              <p className="text-sm text-cyan-500 font-bold uppercase tracking-widest mt-1">
+              <AlertDialogDescription className="text-sm text-cyan-500 font-bold uppercase tracking-widest mt-1">
                 {doctorDetails?.specialty || 'Médico Especialista'}
-              </p>
+              </AlertDialogDescription>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

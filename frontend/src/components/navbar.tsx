@@ -5,8 +5,21 @@ import { Button } from '@/components/ui/button'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { useWallet } from '@/contexts/wallet-context'
-import { NotificationPanel } from '@/components/notification-panel'
+import dynamic from 'next/dynamic'
+const NotificationPanel = dynamic(
+  () => import('@/components/notification-panel').then(m => m.NotificationPanel),
+  { ssr: false, loading: () => <div className="h-11 w-11 rounded-xl bg-foreground/5 animate-pulse" /> }
+)
 import { useProfile } from '@/hooks/useProfile'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useRouter } from 'next/navigation'
 
 interface NavbarProps {
   onMenuClick: () => void
@@ -15,12 +28,21 @@ interface NavbarProps {
 export function Navbar({ onMenuClick }: NavbarProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  const { isConnected, walletAddress, userName, connect } = useWallet()
+  const { isConnected, walletAddress, userName, connect, disconnect } = useWallet()
   const { profile } = useProfile(walletAddress)
+  const router = useRouter()
 
   useEffect(() => setMounted(true), [])
 
   const formatAddress = (addr: string | null) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : ''
+
+  const handleLogout = () => {
+    disconnect()
+    router.replace('/login')
+  }
+
+  const patientName = profile?.full_name || userName || 'Paciente'
+  const patientWallet = walletAddress
 
   if (!mounted) return null
 
@@ -53,13 +75,57 @@ export function Navbar({ onMenuClick }: NavbarProps) {
           
           <NotificationPanel userId={profile?.id || null} />
           
-          <div className="flex items-center">
+          <div className="flex items-center gap-3">
             <Button 
               onClick={isConnected ? undefined : connect} 
               className={`h-11 px-6 bg-foreground text-background font-black rounded-xl transition-all shadow-lg shadow-black/5 flex items-center justify-center ${!isConnected ? 'hover:scale-105' : 'cursor-default'}`}
             >
               {isConnected ? (userName ?? formatAddress(walletAddress)) : "Conectar con Google"}
             </Button>
+
+            {isConnected && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex h-11 items-center gap-3 rounded-xl pl-1 pr-4 bg-foreground/5 hover:bg-foreground/10 transition-all border border-border/50 group">
+                    <Avatar className="size-9 rounded-lg border border-white/10">
+                      <AvatarFallback className="bg-gradient-electric text-azul-profundo font-black text-xs">
+                        {patientName ? patientName.split(' ').map((n: string) => n[0]).join('') : '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden lg:flex flex-col items-start leading-none gap-0.5">
+                      <span className="text-xs font-black text-foreground truncate max-w-[100px]">
+                        {patientName ? patientName.split(' ')[0] : 'Paciente'}
+                      </span>
+                      <span className="text-[10px] font-bold text-foreground/40 uppercase tracking-tighter">
+                        Paciente
+                      </span>
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 p-2 rounded-2xl bg-background/95 backdrop-blur-xl border-border shadow-2xl">
+                  <div className="px-3 py-3 bg-foreground/5 rounded-xl mb-2">
+                    <p className="text-sm font-black text-foreground">{patientName}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground mt-1 select-all">
+                      {patientWallet ? formatAddress(patientWallet) : 'Sin Billetera'}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator className="bg-border/50" />
+                  <DropdownMenuItem 
+                    className="rounded-lg h-10 font-bold focus:bg-cyan-500/10 focus:text-cyan-500 cursor-pointer"
+                    onClick={() => router.push('/configuracion')}
+                  >
+                    Configuración
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-border/50" />
+                  <DropdownMenuItem
+                    className="rounded-lg h-10 font-bold text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
+                    onClick={handleLogout}
+                  >
+                    Cerrar Sesión
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </div>

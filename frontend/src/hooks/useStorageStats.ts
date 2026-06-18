@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useWallet } from '@/contexts/wallet-context';
 
 export interface StorageStats {
   usedGB: number;
@@ -10,6 +11,7 @@ export interface StorageStats {
 }
 
 export function useStorageStats(walletAddress: string | null) {
+  const { isDbConnected } = useWallet();
   const [stats, setStats] = useState<StorageStats>({
     usedGB: 0,
     totalGB: 10,
@@ -23,7 +25,7 @@ export function useStorageStats(walletAddress: string | null) {
     let mounted = true;
 
     async function fetchStats() {
-      if (!walletAddress) {
+      if (!walletAddress || !isDbConnected) {
         if (mounted) {
           setStats({ usedGB: 0, totalGB: 10, monthUploads: 0, trend: '0%', lastUploadDate: null });
           setLoading(false);
@@ -100,7 +102,7 @@ export function useStorageStats(walletAddress: string | null) {
     return () => {
       mounted = false;
     };
-  }, [walletAddress]);
+  }, [walletAddress, isDbConnected]);
 
   return { stats, loading };
 }

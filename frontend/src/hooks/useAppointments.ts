@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useWallet } from '@/contexts/wallet-context';
 
 export interface AppointmentData {
   id: string;
@@ -17,6 +18,7 @@ export interface AppointmentData {
 }
 
 export function useAppointments(walletAddress: string | null) {
+  const { isDbConnected } = useWallet();
   const [appointments, setAppointments] = useState<AppointmentData[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +26,7 @@ export function useAppointments(walletAddress: string | null) {
     let mounted = true;
 
     async function fetchAppointments() {
-      if (!walletAddress) {
+      if (!walletAddress || !isDbConnected) {
         if (mounted) {
           setAppointments([]);
           setLoading(false);
@@ -78,7 +80,7 @@ export function useAppointments(walletAddress: string | null) {
     return () => {
       mounted = false;
     };
-  }, [walletAddress]);
+  }, [walletAddress, isDbConnected]);
 
   return { appointments, loading };
 }
