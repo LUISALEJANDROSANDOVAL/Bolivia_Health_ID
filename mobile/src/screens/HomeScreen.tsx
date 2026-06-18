@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Shield,
   FileText,
@@ -46,9 +47,10 @@ const PACIENTE_DEMO = {
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }: any) {
   const [tabActivo, setTabActivo] = useState('home');
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
 
       {/* ── HEADER ─────────────────────────────────────────────────── */}
       <View style={styles.header}>
@@ -204,8 +206,8 @@ export default function HomeScreen({ navigation }: any) {
 
       </ScrollView>
 
-      {/* ── TAB BAR INFERIOR (CORRECCIÓN: Scanner → Mi Turno) ────────── */}
-      <View style={styles.tabBar}>
+      {/* ── TAB BAR INFERIOR ────────── */}
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
 
         <TouchableOpacity
           style={styles.tabItem}
@@ -266,7 +268,7 @@ export default function HomeScreen({ navigation }: any) {
 
       </View>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -562,8 +564,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingBottom: 8,
-    paddingTop: 10,
+    paddingTop: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
