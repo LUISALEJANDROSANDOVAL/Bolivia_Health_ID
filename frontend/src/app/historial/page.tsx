@@ -104,7 +104,7 @@ export default function HistorialPage() {
             ...(healthDocs || []).map(h => ({
               id: h.id,
               title: h.title,
-              description: `${h.category} · ${h.file_size}`,
+              description: `${h.category === 'Laboratorio' || h.category === 'Imágenes' ? 'Estudios' : h.category === 'Recetas' ? 'Medicamentos' : h.category === 'Otros' ? 'Diagnósticos' : h.category} · ${h.file_size}`,
               rawDate: new Date(h.created_at),
               date: new Date(h.created_at).toLocaleString('es-ES', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               type: (h.category === 'Recetas' ? 'receta' : 'examen') as any,

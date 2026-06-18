@@ -32,7 +32,7 @@ export function PrivacySettings() {
     allowDataExport: true,
     anonymizedData: true,
     showOnlineStatus: true,
-    allowMessagesFrom: 'contacts'
+    allowMessagesFrom: 'everyone'
   }
 
   const [privacySettings, setPrivacySettings] = useState(defaultPrivacy)
@@ -74,8 +74,7 @@ export function PrivacySettings() {
 
   const visibilityOptions = [
     { value: 'public', label: 'Público', description: 'Cualquiera puede ver tu perfil' },
-    { value: 'private', label: 'Privado', description: 'Solo tú puedes ver tu perfil' },
-    { value: 'contacts', label: 'Contactos', description: 'Solo tus contactos médicos pueden ver tu perfil' }
+    { value: 'private', label: 'Privado', description: 'Solo tú puedes ver tu perfil' }
   ]
 
   return (
@@ -188,11 +187,10 @@ export function PrivacySettings() {
           </div>
           <Separator />
           <div>
-            <p className="text-sm font-medium text-azul-profundo mb-2">¿Quién puede enviarte mensajes?</p>
-            <div className="grid grid-cols-3 gap-2">
+            <p className="text-sm font-medium text-azul-profundo mb-2">¿Quién puede verte en línea?</p>
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { value: 'everyone', label: 'Todos' },
-                { value: 'contacts', label: 'Contactos' },
                 { value: 'none', label: 'Nadie' }
               ].map((option) => (
                 <Button
@@ -207,7 +205,9 @@ export function PrivacySettings() {
                     setPrivacySettings(newSettings)
                     saveToDatabase(newSettings)
                     toast.success('Configuración actualizada', {
-                      description: `Ahora ${option.label.toLowerCase()} puede enviarte mensajes`
+                      description: option.value === 'everyone'
+                        ? 'Ahora todos pueden verte en línea'
+                        : 'Ahora nadie puede verte en línea'
                     })
                   }}
                 >

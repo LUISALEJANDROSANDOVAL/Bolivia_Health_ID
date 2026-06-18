@@ -277,17 +277,20 @@ export default function MedicamentosPage() {
                         </div>
                       </div>
                       
-                      <div className="mt-4 flex flex-wrap gap-6 text-xs text-white/40">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="size-3.5 text-cyan-500" />
-                          <span>Inicio: {med.startDate}</span>
+                      <div className="mt-4 flex flex-wrap gap-4 text-xs text-foreground/70">
+                        <div className="flex items-center gap-2 bg-foreground/[0.03] px-2.5 py-1 rounded-lg border border-border/40">
+                          <Calendar className="size-3.5 text-cyan-500 shrink-0" />
+                          <span>
+                            <strong className="text-foreground/90 font-semibold">Inicio:</strong> {med.startDate}
+                          </span>
                         </div>
-                        {med.endDate && (
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="size-3.5 text-rose-400" />
-                            <span>Fin: {med.endDate}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 bg-foreground/[0.03] px-2.5 py-1 rounded-lg border border-border/40">
+                          <CalendarDays className="size-3.5 text-rose-400 shrink-0" />
+                          <span>
+                            <strong className="text-foreground/90 font-semibold">Fecha Límite:</strong>{' '}
+                            {med.endDate || 'Indefinido'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     
