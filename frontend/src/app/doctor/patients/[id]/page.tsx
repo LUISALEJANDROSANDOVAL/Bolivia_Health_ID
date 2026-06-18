@@ -251,53 +251,48 @@ export default function PatientView360() {
       const pinataData = await pinataRes.json()
       const ipfsHash = pinataData.IpfsHash
 
-      // 2. Intentar registro on-chain (gasless) — con fallback si la wallet no está conectada
+      // 2. Intentar registro on-chain (gasless)
       let txHash: string | null = null
-      try {
-        let signature = ''
-        let sessionAddress = undefined
-        let sessionAuthSignature = undefined
+      let signature = ''
+      let sessionAddress = undefined
+      let sessionAuthSignature = undefined
 
-        const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
+      const message = `Registrar expediente médico: Paciente = ${profile.wallet_address}, IPFS Hash = ${ipfsHash}`
 
-        if (sessionActive) {
-          // Firma silenciosa automática con llave de sesión
-          const sessionData = await signMessageWithSession(message)
-          signature = sessionData.signature
-          sessionAddress = sessionData.sessionAddress
-          sessionAuthSignature = sessionData.sessionAuthSignature
-        } else {
-          // Fallback: Firma manual
-          toast.info('Blockchain', {
-            description: 'Registrando estudio en la red blockchain...'
-          })
-          signature = await signMessage(message)
-        }
-
-        const relayerRes = await fetch('/api/blockchain/add-record', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            patient: profile.wallet_address,
-            ipfsHash,
-            doctorAddress: walletAddress,
-            signature,
-            sessionAddress,
-            sessionAuthSignature
-          })
+      if (sessionActive) {
+        // Firma silenciosa automática con llave de sesión
+        const sessionData = await signMessageWithSession(message)
+        signature = sessionData.signature
+        sessionAddress = sessionData.sessionAddress
+        sessionAuthSignature = sessionData.sessionAuthSignature
+      } else {
+        // Fallback: Firma manual
+        toast.info('Blockchain', {
+          description: 'Registrando estudio en la red blockchain...'
         })
-
-        if (relayerRes.ok) {
-          const relayerData = await relayerRes.json()
-          txHash = relayerData.txHash
-        }
-      } catch (blockchainErr: any) {
-        // Wallet no conectada o error de red — continuar guardando solo en base de datos
-        console.warn('Blockchain no disponible, guardando solo en Supabase:', blockchainErr.message)
-        toast.warning('Registro local', {
-          description: 'Wallet no conectada. El estudio se guardará sin registro blockchain.'
-        })
+        signature = await signMessage(message)
       }
+
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: profile.wallet_address,
+          ipfsHash,
+          doctorAddress: walletAddress,
+          signature,
+          sessionAddress,
+          sessionAuthSignature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer de Blockchain')
+      }
+
+      const relayerData = await relayerRes.json()
+      txHash = relayerData.txHash
 
       // 3. Insert into health_records table
       const fileExt = file.name.split('.').pop()
@@ -308,7 +303,7 @@ export default function PatientView360() {
         .insert({
           patient_id: patientId,
           title: file.name,
-          category: selectedCategory,
+          category: selectedCategory === 'Estudios' ? 'Laboratorio' : selectedCategory === 'Medicamentos' ? 'Recetas' : 'Otros',
           file_size: `${fileSizeInMB} MB`,
           file_url: ipfsHash,
           file_type: fileExt,
@@ -883,7 +878,9 @@ export default function PatientView360() {
                             <div className="truncate">
                               <p className="font-semibold text-foreground truncate">{study.title}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">{study.category}</Badge>
+                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
+                                  {study.category === 'Laboratorio' || study.category === 'Imágenes' ? 'Estudios' : study.category === 'Recetas' ? 'Medicamentos' : study.category === 'Otros' ? 'Diagnósticos' : study.category}
+                                </Badge>
                                 <span className="text-xs text-muted-foreground font-medium">{study.file_size}</span>
                                 <span className="text-xs text-muted-foreground">• {new Date(study.created_at).toLocaleDateString()}</span>
                               </div>

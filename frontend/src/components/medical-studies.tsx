@@ -100,6 +100,7 @@ export function MedicalStudies() {
             .from('health_records')
             .select('*')
             .eq('patient_id', profile.id)
+            .in('category', ['Laboratorio', 'Imágenes'])
             .order('created_at', { ascending: false })
 
           const mapped: StudyItem[] = (data || []).map(r => {
@@ -116,7 +117,7 @@ export function MedicalStudies() {
               title: r.title,
               date: new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
               type: mappedType,
-              description: r.description || `${r.category} · ${r.file_size}`,
+              description: r.description || `${r.category === 'Laboratorio' || r.category === 'Imágenes' ? 'Estudios' : r.category === 'Recetas' ? 'Medicamentos' : r.category === 'Otros' ? 'Diagnósticos' : r.category} · ${r.file_size}`,
               fileSize: r.file_size || 'N/A',
               fileUrl: r.file_url
                 ? (r.file_url.startsWith('http') ? r.file_url : `https://gateway.pinata.cloud/ipfs/${r.file_url}`)

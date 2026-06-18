@@ -439,119 +439,114 @@ export default function DoctorPrescriptionsPage() {
     let wasWeb3Successful = false
 
     try {
-      if (selectedPatient.walletAddress) {
-        try {
-          // 1. Compile diagnosis data into JSON and upload to Pinata (IPFS)
-          const diagnosisData = {
-            patient: {
-              name: selectedPatient.name,
-              ci: selectedPatient.ci,
-              walletAddress: selectedPatient.walletAddress
-            },
-            doctor: {
-              id: doctorId,
-              walletAddress: walletAddress
-            },
-            clinicalCase: {
-              reason,
-              anamnesis,
-              physicalExam,
-              observations
-            },
-            diagnosis: selectedDiagnosis
-              ? `${selectedDiagnosis.code} - ${selectedDiagnosis.description}`
-              : diagnosis,
-            medications: medications.map(m => ({
-              name: m.name,
-              dosage: m.dose,
-              frequency: m.frequency,
-              duration: m.duration,
-              instructions: m.instructions
-            })),
-            timestamp: new Date().toISOString()
-          }
-
-          const blob = new Blob([JSON.stringify(diagnosisData, null, 2)], { type: 'application/json' })
-          const jsonFile = new File([blob], `diagnosis_${selectedPatient.ci}_${Date.now()}.json`, { type: 'application/json' })
-
-          const formData = new FormData()
-          formData.append('file', jsonFile)
-          formData.append('pinataMetadata', JSON.stringify({ name: jsonFile.name }))
-
-          const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
-          if (!pinataJwt) {
-            throw new Error('Falta configuración: NEXT_PUBLIC_PINATA_JWT. Añádelo a tu .env.local')
-          }
-
-          const pinataRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${pinataJwt}`
-            },
-            body: formData
-          })
-
-          if (!pinataRes.ok) {
-            throw new Error('Error al subir el diagnóstico a IPFS (Pinata).')
-          }
-
-          const pinataData = await pinataRes.json()
-          ipfsHash = pinataData.IpfsHash
-
-          // 2. Request digital signature off-chain (gasless)
-          let signature = ''
-          let sessionAddress = undefined
-          let sessionAuthSignature = undefined
-
-          const message = `Registrar expediente médico: Paciente = ${selectedPatient.walletAddress}, IPFS Hash = ${ipfsHash}`
-
-          if (sessionActive) {
-            // Firma silenciosa automática con llave de sesión
-            const sessionData = await signMessageWithSession(message)
-            signature = sessionData.signature
-            sessionAddress = sessionData.sessionAddress
-            sessionAuthSignature = sessionData.sessionAuthSignature
-          } else {
-            // Fallback: Firma manual
-            toast.info('Blockchain', {
-              description: 'Por favor, firma la autorización en tu wallet para registrar el diagnóstico (sin costo de gas)...'
-            })
-            signature = await signMessage(message)
-          }
-
-          // 3. Send signature to Relayer API
-          const relayerRes = await fetch('/api/blockchain/add-record', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              patient: selectedPatient.walletAddress,
-              ipfsHash,
-              doctorAddress: walletAddress,
-              signature,
-              sessionAddress,
-              sessionAuthSignature
-            })
-          })
-
-          if (!relayerRes.ok) {
-            const errData = await relayerRes.json()
-            throw new Error(errData.error || 'Error en el servidor Relayer')
-          }
-
-          const relayerData = await relayerRes.json()
-          txHash = relayerData.txHash
-          wasWeb3Successful = true
-        } catch (web3Err: any) {
-          console.warn('Operación Web3 falló, procediendo con registro local. Detalles:', web3Err)
-          toast.warning('Registro Criptográfico Omitido', {
-            description: 'No se pudo firmar en la blockchain. Se registrará localmente en Supabase.'
-          })
-        }
-      } else {
-        toast.info('Paciente sin Wallet', {
-          description: 'El paciente no tiene una dirección de billetera configurada. Registrando localmente.'
-        })
+      if (!selectedPatient.walletAddress) {
+        throw new Error('El paciente no tiene una dirección de billetera configurada para registrar en blockchain.')
       }
+
+      if (!walletAddress) {
+        throw new Error('Debes conectar tu wallet para firmar los registros médicos.')
+      }
+
+      // 1. Compile diagnosis data into JSON and upload to Pinata (IPFS)
+      const diagnosisData = {
+        patient: {
+          name: selectedPatient.name,
+          ci: selectedPatient.ci,
+          walletAddress: selectedPatient.walletAddress
+        },
+        doctor: {
+          id: doctorId,
+          walletAddress: walletAddress
+        },
+        clinicalCase: {
+          reason,
+          anamnesis,
+          physicalExam,
+          observations
+        },
+        diagnosis: selectedDiagnosis
+          ? `${selectedDiagnosis.code} - ${selectedDiagnosis.description}`
+          : diagnosis,
+        medications: medications.map(m => ({
+          name: m.name,
+          dosage: m.dose,
+          frequency: m.frequency,
+          duration: m.duration,
+          instructions: m.instructions
+        })),
+        timestamp: new Date().toISOString()
+      }
+
+      const blob = new Blob([JSON.stringify(diagnosisData, null, 2)], { type: 'application/json' })
+      const jsonFile = new File([blob], `diagnosis_${selectedPatient.ci}_${Date.now()}.json`, { type: 'application/json' })
+
+      const formData = new FormData()
+      formData.append('file', jsonFile)
+      formData.append('pinataMetadata', JSON.stringify({ name: jsonFile.name }))
+
+      const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
+      if (!pinataJwt) {
+        throw new Error('Falta configuración: NEXT_PUBLIC_PINATA_JWT. Añádelo a tu .env.local')
+      }
+
+      const pinataRes = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${pinataJwt}`
+        },
+        body: formData
+      })
+
+      if (!pinataRes.ok) {
+        throw new Error('Error al subir el diagnóstico a IPFS (Pinata).')
+      }
+
+      const pinataData = await pinataRes.json()
+      ipfsHash = pinataData.IpfsHash
+
+      // 2. Request digital signature off-chain (gasless)
+      let signature = ''
+      let sessionAddress = undefined
+      let sessionAuthSignature = undefined
+
+      const message = `Registrar expediente médico: Paciente = ${selectedPatient.walletAddress}, IPFS Hash = ${ipfsHash}`
+
+      if (sessionActive) {
+        // Firma silenciosa automática con llave de sesión
+        const sessionData = await signMessageWithSession(message)
+        signature = sessionData.signature
+        sessionAddress = sessionData.sessionAddress
+        sessionAuthSignature = sessionData.sessionAuthSignature
+      } else {
+        // Fallback: Firma manual
+        toast.info('Blockchain', {
+          description: 'Por favor, firma la autorización en tu wallet para registrar el diagnóstico (sin costo de gas)...'
+        })
+        signature = await signMessage(message)
+      }
+
+      // 3. Send signature to Relayer API
+      const relayerRes = await fetch('/api/blockchain/add-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: selectedPatient.walletAddress,
+          ipfsHash,
+          doctorAddress: walletAddress,
+          signature,
+          sessionAddress,
+          sessionAuthSignature
+        })
+      })
+
+      if (!relayerRes.ok) {
+        const errData = await relayerRes.json()
+        throw new Error(errData.error || 'Error en el servidor Relayer de Blockchain')
+      }
+
+      const relayerData = await relayerRes.json()
+      txHash = relayerData.txHash
+      wasWeb3Successful = true
 
       // 3. Guardar diagnóstico en medical_background
       const { error: bgError } = await supabase
@@ -582,20 +577,35 @@ export default function DoctorPrescriptionsPage() {
 
       // 4. Guardar cada medicamento en la tabla medications
       if (medications.length > 0) {
-        const medsToInsert = medications.map(med => ({
-          patient_id: selectedPatient.id,
-          doctor_id:  doctorId,
-          name:       med.name,
-          dosage:     med.dose,
-          frequency:  med.frequency,
-          start_date: new Date().toISOString().split('T')[0],
-          end_date:   null,
-          status:     'active',
-          diagnosis_id: selectedDiagnosis?.id ?? null,
-          medicine_id: medicineSuggestions.find(
-            m => m.generic_name === med.name || m.brand_name === med.name
-          )?.id ?? null,
-        }))
+        const medsToInsert = medications.map(med => {
+          const startDate = new Date()
+          let endDateStr: string | null = null
+          
+          if (med.duration) {
+            const daysMatch = med.duration.match(/^(\d+)\s*días?$/i)
+            if (daysMatch) {
+              const days = parseInt(daysMatch[1], 10)
+              const endDate = new Date(startDate)
+              endDate.setDate(startDate.getDate() + days)
+              endDateStr = endDate.toISOString().split('T')[0]
+            }
+          }
+
+          return {
+            patient_id: selectedPatient.id,
+            doctor_id:  doctorId,
+            name:       med.name,
+            dosage:     med.dose,
+            frequency:  med.frequency,
+            start_date: startDate.toISOString().split('T')[0],
+            end_date:   endDateStr,
+            status:     'active',
+            diagnosis_id: selectedDiagnosis?.id ?? null,
+            medicine_id: medicineSuggestions.find(
+              m => m.generic_name === med.name || m.brand_name === med.name
+            )?.id ?? null,
+          }
+        })
 
         const { error: medError } = await supabase
           .from('medications')
