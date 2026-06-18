@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Image,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -48,6 +49,18 @@ const PACIENTE_DEMO = {
 export default function HomeScreen({ navigation }: any) {
   const [tabActivo, setTabActivo] = useState('home');
   const insets = useSafeAreaInsets();
+  
+  // Animación de respiración (breathing) para la tarjeta Health ID
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.02, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -86,17 +99,23 @@ export default function HomeScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── TARJETA DE IDENTIDAD ──────────────────────────────────── */}
-        <TouchableOpacity 
-          style={styles.identityCard}
-          activeOpacity={0.9}
-          onPress={() => navigation?.navigate('HealthID')}
-        >
-          {/* Nombre y verificación */}
-          <View style={styles.identityNameRow}>
-            <Text style={styles.identityName}>{PACIENTE_DEMO.nombre}</Text>
-            <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
-          </View>
+        {/* ── TARJETA DE IDENTIDAD HOLOGRÁFICA ────────────────────── */}
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity 
+            style={styles.identityCard}
+            activeOpacity={0.9}
+            onPress={() => navigation?.navigate('HealthID')}
+          >
+            {/* Efecto de Marca de Agua (Fondo) */}
+            <View style={styles.watermarkContainer}>
+              <Shield size={120} color="rgba(255,255,255,0.03)" strokeWidth={1} />
+            </View>
+
+            {/* Nombre y verificación */}
+            <View style={styles.identityNameRow}>
+              <Text style={styles.identityName}>{PACIENTE_DEMO.nombre}</Text>
+              <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
+            </View>
 
           <View style={styles.identitySubRow}>
             <Text style={styles.identityCedula}>{PACIENTE_DEMO.cedula}</Text>
@@ -136,8 +155,9 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={styles.walletIdText}>
               WALLET ID: {PACIENTE_DEMO.walletId}
             </Text>
-          </View>
-        </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* ── SECCIÓN: CITA ACTIVA ──────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
@@ -361,13 +381,22 @@ const styles = StyleSheet.create({
   identityCard: {
     backgroundColor: '#0F2B3D',
     borderRadius: 20,
-    padding: 20,
+    padding: 24,
     marginBottom: 4,
     shadowColor: '#0F2B3D',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 184, 166, 0.2)', // Borde turquesa sutil (Glass effect)
+    overflow: 'hidden',
+  },
+  watermarkContainer: {
+    position: 'absolute',
+    right: -20,
+    top: -20,
+    transform: [{ rotate: '-15deg' }],
   },
   identityNameRow: {
     flexDirection: 'row',
@@ -462,8 +491,8 @@ const styles = StyleSheet.create({
   walletIdText: {
     fontSize: 10,
     color: '#64748B',
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
 
   // Section title
