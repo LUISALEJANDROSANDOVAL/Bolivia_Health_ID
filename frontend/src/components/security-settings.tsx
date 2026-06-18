@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
 import { useRouter } from 'next/navigation'
@@ -39,7 +39,6 @@ export function SecuritySettings() {
   const [biometricEnabled, setBiometricEnabled] = useState(false)
   const [sessionActive, setSessionActive] = useState(true)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
-  const { toast } = useToast()
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' })
 
   const [sessions, setSessions] = useState<any[]>([])
@@ -128,8 +127,7 @@ export function SecuritySettings() {
     // Si el usuario cierra su propia sesión actual, desconectar de la wallet/app
     const deviceId = localStorage.getItem('bolivia_health_device_id')
     if (sessionId === deviceId) {
-      toast({
-        title: 'Cerrando sesión...',
+      toast.info('Cerrando sesión...', {
         description: 'Has decidido cerrar la sesión en este dispositivo.'
       })
       setTimeout(() => {
@@ -137,8 +135,7 @@ export function SecuritySettings() {
         router.push('/')
       }, 1000)
     } else {
-      toast({
-        title: 'Sesión cerrada',
+      toast.success('Sesión cerrada', {
         description: 'El dispositivo ha sido desconectado correctamente.'
       })
     }
@@ -149,8 +146,7 @@ export function SecuritySettings() {
     const updatedSessions = sessions.filter(s => s.id === deviceId)
     setSessions(updatedSessions)
     await saveSessionsToDB(updatedSessions)
-    toast({
-      title: 'Sesiones limpias',
+    toast.success('Sesiones limpias', {
       description: 'Se han cerrado todas las demás sesiones activas.'
     })
   }
@@ -168,10 +164,8 @@ export function SecuritySettings() {
       })
     } catch (err) {
       console.error('Error saving security settings:', err)
-      toast({
-        title: 'Error de conexión',
-        description: 'No se pudieron guardar las configuraciones de seguridad.',
-        variant: 'destructive'
+      toast.error('Error de conexión', {
+        description: 'No se pudieron guardar las configuraciones de seguridad.'
       })
     }
   }
@@ -182,19 +176,15 @@ export function SecuritySettings() {
 
   const handleChangePassword = async () => {
     if (!passwords.new || !passwords.confirm) {
-      toast({
-        title: 'Campos incompletos',
-        description: 'Por favor, ingresa la nueva contraseña y su confirmación.',
-        variant: 'destructive'
+      toast.error('Campos incompletos', {
+        description: 'Por favor, ingresa la nueva contraseña y su confirmación.'
       })
       return
     }
 
     if (passwords.new !== passwords.confirm) {
-      toast({
-        title: 'Error de coincidencia',
-        description: 'La nueva contraseña y la confirmación no coinciden.',
-        variant: 'destructive'
+      toast.error('Error de coincidencia', {
+        description: 'La nueva contraseña y la confirmación no coinciden.'
       })
       return
     }
@@ -219,18 +209,15 @@ export function SecuritySettings() {
 
       if (error) throw error
 
-      toast({
-        title: 'Contraseña actualizada',
+      toast.success('Contraseña actualizada', {
         description: 'Tu contraseña ha sido cambiada correctamente en la base de datos.',
       })
       
       localStorage.setItem('lastSessionPassword', passwords.new)
       setPasswords({ current: passwords.new, new: '', confirm: '' })
     } catch (err: any) {
-      toast({
-        title: 'Error al actualizar',
-        description: err.message || 'No se pudo cambiar la contraseña.',
-        variant: 'destructive'
+      toast.error('Error al actualizar', {
+        description: err.message || 'No se pudo cambiar la contraseña.'
       })
     } finally {
       setIsChangingPassword(false)
@@ -241,9 +228,8 @@ export function SecuritySettings() {
     const newState = !twoFAEnabled
     setTwoFAEnabled(newState)
     saveToDatabase({ twoFAEnabled: newState })
-    toast({
-      title: newState ? '2FA activada' : '2FA desactivada',
-      description: newState 
+    toast.success(newState ? '2FA activada' : '2FA desactivada', {
+      description: newState
         ? 'La autenticación de dos factores ha sido activada'
         : 'La autenticación de dos factores ha sido desactivada',
     })

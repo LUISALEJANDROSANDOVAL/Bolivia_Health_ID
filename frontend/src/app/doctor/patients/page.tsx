@@ -28,33 +28,42 @@ export default function DoctorPatientsPage() {
     if (!doctorId) return
     setLoading(true)
     try {
-      // Consultar permisos activos para este doctor
-      const { data, error } = await supabase
+      // 1. Obtener los permisos activos para este doctor
+      const { data: permissionsData, error: permError } = await supabase
         .from('access_permissions')
-        .select(`
-          id,
-          status,
-          created_at,
-          profiles!patient_id (
-            id,
-            full_name,
-            cedula_identidad,
-            wallet_address
-          )
-        `)
+        .select('id, patient_id, created_at, status')
         .eq('doctor_id', doctorId)
         .eq('status', 'active')
 
-      if (error) throw error
+      if (permError) throw permError
+      if (!permissionsData || permissionsData.length === 0) {
+        setPatients([])
+        return
+      }
 
-      const mapped: Patient[] = (data || []).map((p: any) => ({
-        id: p.profiles?.id || '',
-        name: p.profiles?.full_name || 'Paciente Desconocido',
-        ci: p.profiles?.cedula_identidad || 'N/A',
-        healthId: p.profiles?.wallet_address || 'N/A',
-        status: 'Activo',
-        lastVisit: new Date(p.created_at).toLocaleDateString() // Usamos la fecha de permiso como referencia
-      }))
+      // 2. Obtener los perfiles de los pacientes directamente por sus IDs
+      const patientIds = permissionsData.map((p: any) => p.patient_id).filter(Boolean)
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, cedula_identidad, wallet_address')
+        .in('id', patientIds)
+
+      if (profilesError) throw profilesError
+
+      // 3. Combinar los datos
+      const profilesMap = new Map((profilesData || []).map((pr: any) => [pr.id, pr]))
+
+      const mapped: Patient[] = permissionsData.map((p: any) => {
+        const profile = profilesMap.get(p.patient_id)
+        return {
+          id: profile?.id || p.patient_id || '',
+          name: profile?.full_name || 'Paciente Desconocido',
+          ci: profile?.cedula_identidad || 'N/A',
+          healthId: profile?.wallet_address || 'N/A',
+          status: 'Activo',
+          lastVisit: new Date(p.created_at).toLocaleDateString()
+        }
+      })
 
       setPatients(mapped)
     } catch (err) {
@@ -145,12 +154,19 @@ export default function DoctorPatientsPage() {
                   </div>
                 </div>
 
-                <Link href={`/doctor/patients/${patient.id}`} className="block">
-                  <Button className="w-full bg-foreground/10 hover:bg-cyan-500 text-foreground hover:text-azul-profundo font-black rounded-2xl h-14 border-none transition-all group-hover:scale-[1.02]">
+                {patient.id ? (
+                  <Link href={`/doctor/patients/${patient.id}`} className="block">
+                    <Button className="w-full bg-foreground/10 hover:bg-cyan-500 text-foreground hover:text-azul-profundo font-black rounded-2xl h-14 border-none transition-all group-hover:scale-[1.02]">
+                      <Eye className="mr-2 size-5" />
+                      Ver Historial
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button disabled className="w-full bg-foreground/5 text-foreground/30 font-black rounded-2xl h-14 border-none cursor-not-allowed">
                     <Eye className="mr-2 size-5" />
-                    Ver Historia 360
+                    Sin perfil vinculado
                   </Button>
-                </Link>
+                )}
               </div>
             </div>
           ))}

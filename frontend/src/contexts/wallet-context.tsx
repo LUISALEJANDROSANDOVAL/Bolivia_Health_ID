@@ -2,10 +2,13 @@
 
 import { createContext, useContext, useCallback, useState, useEffect, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAccount, useDisconnect } from 'wagmi'
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi'
 import { useModal } from 'connectkit'
 import { ParticleNetwork } from '@particle-network/auth'
 import { ParticleProvider } from '@particle-network/provider'
+import { stringToHex } from 'viem'
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import { toast } from 'sonner'
 
 let particle: ParticleNetwork | null = null;
 let particleProvider: ParticleProvider | null = null;
@@ -45,6 +48,11 @@ interface WalletContextType {
   connect: () => void
   connectDb: () => void
   disconnect: () => void
+  signMessage: (message: string) => Promise<string>
+  sessionActive: boolean
+  sessionAddress: string | null
+  startClinicalSession: (useMock?: boolean) => Promise<void>
+  signMessageWithSession: (message: string) => Promise<{ signature: string, sessionAddress: string, sessionAuthSignature: string }>
 }
 
 const defaultValue: WalletContextType = {
@@ -56,6 +64,11 @@ const defaultValue: WalletContextType = {
   connect: () => {},
   connectDb: () => {},
   disconnect: () => {},
+  signMessage: async () => '',
+  sessionActive: false,
+  sessionAddress: null,
+  startClinicalSession: async (useMock?: boolean) => {},
+  signMessageWithSession: async () => ({ signature: '', sessionAddress: '', sessionAuthSignature: '' }),
 }
 
 const WalletContext = createContext<WalletContextType>(defaultValue)
@@ -70,12 +83,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount()
   const { disconnect: wagmiDisconnect } = useDisconnect()
   const { setOpen } = useModal()
+  const { signMessageAsync } = useSignMessage()
 
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [particleAddress, setParticleAddress] = useState<string | null>(null)
   const [particleConnected, setParticleConnected] = useState(false)
   const [particleUserInfo, setParticleUserInfo] = useState<{email?: string, name?: string} | null>(null)
+
+  const [sessionActive, setSessionActive] = useState(false)
+  const [sessionAddress, setSessionAddress] = useState<string | null>(null)
 
   const syncProfile = useCallback(async (walletAddr: string, email?: string, name?: string) => {
     setLoading(true)
@@ -200,6 +217,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(async () => {
     try {
+      if (activeAddress) {
+        const addrLower = activeAddress.toLowerCase()
+        localStorage.removeItem(`clinical_session_key_${addrLower}`)
+        localStorage.removeItem(`clinical_session_sig_${addrLower}`)
+        localStorage.removeItem(`clinical_session_addr_${addrLower}`)
+        localStorage.removeItem(`clinical_session_exp_${addrLower}`)
+      }
+      setSessionActive(false)
+      setSessionAddress(null)
+      
       if (particle && particleConnected) {
         await particle.auth.logout();
         setParticleConnected(false);
@@ -211,7 +238,158 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error al desconectar:', error)
     }
-  }, [wagmiDisconnect, particleConnected])
+  }, [wagmiDisconnect, particleConnected, activeAddress])
+
+  const signMessage = useCallback(async (message: string): Promise<string> => {
+    if (particleConnected && particleProvider && particleAddress) {
+      try {
+        const hexMsg = stringToHex(message)
+        const signature = await particleProvider.request({
+          method: 'personal_sign',
+          params: [hexMsg, particleAddress]
+        })
+        if (typeof signature === 'string') {
+          return signature
+        }
+        throw new Error('Firma con formato inválido devuelta por el proveedor social')
+      } catch (err: any) {
+        console.error('Error firmando con Particle Network:', err)
+        throw err
+      }
+    }
+
+    if (isConnected) {
+      try {
+        const signature = await signMessageAsync({ message })
+        return signature
+      } catch (err: any) {
+        console.error('Error firmando con Wagmi/Wallet:', err)
+        throw err
+      }
+    }
+
+    throw new Error('No hay ninguna billetera conectada para realizar la firma digital.')
+  }, [particleConnected, particleAddress, isConnected, signMessageAsync])
+
+  // --- CONFIGURACIÓN DE LLAVES DE SESIÓN ---
+
+  // Las llaves de sesión se gestionan dinámicamente abajo para poder usar startClinicalSession
+
+  const startClinicalSession = useCallback(async (useMock = false) => {
+    if (!activeAddress) {
+      toast.error('Error de Identidad', {
+        description: 'Debes conectar tu billetera antes de iniciar la sesión clínica.'
+      })
+      throw new Error('Debes conectar tu billetera.')
+    }
+    
+    try {
+      const privateKey = generatePrivateKey()
+      const tempAccount = privateKeyToAccount(privateKey)
+      const tempAddress = tempAccount.address
+
+      let signature = ''
+      if (useMock) {
+        signature = `mock_session_auth_${tempAddress.toLowerCase()}`
+      } else {
+        const messageAuth = `Autorizar sesión clínica de Bolivia Health ID para la billetera temporal: ${tempAddress}`
+        toast.info('Blockchain', {
+          description: 'Por favor, firma la autorización para habilitar el modo de consulta rápida...'
+        })
+        signature = await signMessage(messageAuth)
+      }
+
+      const addrLower = activeAddress.toLowerCase()
+      const expTime = (Date.now() + 24 * 60 * 60 * 1000).toString() // 24 horas
+
+      localStorage.setItem(`clinical_session_key_${addrLower}`, privateKey)
+      localStorage.setItem(`clinical_session_sig_${addrLower}`, signature)
+      localStorage.setItem(`clinical_session_addr_${addrLower}`, tempAddress)
+      localStorage.setItem(`clinical_session_exp_${addrLower}`, expTime)
+
+      setSessionAddress(tempAddress)
+      setSessionActive(true)
+
+      toast.success('Sesión Blockchain Iniciada', {
+        description: useMock 
+          ? 'Modo rápido activado localmente. Las firmas serán automáticas y sin ventanas.'
+          : 'La sesión se autorizó con éxito. Las firmas ahora serán automáticas y silenciosas durante las próximas 24 horas.'
+      })
+    } catch (err: any) {
+      console.error('Error al iniciar sesión clínica:', err)
+      toast.error('Inicio de Sesión Cancelado', {
+        description: err.message || 'No se pudo firmar el inicio de turno.'
+      })
+      throw err
+    }
+  }, [activeAddress, signMessage])
+
+  // Restaurar sesión activa o iniciarla en background (modo rápido) al iniciar sesión o conectar la wallet
+  useEffect(() => {
+    if (activeIsConnected && activeAddress) {
+      const addrLower = activeAddress.toLowerCase()
+      const privateKey = localStorage.getItem(`clinical_session_key_${addrLower}`)
+      const sessionAuthSignature = localStorage.getItem(`clinical_session_sig_${addrLower}`)
+      const cachedSessionAddr = localStorage.getItem(`clinical_session_addr_${addrLower}`)
+      const expiration = localStorage.getItem(`clinical_session_exp_${addrLower}`)
+
+      if (privateKey && sessionAuthSignature && cachedSessionAddr && expiration) {
+        if (Date.now() < parseInt(expiration)) {
+          setSessionAddress(cachedSessionAddr)
+          setSessionActive(true)
+          return
+        } else {
+          // Limpiar datos expirados
+          localStorage.removeItem(`clinical_session_key_${addrLower}`)
+          localStorage.removeItem(`clinical_session_sig_${addrLower}`)
+          localStorage.removeItem(`clinical_session_addr_${addrLower}`)
+          localStorage.removeItem(`clinical_session_exp_${addrLower}`)
+        }
+      }
+
+      // Auto-iniciar la sesión clínica silenciosa (modo rápido local) sin pedir popups
+      startClinicalSession(true).catch((err) => {
+        console.error('Error auto-starting clinical session:', err)
+      })
+    } else {
+      setSessionAddress(null)
+      setSessionActive(false)
+    }
+  }, [activeIsConnected, activeAddress, startClinicalSession])
+
+  const signMessageWithSession = useCallback(async (message: string) => {
+    if (!activeAddress) {
+      throw new Error('Billetera no conectada.')
+    }
+    const addrLower = activeAddress.toLowerCase()
+    const privateKey = localStorage.getItem(`clinical_session_key_${addrLower}`)
+    const sessionAuthSignature = localStorage.getItem(`clinical_session_sig_${addrLower}`)
+    const cachedSessionAddr = localStorage.getItem(`clinical_session_addr_${addrLower}`)
+    const expiration = localStorage.getItem(`clinical_session_exp_${addrLower}`)
+
+    if (!privateKey || !sessionAuthSignature || !cachedSessionAddr || !expiration) {
+      throw new Error('No hay una sesión clínica activa. Debes iniciar turno.')
+    }
+
+    if (Date.now() >= parseInt(expiration)) {
+      localStorage.removeItem(`clinical_session_key_${addrLower}`)
+      localStorage.removeItem(`clinical_session_sig_${addrLower}`)
+      localStorage.removeItem(`clinical_session_addr_${addrLower}`)
+      localStorage.removeItem(`clinical_session_exp_${addrLower}`)
+      setSessionActive(false)
+      setSessionAddress(null)
+      throw new Error('La sesión clínica ha expirado. Por favor, inicia turno nuevamente.')
+    }
+
+    const tempAccount = privateKeyToAccount(privateKey as `0x${string}`)
+    const signature = await tempAccount.signMessage({ message })
+
+    return {
+      signature,
+      sessionAddress: cachedSessionAddr,
+      sessionAuthSignature
+    }
+  }, [activeAddress])
 
   return (
     <WalletContext.Provider
@@ -224,6 +402,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connect,
         connectDb: connect,
         disconnect,
+        signMessage,
+        sessionActive,
+        sessionAddress,
+        startClinicalSession,
+        signMessageWithSession,
       }}
     >
       {children}
@@ -236,3 +419,5 @@ export function useWallet() {
 }
 
 export { formatAddress }
+
+

@@ -10,6 +10,7 @@ import { StatCard } from '@/components/ui/stat-card'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { HealthTips } from '@/components/health-tips'
+import { format } from 'date-fns'
 
 export default function DoctorDashboard() {
   const { doctorName, doctorWallet, doctorId } = useDoctorAuth()
@@ -46,8 +47,16 @@ export default function DoctorDashboard() {
           .select('*', { count: 'exact', head: true })
           .eq('doctor_id', doctorId)
 
+        // 4. Contar citas de hoy usando formato local
+        const today = format(new Date(), 'yyyy-MM-dd')
+        const { count: todayCount } = await supabase
+          .from('appointments')
+          .select('*', { count: 'exact', head: true })
+          .or(`doctor_id.eq.${doctorId}${doctorName ? `,doctor_name.ilike.%${doctorName}%` : ''}`)
+          .eq('appointment_date', today)
+
         setDashboardStats({
-          todayPatients: 0, // Esto requeriría una tabla de citas que aún está vacía
+          todayPatients: todayCount || 0,
           pendingRequests: pendingCount || 0,
           activeAccess: activeCount || 0,
           prescriptionsSigned: recordCount || 0
@@ -197,4 +206,3 @@ export default function DoctorDashboard() {
     </DoctorLayout>
   )
 }
-

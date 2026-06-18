@@ -12,11 +12,12 @@ import {
   Syringe,
   FileText,
   Clock,
+  XCircle,
+  Filter,
+  Lock,
   User,
   Hospital,
   CheckCircle2,
-  XCircle,
-  Filter,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -264,6 +265,14 @@ export default function HistorialPage() {
                       const StatusIcon = StatusCfg.icon
                       const isLast = idx === groupedByYear[year].length - 1 && yearIdx === sortedYears.length - 1
 
+                      const parts = (record.description || '')
+                        .split(' | ')
+                        .filter((p: string) =>
+                          !p.startsWith('IPFS:') &&
+                          !p.startsWith('Tx:') &&
+                          !p.match(/^0x[a-fA-F0-9]{40,}/)
+                        )
+
                       return (
                         <div key={record.id} className="relative flex gap-5 pb-4">
                           {/* Timeline dot */}
@@ -296,7 +305,25 @@ export default function HistorialPage() {
                             <h3 className={`text-base font-black text-foreground tracking-tight group-hover:${cfg.color} transition-colors`}>
                               {record.title}
                             </h3>
-                            <p className="text-sm text-foreground/50 mt-1 leading-relaxed">{record.description}</p>
+                            
+                            {/* Description fields as chips */}
+                            {parts.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {parts.map((part: string, i: number) => {
+                                  const [label, ...rest] = part.split(': ')
+                                  const val = rest.join(': ')
+                                  if (!val) return (
+                                    <span key={i} className="text-sm text-foreground/70">{label}</span>
+                                  )
+                                  return (
+                                    <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/50">{label}:</span>
+                                      <span className="text-xs text-foreground font-semibold">{val}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
 
                             {/* Meta */}
                             <div className="mt-4 flex flex-wrap gap-4 text-xs text-foreground/40">

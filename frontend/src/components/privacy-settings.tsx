@@ -17,18 +17,13 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useProfile } from '@/hooks/useProfile'
 import { useWallet } from '@/contexts/wallet-context'
 
-interface PrivacySettingsProps {
-  profile: any
-  updateProfile: (data: any) => Promise<boolean>
-}
-
-export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps) {
+export function PrivacySettings() {
   const { walletAddress } = useWallet()
-  const { toast } = useToast()
+  const { profile, updateProfile } = useProfile(walletAddress)
 
   const defaultPrivacy = {
     profileVisibility: 'private',
@@ -58,10 +53,8 @@ export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps
       })
     } catch (err) {
       console.error('Error saving privacy settings:', err)
-      toast({
-        title: 'Error de conexión',
-        description: 'No se pudieron guardar las configuraciones de privacidad.',
-        variant: 'destructive'
+      toast.error('Error de conexión', {
+        description: 'No se pudieron guardar las configuraciones de privacidad.'
       })
     }
   }
@@ -74,9 +67,8 @@ export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps
     }
     setPrivacySettings(newSettings)
     saveToDatabase(newSettings)
-    toast({
-      title: 'Configuración actualizada',
-      description: 'Los cambios han sido aplicados correctamente',
+    toast.success('Configuración actualizada', {
+      description: 'Los cambios han sido aplicados correctamente'
     })
   }
 
@@ -111,9 +103,8 @@ export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps
                   const newSettings = { ...privacySettings, profileVisibility: option.value }
                   setPrivacySettings(newSettings)
                   saveToDatabase(newSettings)
-                  toast({
-                    title: 'Visibilidad actualizada',
-                    description: `Tu perfil ahora es ${option.label.toLowerCase()}`,
+                  toast.success('Visibilidad actualizada', {
+                    description: `Tu perfil ahora es ${option.label.toLowerCase()}`
                   })
                 }}
               >
@@ -215,9 +206,8 @@ export function PrivacySettings({ profile, updateProfile }: PrivacySettingsProps
                     const newSettings = { ...privacySettings, allowMessagesFrom: option.value }
                     setPrivacySettings(newSettings)
                     saveToDatabase(newSettings)
-                    toast({
-                      title: 'Configuración actualizada',
-                      description: `Ahora ${option.label.toLowerCase()} puede enviarte mensajes`,
+                    toast.success('Configuración actualizada', {
+                      description: `Ahora ${option.label.toLowerCase()} puede enviarte mensajes`
                     })
                   }}
                 >
