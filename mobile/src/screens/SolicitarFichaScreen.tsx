@@ -23,6 +23,8 @@ import {
   Microscope,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -49,6 +51,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
   const [especialidadSeleccionada, setEspecialidadSeleccionada] = useState<number | null>(null);
   const [mostrarHospitales, setMostrarHospitales] = useState(false);
   const [mostrarEspecialidades, setMostrarEspecialidades] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const insets = useSafeAreaInsets();
 
   const hospitalActual = HOSPITALES.find(h => h.id === hospitalSeleccionado);
@@ -57,18 +60,45 @@ export default function SolicitarFichaScreen({ navigation }: any) {
   // Evaluación estricta a booleano para evitar crashes
   const formularioCompleto = (hospitalSeleccionado !== null) && (especialidadSeleccionada !== null);
 
-  const handleSolicitar = () => {
-    if (!formularioCompleto || !hospitalActual || !especialidadActual) return;
+  const handleSolicitar = async () => {
+    if (!formularioCompleto || !hospitalActual || !especialidadActual || isSubmitting) return;
     
-    navigation?.navigate('FichaActiva', {
-      hospital: hospitalActual,
-      // Solo pasamos datos serializables (no componentes) para evitar errores de navegación
-      especialidad: {
-        id: especialidadActual.id,
-        nombre: especialidadActual.nombre,
-        icono: '✓' // Fallback simple
-      },
-    });
+    setIsSubmitting(true);
+    try {
+      let patientId = await AsyncStorage.getItem('@particle_patient_id');
+      
+      // Simulación de Particle temporal para el desarrollo del Módulo 4
+      if (!patientId) {
+        const { data: profile } = await supabase.from('profiles').select('id').eq('role', 'paciente').limit(1).single();
+        if (profile) {
+          patientId = profile.id;
+          await AsyncStorage.setItem('@particle_patient_id', patientId as string);
+        }
+      }
+
+      if (!patientId) {
+        console.warn('No se encontró un perfil de paciente para simular.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const { error } = await supabase.from('appointments').insert({
+        patient_id: patientId,
+        specialty: especialidadActual.nombre,
+        location: hospitalActual.nombre,
+        status: 'scheduled',
+        type: 'presencial',
+      });
+
+      if (error) throw error;
+
+      // Navegamos de vuelta a FichaActiva (se recargará automáticamente)
+      navigation?.navigate('FichaActiva');
+    } catch (err) {
+      console.error('Error insertando cita:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -231,13 +261,13 @@ export default function SolicitarFichaScreen({ navigation }: any) {
       {/* ── BOTÓN FLOTANTE ── */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <TouchableOpacity
-          style={[styles.btnSolicitar, !formularioCompleto ? styles.btnSolicitarDeshabilitado : null]}
+          style={[styles.btnSolicitar, (!formularioCompleto || isSubmitting) ? styles.btnSolicitarDeshabilitado : null]}
           activeOpacity={0.85}
           onPress={handleSolicitar}
-          disabled={!formularioCompleto}
+          disabled={!formularioCompleto || isSubmitting}
         >
           <Ticket size={20} color="#FFFFFF" />
-          <Text style={styles.btnSolicitarText}>  Solicitar mi Ficha Digital</Text>
+          <Text style={styles.btnSolicitarText}>{isSubmitting ? '  Procesando...' : '  Solicitar mi Ficha Digital'}</Text>
           <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>
