@@ -49,7 +49,7 @@ const PACIENTE_DEMO = {
 export default function HomeScreen({ navigation }: any) {
   const [tabActivo, setTabActivo] = useState('home');
   const insets = useSafeAreaInsets();
-  
+
   // Animación de respiración (breathing) para la tarjeta Health ID
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -101,7 +101,7 @@ export default function HomeScreen({ navigation }: any) {
 
         {/* ── TARJETA DE IDENTIDAD HOLOGRÁFICA ────────────────────── */}
         <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.identityCard}
             activeOpacity={0.9}
             onPress={() => navigation?.navigate('HealthID')}
@@ -117,44 +117,44 @@ export default function HomeScreen({ navigation }: any) {
               <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
             </View>
 
-          <View style={styles.identitySubRow}>
-            <Text style={styles.identityCedula}>{PACIENTE_DEMO.cedula}</Text>
-            <View style={styles.verifiedBadge}>
-              <Text style={styles.verifiedText}>✓ VERIFIED</Text>
-            </View>
-          </View>
-
-          {/* Datos médicos básicos */}
-          <View style={styles.identityStatsRow}>
-            <View style={styles.identityStat}>
-              <Droplets size={14} color="#64748B" />
-              <View>
-                <Text style={styles.identityStatLabel}>GRUPO SANGUÍNEO</Text>
-                <Text style={styles.identityStatValue}>{PACIENTE_DEMO.grupoSanguineo}</Text>
+            <View style={styles.identitySubRow}>
+              <Text style={styles.identityCedula}>{PACIENTE_DEMO.cedula}</Text>
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedText}>✓ VERIFIED</Text>
               </View>
             </View>
-            <View style={styles.identityDivider} />
-            <View style={styles.identityStat}>
-              <Heart size={14} color="#64748B" />
-              <View>
-                <Text style={styles.identityStatLabel}>SEGURO ACTIVO</Text>
-                <Text style={styles.identityStatValue}>{PACIENTE_DEMO.seguro}</Text>
+
+            {/* Datos médicos básicos */}
+            <View style={styles.identityStatsRow}>
+              <View style={styles.identityStat}>
+                <Droplets size={14} color="#64748B" />
+                <View>
+                  <Text style={styles.identityStatLabel}>GRUPO SANGUÍNEO</Text>
+                  <Text style={styles.identityStatValue}>{PACIENTE_DEMO.grupoSanguineo}</Text>
+                </View>
+              </View>
+              <View style={styles.identityDivider} />
+              <View style={styles.identityStat}>
+                <Heart size={14} color="#64748B" />
+                <View>
+                  <Text style={styles.identityStatLabel}>SEGURO ACTIVO</Text>
+                  <Text style={styles.identityStatValue}>{PACIENTE_DEMO.seguro}</Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* QR Wallet */}
-          <View style={styles.qrContainer}>
-            {/* 
+            {/* QR Wallet */}
+            <View style={styles.qrContainer}>
+              {/* 
               TODO: Reemplazar este bloque por <QRCode value={walletId} size={90} />
               después de instalar: npm install react-native-qrcode-svg react-native-svg
             */}
-            <View style={styles.qrPlaceholder}>
-              <Text style={styles.qrPlaceholderText}>QR</Text>
-            </View>
-            <Text style={styles.walletIdText}>
-              WALLET ID: {PACIENTE_DEMO.walletId}
-            </Text>
+              <View style={styles.qrPlaceholder}>
+                <Text style={styles.qrPlaceholderText}>QR</Text>
+              </View>
+              <Text style={styles.walletIdText}>
+                WALLET ID: {PACIENTE_DEMO.walletId}
+              </Text>
             </View>
           </TouchableOpacity>
         </Animated.View>
