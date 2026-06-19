@@ -10,7 +10,7 @@ export function GlassCard({ className, hover = true, gradient = false, children,
   return (
     <div
       className={cn(
-        'relative overflow-hidden bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-3xl border border-border transition-all shadow-lg shadow-black/5',
+        'relative overflow-hidden bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-xl border border-border transition-all shadow-lg shadow-black/5',
         hover && 'hover:border-cyan-500/20 hover:shadow-2xl hover:shadow-cyan-500/5 hover:-translate-y-1',
         className
       )}

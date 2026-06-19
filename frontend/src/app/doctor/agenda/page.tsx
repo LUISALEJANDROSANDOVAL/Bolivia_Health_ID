@@ -31,9 +31,15 @@ import { supabase } from '@/lib/supabase'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { format, addDays, startOfWeek, eachDayOfInterval, isSameDay } from 'date-fns'
 import { es } from 'date-fns/locale'
-// Unused NewAppointmentModal import removed
 import { StatCard } from '@/components/ui/stat-card'
 import { QuickAppointmentCard } from '@/components/quick-appointment-card'
+import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface Appointment {
   id: string
@@ -137,6 +143,28 @@ export default function DoctorAgendaPage() {
       setLoading(false)
     }
   }, [doctorId, currentDate])
+
+  const updateAppointmentStatus = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: newStatus })
+        .eq('id', id)
+
+      if (error) throw error
+
+      toast.success(`Cita actualizada a ${
+        newStatus === 'completed' ? 'Completada' :
+        newStatus === 'confirmed' ? 'Confirmada' :
+        newStatus === 'cancelled' ? 'Cancelada' : 'Programada'
+      }`)
+      
+      fetchAgenda()
+    } catch (err: any) {
+      console.error('Error updating appointment status:', err)
+      toast.error('Error al actualizar la cita: ' + err.message)
+    }
+  }
 
   useEffect(() => {
     fetchAgenda()
@@ -300,14 +328,75 @@ export default function DoctorAgendaPage() {
                                 {apt.location}
                               </p>
                            </div>
-                           <Link href={`/doctor/patients/${apt.patientId}`}>
-                             <Button className="bg-foreground/5 hover:bg-cyan-500 text-foreground hover:text-azul-profundo font-black rounded-xl h-10 px-4 border-none transition-all">
-                                Atender
-                             </Button>
-                           </Link>
-                           <Button variant="ghost" size="icon" className="size-10 rounded-xl hover:bg-foreground/10">
-                              <MoreVertical className="size-4" />
-                           </Button>
+                           {apt.status === 'Completada' ? (
+                             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-500 rounded-xl border border-green-500/20 font-black text-xs select-none">
+                               <CheckCircle2 className="size-4" />
+                               ATENDIDO
+                             </div>
+                           ) : apt.status === 'Cancelada' ? (
+                             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20 font-black text-xs select-none">
+                               <AlertCircle className="size-4" />
+                               CANCELADO
+                             </div>
+                           ) : (
+                             <div className="flex items-center gap-2">
+                               {(apt.status === 'Programada' || apt.status === 'Confirmada') && (
+                                 <Button 
+                                   onClick={() => updateAppointmentStatus(apt.id, 'completed')}
+                                   className="bg-green-500 hover:bg-green-600 text-white font-black rounded-xl h-10 px-4 border-none transition-all cursor-pointer"
+                                 >
+                                   Completar
+                                 </Button>
+                               )}
+                               <Link href={`/doctor/patients/${apt.patientId}`}>
+                                 <Button className="bg-foreground/5 hover:bg-cyan-500 text-foreground hover:text-azul-profundo font-black rounded-xl h-10 px-4 border-none transition-all cursor-pointer">
+                                    Atender
+                                 </Button>
+                               </Link>
+                             </div>
+                           )}
+                           <DropdownMenu>
+                             <DropdownMenuTrigger asChild>
+                               <Button variant="ghost" size="icon" className="size-10 rounded-xl hover:bg-foreground/10 cursor-pointer">
+                                  <MoreVertical className="size-4" />
+                               </Button>
+                             </DropdownMenuTrigger>
+                             <DropdownMenuContent align="end" className="rounded-2xl border-border/50 bg-background/95 backdrop-blur-md shadow-2xl p-1.5">
+                               {apt.status !== 'Confirmada' && apt.status !== 'Completada' && apt.status !== 'Cancelada' && (
+                                 <DropdownMenuItem 
+                                   onClick={() => updateAppointmentStatus(apt.id, 'confirmed')}
+                                   className="rounded-xl font-bold hover:bg-cyan-500/10 hover:text-cyan-500 cursor-pointer"
+                                 >
+                                   <CheckCircle2 className="size-4 mr-2 text-cyan-500" />
+                                   Confirmar Cita
+                                 </DropdownMenuItem>
+                               )}
+                               {apt.status !== 'Completada' && apt.status !== 'Cancelada' && (
+                                 <DropdownMenuItem 
+                                   onClick={() => updateAppointmentStatus(apt.id, 'completed')}
+                                   className="rounded-xl font-bold hover:bg-green-500/10 hover:text-green-500 cursor-pointer"
+                                 >
+                                   <CheckCircle2 className="size-4 mr-2 text-green-500" />
+                                   Marcar como Completada
+                                 </DropdownMenuItem>
+                               )}
+                               {apt.status !== 'Cancelada' && apt.status !== 'Completada' && (
+                                 <DropdownMenuItem 
+                                   onClick={() => updateAppointmentStatus(apt.id, 'cancelled')}
+                                   className="rounded-xl font-bold text-rose-500 hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
+                                 >
+                                   <AlertCircle className="size-4 mr-2 text-rose-500" />
+                                   Cancelar Cita
+                                 </DropdownMenuItem>
+                               )}
+                               <DropdownMenuItem asChild>
+                                 <Link href={`/doctor/patients/${apt.patientId}`} className="rounded-xl font-bold hover:bg-foreground/10 cursor-pointer flex items-center p-2">
+                                   <User className="size-4 mr-2" />
+                                   Ver Historial Clínico
+                                 </Link>
+                               </DropdownMenuItem>
+                             </DropdownMenuContent>
+                           </DropdownMenu>
                         </div>
                       </div>
                       

@@ -102,7 +102,7 @@ export default function LoginPage() {
             <p className="text-center text-sm font-medium text-muted-foreground">
               Selecciona tu perfil para continuar
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Paciente */}
               <button
                 onClick={() => setSelectedRole('paciente')}

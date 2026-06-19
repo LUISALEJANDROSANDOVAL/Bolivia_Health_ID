@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -288,8 +289,27 @@ export function MedicalRecords() {
       {/* List */}
       <div className="space-y-4">
         {loading ? (
-          <div className="py-20 text-center text-foreground/40 font-bold uppercase tracking-widest animate-pulse">
-            Cargando diagnósticos…
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-foreground/5 border border-border/30 backdrop-blur-sm rounded-2xl p-5 flex gap-5">
+                <Skeleton className="size-14 rounded-2xl shrink-0" />
+                <div className="flex-1 space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex gap-2">
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </div>
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="h-6 w-1/3" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <div className="flex gap-4 pt-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : filteredRecords.length === 0 ? (
           <div className="bg-foreground/5 border border-dashed border-border rounded-2xl p-12 flex flex-col items-center justify-center group hover:scale-[1.01] transition-all">

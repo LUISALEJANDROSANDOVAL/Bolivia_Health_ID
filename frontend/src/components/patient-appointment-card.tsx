@@ -14,6 +14,17 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 
+const BOLIVIAN_HEALTH_CENTERS = [
+  "Hospital de Clínicas (La Paz)",
+  "Hospital de la Mujer (La Paz)",
+  "Hospital del Niño (La Paz)",
+  "Hospital del Tórax (La Paz)",
+  "Hospital Viedma (Cochabamba)",
+  "Hospital San Juan de Dios (Santa Cruz)",
+  "Hospital Japonés (Santa Cruz)",
+  "Centro de Salud Local / de Barrio"
+]
+
 interface Doctor {
   id: string
   name: string
@@ -38,8 +49,8 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
     end_time: '09:30',
     reason: 'Consulta General',
     priority: 'normal',
-    location: 'Consultorio Virtual',
-    type: 'virtual'
+    location: BOLIVIAN_HEALTH_CENTERS[0],
+    type: 'presencial'
   })
 
   // Effect for doctor search
@@ -118,9 +129,13 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
       setSelectedDoctor(null)
       setSearchDoctor('')
       setFormData({
-        ...formData,
+        appointment_date: format(new Date(), 'yyyy-MM-dd'),
+        appointment_time: '09:00',
+        end_time: '09:30',
         reason: 'Consulta General',
-        priority: 'normal'
+        priority: 'normal',
+        location: BOLIVIAN_HEALTH_CENTERS[0],
+        type: 'presencial'
       })
       
       if (onAppointmentCreated) onAppointmentCreated()
@@ -268,17 +283,52 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
                   <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Tipo de Cita</Label>
                   <Select 
                     value={formData.type} 
-                    onValueChange={(val) => setFormData({...formData, type: val})}
+                    onValueChange={(val: 'virtual' | 'presencial') => setFormData({
+                      ...formData, 
+                      type: val,
+                      location: val === 'virtual' ? 'Consultorio Virtual' : BOLIVIAN_HEALTH_CENTERS[0]
+                    })}
                   >
                     <SelectTrigger className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 text-sm font-bold">
                       <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-border/50">
-                      <SelectItem value="virtual" className="rounded-xl font-bold">Virtual / Telemedicina</SelectItem>
                       <SelectItem value="presencial" className="rounded-xl font-bold">Presencial</SelectItem>
+                      <SelectItem value="virtual" className="rounded-xl font-bold">Virtual / Telemedicina</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.type === 'presencial' ? (
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Establecimiento de Salud</Label>
+                    <Select 
+                      value={formData.location} 
+                      onValueChange={(val) => setFormData({...formData, location: val})}
+                    >
+                      <SelectTrigger className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 text-sm font-bold">
+                        <SelectValue placeholder="Seleccionar hospital" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-border/50">
+                        {BOLIVIAN_HEALTH_CENTERS.map((center) => (
+                          <SelectItem key={center} value={center} className="rounded-xl font-bold">
+                            {center}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Enlace / Medio Virtual</Label>
+                    <Input 
+                      placeholder="Ej. Zoom, WhatsApp Video, Meet..."
+                      className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 font-bold text-sm"
+                      value={formData.location}
+                      onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Prioridad</Label>

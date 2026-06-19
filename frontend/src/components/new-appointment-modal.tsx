@@ -120,7 +120,7 @@ export function NewAppointmentModal({ onAppointmentCreated }: { onAppointmentCre
         end_time: '09:30',
         location: 'Consultorio A-102',
         priority: 'normal',
-        type: 'consulta',
+        type: 'presencial',
         reason: 'Consulta General',
         notes: ''
       })
