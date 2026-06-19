@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   Users,
   Building2,
+  Ticket,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../services/supabase';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +38,9 @@ export default function FichaActivaScreen({ route, navigation }: any) {
   const especialidad = route?.params?.especialidad ?? { nombre: 'Medicina General' };
 
   const [turnoActual, setTurnoActual] = useState(TURNO_DEMO.turnoActual);
+  const [appointment, setAppointment] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -48,6 +54,58 @@ export default function FichaActivaScreen({ route, navigation }: any) {
     ).start();
   }, []);
 
+  // Fetch Supabase
+  useEffect(() => {
+    async function fetchActiveAppointment() {
+      try {
+        let patientId = await AsyncStorage.getItem('@particle_patient_id');
+        
+        // Simulación temporal de Particle: Si no hay ID, tomamos uno de Supabase
+        if (!patientId) {
+          const { data: profile } = await supabase.from('profiles').select('id').eq('role', 'paciente').limit(1).single();
+          if (profile) {
+            patientId = profile.id;
+            await AsyncStorage.setItem('@particle_patient_id', patientId as string);
+          }
+        }
+
+        if (!patientId) {
+          setIsLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('patient_id', patientId)
+          .in('status', ['scheduled', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) {
+          if (error.code !== 'PGRST116') { // PGRST116 is "No rows found", which is fine (Empty State)
+            console.error('Supabase error:', error.message);
+          }
+        } else if (data) {
+          setAppointment(data);
+        }
+      } catch (err) {
+        console.error('Network/Storage error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    const unsubscribe = navigation.addListener('focus', () => {
+      setIsLoading(true);
+      setAppointment(null); // Reset before fetch to show loading if needed
+      fetchActiveAppointment();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   // Animación de progreso visual
   useEffect(() => {
     const progreso = turnoActual / TURNO_DEMO.miTurno;
@@ -60,6 +118,52 @@ export default function FichaActivaScreen({ route, navigation }: any) {
 
   const faltanTurnos = TURNO_DEMO.miTurno - turnoActual;
   const porcentajeProgreso = Math.round((turnoActual / TURNO_DEMO.miTurno) * 100);
+
+  // Variables dinámicas
+  const hospitalName = appointment?.location || hospital.nombre;
+  const especialidadName = appointment?.specialty || especialidad.nombre;
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{color: '#64748B', fontWeight: '500'}}>Buscando turnos activos...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!appointment) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
+            <ArrowLeft size={20} color="#0F2B3D" />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.headerTitle}>Fila Virtual</Text>
+            <Text style={styles.headerSubtitle}>Bolivia Health ID</Text>
+          </View>
+        </View>
+        
+        <View style={styles.emptyStateContainer}>
+          <View style={styles.emptyStateIconCircle}>
+            <Ticket size={48} color="#94A3B8" />
+          </View>
+          <Text style={styles.emptyStateTitle}>No tienes turnos activos</Text>
+          <Text style={styles.emptyStateDesc}>
+            Solicita una nueva ficha digital para agendar tu próxima cita médica en cualquier hospital público sin tener que hacer filas desde la madrugada.
+          </Text>
+          
+          <TouchableOpacity
+            style={styles.btnSolicitarEmpty}
+            activeOpacity={0.8}
+            onPress={() => navigation?.navigate('SolicitarFicha')}
+          >
+            <Text style={styles.btnSolicitarEmptyText}>Solicitar Nueva Ficha</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,11 +189,11 @@ export default function FichaActivaScreen({ route, navigation }: any) {
           <Building2 size={24} color="#2D7FF9" />
         </View>
         <View style={styles.hospitalInfo}>
-          <Text style={styles.hospitalNombre}>{hospital.nombre}</Text>
+          <Text style={styles.hospitalNombre}>{hospitalName}</Text>
           <View style={styles.hospitalMeta}>
             <Stethoscope size={12} color="#64748B" />
             <Text style={styles.hospitalMetaText}>
-              {especialidad.nombre}
+              {especialidadName}
             </Text>
             <Text style={styles.hospitalMetaSeparator}>·</Text>
             <MapPin size={12} color="#64748B" />
@@ -168,8 +272,8 @@ export default function FichaActivaScreen({ route, navigation }: any) {
           onPress={() =>
             navigation?.navigate('QRAdmision', {
               turno: TURNO_DEMO.miTurno,
-              hospital: hospital.nombre,
-              especialidad: especialidad.nombre,
+              hospital: hospitalName,
+              especialidad: especialidadName,
             })
           }
         >
@@ -307,4 +411,32 @@ const styles = StyleSheet.create({
   btnQRText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   btnCancelar: { alignItems: 'center', paddingVertical: 6 },
   btnCancelarText: { fontSize: 13, color: '#94A3B8', fontWeight: '600', textDecorationLine: 'underline' },
+
+  // Empty State
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyStateIconCircle: {
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 22, fontWeight: '800', color: '#0F2B3D', marginBottom: 12, textAlign: 'center',
+  },
+  emptyStateDesc: {
+    fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 32,
+  },
+  btnSolicitarEmpty: {
+    backgroundColor: '#2D7FF9', width: '100%', borderRadius: 16,
+    paddingVertical: 18, alignItems: 'center',
+    shadowColor: '#2D7FF9', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
+  },
+  btnSolicitarEmptyText: {
+    fontSize: 16, fontWeight: '700', color: '#FFFFFF',
+  },
 });
