@@ -53,6 +53,7 @@ export function WelcomeBanner() {
         .from('medical_background')
         .select('*')
         .eq('patient_id', profile.id)
+        .not('doctor_id', 'is', null)
 
       // 3. Create and download file
       const report = {

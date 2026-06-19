@@ -49,6 +49,7 @@ export function GrantPermissionModal({ onPermissionGranted }: GrantPermissionMod
   const [searchCI, setSearchCI] = useState('')
   const [isGranting, setIsGranting] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [grantDuration, setGrantDuration] = useState<'1h' | '24h' | 'permanent'>('permanent')
 
   // Reset state when opening/closing
   useEffect(() => {
@@ -56,6 +57,7 @@ export function GrantPermissionModal({ onPermissionGranted }: GrantPermissionMod
       setSearchCI('')
       setDoctorFound(null)
       setHasSearched(false)
+      setGrantDuration('permanent')
     }
   }, [open])
 
@@ -99,13 +101,25 @@ export function GrantPermissionModal({ onPermissionGranted }: GrantPermissionMod
       
       if (profileError) throw profileError
 
-      // 2. Insert permission
+      // 2. Calculate expires_at
+      let expiresAt: string | null = null
+      const now = new Date()
+      if (grantDuration === '1h') {
+        now.setHours(now.getHours() + 1)
+        expiresAt = now.toISOString()
+      } else if (grantDuration === '24h') {
+        now.setHours(now.getHours() + 24)
+        expiresAt = now.toISOString()
+      }
+
+      // 3. Insert permission
       const { error: grantError } = await supabase
         .from('access_permissions')
         .insert([{
           patient_id: profile.id,
           doctor_id: doctor.id,
-          status: 'active'
+          status: 'active',
+          expires_at: expiresAt
         }])
       
       if (grantError) throw grantError
@@ -185,27 +199,70 @@ export function GrantPermissionModal({ onPermissionGranted }: GrantPermissionMod
                 <p className="text-[10px] text-foreground/40 font-black uppercase tracking-widest">Verificando en la red...</p>
               </div>
             ) : doctorFound ? (
-              <div className="w-full flex items-center justify-between p-2 animate-in fade-in zoom-in duration-300">
-                <div className="flex items-center gap-4">
-                  <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-electric shadow-lg shadow-cyan-500/20">
-                    <Stethoscope className="size-7 text-white" />
+              <div className="w-full space-y-4 animate-in fade-in zoom-in duration-300">
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-center gap-4">
+                    <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-electric shadow-lg shadow-cyan-500/20">
+                      <Stethoscope className="size-7 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-black text-foreground text-lg leading-tight">{doctorFound.full_name}</p>
+                      <p className="text-xs text-cyan-500 font-bold uppercase tracking-widest mt-1">
+                        {doctorFound.specialty || 'Médico General'}
+                      </p>
+                      <p className="text-[10px] text-foreground/40 font-medium">Matrícula: {doctorFound.license_number || 'N/A'}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-black text-foreground text-lg leading-tight">{doctorFound.full_name}</p>
-                    <p className="text-xs text-cyan-500 font-bold uppercase tracking-widest mt-1">
-                      {doctorFound.specialty || 'Médico General'}
-                    </p>
-                    <p className="text-[10px] text-foreground/40 font-medium">Matrícula: {doctorFound.license_number || 'N/A'}</p>
+                  <Button 
+                    onClick={() => handleGrantAccess(doctorFound)}
+                    disabled={isGranting}
+                    className="bg-foreground text-background hover:scale-105 px-6 h-12 rounded-xl font-black transition-all"
+                  >
+                    {isGranting ? <RefreshCw className="size-4 animate-spin mr-2" /> : <Plus className="size-4 mr-2" />}
+                    Otorgar
+                  </Button>
+                </div>
+
+                <div className="pt-4 border-t border-border space-y-3">
+                  <label className="text-xs font-black uppercase tracking-widest text-foreground/40 block">
+                    Duración del Acceso
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setGrantDuration('1h')}
+                      className={`py-2.5 px-3 rounded-xl border text-center text-xs font-bold transition-all ${
+                        grantDuration === '1h'
+                          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-500'
+                          : 'border-border bg-foreground/5 text-foreground/75 hover:bg-foreground/10'
+                      }`}
+                    >
+                      1 Hora
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGrantDuration('24h')}
+                      className={`py-2.5 px-3 rounded-xl border text-center text-xs font-bold transition-all ${
+                        grantDuration === '24h'
+                          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-500'
+                          : 'border-border bg-foreground/5 text-foreground/75 hover:bg-foreground/10'
+                      }`}
+                    >
+                      24 Horas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGrantDuration('permanent')}
+                      className={`py-2.5 px-3 rounded-xl border text-center text-xs font-bold transition-all ${
+                        grantDuration === 'permanent'
+                          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-500'
+                          : 'border-border bg-foreground/5 text-foreground/75 hover:bg-foreground/10'
+                      }`}
+                    >
+                      Permanente
+                    </button>
                   </div>
                 </div>
-                <Button 
-                  onClick={() => handleGrantAccess(doctorFound)}
-                  disabled={isGranting}
-                  className="bg-foreground text-background hover:scale-105 px-6 h-12 rounded-xl font-black transition-all"
-                >
-                  {isGranting ? <RefreshCw className="size-4 animate-spin mr-2" /> : <Plus className="size-4 mr-2" />}
-                  Otorgar
-                </Button>
               </div>
             ) : hasSearched ? (
               <div className="text-center animate-in fade-in slide-in-from-top-2">
@@ -224,7 +281,7 @@ export function GrantPermissionModal({ onPermissionGranted }: GrantPermissionMod
 
         <div className="p-4 bg-foreground/5 border-t border-border text-center">
           <p className="text-[10px] text-foreground/40 font-medium">
-            * El acceso otorgado es temporal (30 min) y puede ser revocado en cualquier momento.
+            * El acceso otorgado puede ser revocado manualmente en cualquier momento desde el panel de control.
           </p>
         </div>
       </DialogContent>

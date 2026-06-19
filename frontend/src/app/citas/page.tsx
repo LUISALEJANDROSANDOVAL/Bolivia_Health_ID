@@ -20,7 +20,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
-  Stethoscope
+  Stethoscope,
+  XCircle
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
@@ -29,6 +30,17 @@ import { format, addDays, startOfWeek, eachDayOfInterval, isSameDay } from 'date
 import { es } from 'date-fns/locale'
 import { StatCard } from '@/components/ui/stat-card'
 import { PatientAppointmentCard } from '@/components/patient-appointment-card'
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { toast } from 'sonner'
 
 interface Appointment {
   id: string
@@ -52,6 +64,8 @@ export default function PatientAgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [stats, setStats] = useState({
     total: 0,
     doctors: 0,
@@ -126,6 +140,27 @@ export default function PatientAgendaPage() {
       setLoading(false)
     }
   }, [profile?.id])
+
+  const cancelAppointment = async (id: string) => {
+    setCancellingId(id)
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', id)
+
+      if (error) throw error
+
+      toast.success('Cita cancelada correctamente')
+      fetchAgenda()
+      setSelectedApt(null)
+    } catch (err: any) {
+      console.error('Error cancelling appointment:', err)
+      toast.error('Error al cancelar la cita: ' + err.message)
+    } finally {
+      setCancellingId(null)
+    }
+  }
 
   useEffect(() => {
     fetchAgenda()
@@ -225,7 +260,9 @@ export default function PatientAgendaPage() {
                     </div>
                  </div>
                  <h3 className="text-xl font-black text-foreground">No tienes citas agendadas</h3>
-                 <p className="text-sm text-foreground/40 font-bold uppercase tracking-widest mt-2">Usa el formulario superior para agendar una</p>
+                 <p className="text-sm text-foreground/40 font-bold uppercase tracking-widest mt-2">
+                   Usa el formulario superior para agendar una
+                 </p>
               </div>
             ) : (
               <div className="space-y-4 relative before:absolute before:left-[1.85rem] before:top-4 before:bottom-4 before:w-px before:bg-foreground/5">
@@ -234,13 +271,17 @@ export default function PatientAgendaPage() {
                     {/* Time dot indicator */}
                     <div className={`absolute left-6 top-1/2 -translate-y-1/2 size-3 rounded-full border-[3px] border-background z-10 transition-all ${
                       apt.status === 'Completada' ? 'bg-green-500' : 
-                      apt.status === 'Confirmada' ? 'bg-cyan-500' : 'bg-orange-500'
+                      apt.status === 'Confirmada' ? 'bg-cyan-500' : 
+                      apt.status === 'Cancelada' ? 'bg-rose-500' : 'bg-orange-500'
                     } group-hover:scale-125`} />
 
                     {/* Appointment Card */}
-                    <div className={`flex-1 bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2rem] border border-border group hover:border-cyan-500/20 transition-all shadow-lg shadow-black/5 ${
-                      apt.status === 'Completada' ? 'opacity-60' : ''
-                    }`}>
+                    <div 
+                      onClick={() => setSelectedApt(apt)}
+                      className={`flex-1 bg-foreground/[0.03] backdrop-blur-xl p-6 rounded-[2rem] border border-border group hover:border-cyan-500/20 transition-all shadow-lg shadow-black/5 cursor-pointer hover:scale-[1.01] ${
+                        apt.status === 'Completada' || apt.status === 'Cancelada' ? 'opacity-60' : ''
+                      }`}
+                    >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                           <div className={`size-14 rounded-2xl flex items-center justify-center border border-border/50 transition-colors ${
@@ -249,21 +290,34 @@ export default function PatientAgendaPage() {
                             <span className="text-xl font-black">{apt.doctorName.charAt(0)}</span>
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="text-lg font-black text-foreground group-hover:text-cyan-400 transition-colors">{apt.doctorName}</h4>
                               <div className="px-2 py-0.5 bg-cyan-500/10 rounded-full border border-cyan-500/20">
                                  <span className="text-[8px] font-black text-cyan-500 uppercase tracking-tighter">{apt.specialty}</span>
                               </div>
+                              <Badge className={`text-[8px] font-black uppercase tracking-wider ${
+                                apt.status === 'Completada' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                apt.status === 'Confirmada' ? 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' :
+                                apt.status === 'Cancelada' ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' :
+                                'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                              }`}>
+                                {apt.status}
+                              </Badge>
+                              {apt.priority === 'Alta' && (
+                                <Badge className="bg-rose-500/10 text-rose-500 border-rose-500/20 text-[8px] font-black uppercase">
+                                  Urgente
+                                </Badge>
+                              )}
                             </div>
                             <div className="flex items-center gap-4 mt-1">
                               <p className="text-xs font-bold text-foreground/40 uppercase tracking-widest">{apt.reason}</p>
                               <div className="flex items-center gap-1 text-[10px] font-black text-foreground/60">
-                                <CalendarIcon className="size-3" />
-                                {format(new Date(apt.date), 'dd/MM/yyyy')}
+                                <CalendarIcon className="size-3 text-cyan-500" />
+                                <span>{format(new Date(apt.date.replace(/-/g, '/')), 'dd/MM/yyyy')}</span>
                               </div>
                               <div className="flex items-center gap-1 text-[10px] font-black text-foreground/60">
-                                <Clock className="size-3" />
-                                {apt.time}
+                                <Clock className="size-3 text-cyan-500" />
+                                <span>{apt.time}</span>
                               </div>
                             </div>
                           </div>
@@ -277,8 +331,8 @@ export default function PatientAgendaPage() {
                                 {apt.location}
                               </p>
                            </div>
-                           <Button variant="ghost" size="icon" className="size-10 rounded-xl hover:bg-foreground/10">
-                              <MoreVertical className="size-4" />
+                           <Button variant="ghost" size="icon" className="size-10 rounded-xl hover:bg-foreground/10 cursor-pointer">
+                              <ChevronRight className="size-4" />
                            </Button>
                         </div>
                       </div>
@@ -388,6 +442,150 @@ export default function PatientAgendaPage() {
             </div>
           </div>
         </div>
+
+        {/* Modal de Detalle de Cita */}
+        <Dialog open={selectedApt !== null} onOpenChange={(open) => !open && setSelectedApt(null)}>
+          <DialogContent className="w-full sm:max-w-xl max-h-[85vh] rounded-[2.5rem] border-none bg-background/95 backdrop-blur-3xl shadow-2xl overflow-hidden p-0 flex flex-col">
+            {selectedApt && (() => {
+              const apt = selectedApt
+              const isVirtual = apt.type === 'virtual'
+              const isLink = isVirtual && apt.location && (apt.location.startsWith('http') || apt.location.startsWith('www'))
+              const formattedDate = format(new Date(apt.date.replace(/-/g, '/')), "eeee d 'de' MMMM, yyyy", { locale: es })
+              
+              return (
+                <div className="flex flex-col max-h-[85vh] overflow-hidden flex-1 animate-in fade-in zoom-in-95 duration-300">
+                  {/* Header con gradiente premium */}
+                  <div className="bg-gradient-premium p-8 text-white relative shrink-0">
+                    <div className="absolute top-0 right-0 p-6 opacity-10">
+                      <CalendarIcon className="size-24 text-white" />
+                    </div>
+                    
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Badge variant="outline" className="bg-white/10 border-white/20 text-white font-black uppercase tracking-[0.2em] text-[8px]">
+                          Detalles de Cita
+                        </Badge>
+                        <Badge className={`text-[8px] font-black uppercase tracking-wider ${
+                          apt.status === 'Completada' ? 'bg-green-500 text-white' :
+                          apt.status === 'Confirmada' ? 'bg-cyan-500 text-azul-profundo' :
+                          apt.status === 'Cancelada' ? 'bg-rose-500 text-white' :
+                          'bg-orange-500 text-white'
+                        }`}>
+                          {apt.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="size-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white text-2xl font-black border border-white/10 shadow-lg">
+                          {apt.doctorName.charAt(0)}
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black tracking-tight">{apt.doctorName}</h2>
+                          <p className="text-white/60 font-bold uppercase tracking-widest text-[10px] mt-0.5">{apt.specialty}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cuerpo Scrollable */}
+                  <div className="p-8 space-y-6 overflow-y-auto flex-1">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Fecha</p>
+                        <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                          <CalendarIcon className="size-4 text-cyan-500" />
+                          <span className="capitalize">{formattedDate}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Horario</p>
+                        <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                          <Clock className="size-4 text-cyan-500" />
+                          <span>{apt.time} {apt.endTime && apt.endTime !== '--:--' ? `- ${apt.endTime}` : ''}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator className="bg-foreground/5" />
+
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Modalidad e Indicación</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-foreground/[0.03] border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <div className={`size-10 rounded-xl flex items-center justify-center ${isVirtual ? 'bg-purple-500/10 text-purple-500' : 'bg-cyan-500/10 text-cyan-500'}`}>
+                            {isVirtual ? <Video className="size-5" /> : <MapPin className="size-5" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-foreground uppercase tracking-tight">
+                              {isVirtual ? 'Telemedicina / Virtual' : 'Presencial'}
+                            </p>
+                            <p className="text-[11px] font-bold text-foreground/50 truncate max-w-[250px]">
+                              {apt.location}
+                            </p>
+                          </div>
+                        </div>
+                        {isLink && (
+                          <a 
+                            href={apt.location.startsWith('http') ? apt.location : `https://${apt.location}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-azul-profundo font-black px-4 py-2 rounded-xl text-[10px] uppercase tracking-widest transition-all text-center shrink-0 cursor-pointer shadow-lg shadow-cyan-500/15"
+                          >
+                            Unirse a Consulta
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Motivo de Consulta</p>
+                      <div className="p-4 rounded-2xl bg-foreground/[0.03] border border-border/50 flex gap-3">
+                        <AlertCircle className="size-4 text-cyan-500 shrink-0 mt-0.5" />
+                        <p className="text-sm font-semibold text-foreground/80 leading-relaxed">{apt.reason}</p>
+                      </div>
+                    </div>
+
+                    {apt.notes && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">Notas e Instrucciones del Médico</p>
+                        <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex gap-3">
+                          <FileText className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                          <p className="text-sm font-semibold text-amber-700/80 dark:text-amber-500/80 leading-relaxed italic">"{apt.notes}"</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <DialogFooter className="p-6 bg-foreground/[0.01] border-t border-border/30 flex flex-col-reverse sm:flex-row gap-3 shrink-0">
+                    {(apt.status === 'Programada' || apt.status === 'Confirmada') && (
+                      <Button
+                        variant="ghost"
+                        disabled={cancellingId !== null}
+                        onClick={() => cancelAppointment(apt.id)}
+                        className="w-full sm:w-auto hover:bg-red-500/10 text-red-500 font-bold uppercase tracking-widest text-[9px] h-12 rounded-xl border border-red-500/20 cursor-pointer transition-all"
+                      >
+                        {cancellingId === apt.id ? (
+                          <Loader2 className="size-4 mr-2 animate-spin text-red-500" />
+                        ) : (
+                          <XCircle className="size-4 mr-2" />
+                        )}
+                        Cancelar Cita
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      className="w-full sm:flex-1 h-12 rounded-xl font-black uppercase tracking-widest text-[9px] hover:bg-foreground/5 cursor-pointer"
+                      onClick={() => setSelectedApt(null)}
+                    >
+                      Cerrar
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )
+            })()}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   )

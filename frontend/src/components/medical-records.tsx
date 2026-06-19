@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Stethoscope,
   Search,
@@ -18,6 +18,8 @@ import {
   Syringe,
   Filter,
   Download,
+  X,
+  Loader2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,9 +36,16 @@ import { useWallet } from '@/contexts/wallet-context'
 import Link from 'next/link'
 import { useReadContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
-import { useMemo } from 'react'
 import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
 import { getAddress } from 'viem'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Badge } from '@/components/ui/badge'
 
 interface DiagnosisItem {
   id: string
@@ -54,6 +63,10 @@ interface DiagnosisItem {
   ipfsHash?: string | null
   txHash?: string | null
   verificationStatus: 'verified' | 'unverified' | 'tampered'
+  patient_id?: string
+  diagnosis_id?: string | null
+  created_at?: string
+  date_recorded?: string
 }
 
 const categoryConfig: Record<string, { icon: any; bg: string; color: string; border: string; label: string }> = {
@@ -107,6 +120,76 @@ export function MedicalRecords() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedType, setSelectedType] = useState<string>('todos')
 
+  const [selectedRecord, setSelectedRecord] = useState<DiagnosisItem | null>(null)
+  const [detailMeds, setDetailMeds] = useState<any[]>([])
+  const [loadingMedsForDetail, setLoadingMedsForDetail] = useState(false)
+  const [patientProfile, setPatientProfile] = useState<{ full_name: string; cedula_identidad: string } | null>(null)
+
+  const parseDescription = (descStr: string) => {
+    if (!descStr) return {}
+    const parts = descStr.split(' | ')
+    const result: {
+      reason?: string
+      anamnesis?: string
+      physicalExam?: string
+      observations?: string
+      ipfs?: string
+      tx?: string
+    } = {}
+
+    parts.forEach(part => {
+      if (part.startsWith('Motivo: ')) {
+        result.reason = part.replace('Motivo: ', '')
+      } else if (part.startsWith('Anamnesis: ')) {
+        result.anamnesis = part.replace('Anamnesis: ', '')
+      } else if (part.startsWith('Examen físico: ')) {
+        result.physicalExam = part.replace('Examen físico: ', '')
+      } else if (part.startsWith('Observaciones: ')) {
+        result.observations = part.replace('Observaciones: ', '')
+      } else if (part.startsWith('IPFS: ')) {
+        result.ipfs = part.replace('IPFS: ', '')
+      } else if (part.startsWith('Tx: ')) {
+        result.tx = part.replace('Tx: ', '')
+      }
+    })
+    return result
+  }
+
+  const fetchDetailMeds = async (patientId: string, diagId: string | null, dateRecorded: string) => {
+    setLoadingMedsForDetail(true)
+    try {
+      let query = supabase
+        .from('medications')
+        .select('*')
+        .eq('patient_id', patientId)
+
+      if (diagId) {
+        // Si hay diagnosis_id, filtrar ÚNICAMENTE por él (el más preciso)
+        query = query.eq('diagnosis_id', diagId)
+      } else if (dateRecorded) {
+        // Solo si no hay diagnosis_id, filtrar por fecha
+        query = query.eq('start_date', dateRecorded)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      setDetailMeds(data || [])
+    } catch (err) {
+      console.error('Error fetching detail meds:', err)
+      setDetailMeds([])
+    } finally {
+      setLoadingMedsForDetail(false)
+    }
+  }
+
+  const handleViewDetail = (item: DiagnosisItem) => {
+    setSelectedRecord(item)
+    if (item.patient_id) {
+      const dateStr = item.date_recorded || (item.created_at ? item.created_at.split('T')[0] : '')
+      fetchDetailMeds(item.patient_id, item.diagnosis_id ?? null, dateStr)
+    }
+  }
+
   // 1. Fetch blockchain records — usar checksum EIP-55 para que viem acepte la dirección
   const checksumWallet = walletAddress ? (() => { try { return getAddress(walletAddress) } catch { return null } })() : null
 
@@ -150,11 +233,16 @@ export function MedicalRecords() {
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, full_name, cedula_identidad')
           .eq('wallet_address', walletAddress.toLowerCase())
           .single()
 
         if (profile) {
+          setPatientProfile({
+            full_name: profile.full_name || '',
+            cedula_identidad: profile.cedula_identidad || ''
+          })
+          
           const { data, error } = await supabase
             .from('medical_background')
             .select(`
@@ -163,16 +251,21 @@ export function MedicalRecords() {
                 code,
                 description,
                 is_chronic
-              ),
-              doctor:profiles!medical_background_doctor_id_fkey (
-                full_name,
-                specialty
               )
             `)
             .eq('patient_id', profile.id)
+            .not('doctor_id', 'is', null)
             .order('created_at', { ascending: false })
 
           if (error) console.error('Supabase error:', error)
+
+          const doctorIds = [...new Set((data || []).map(r => r.doctor_id).filter(Boolean))]
+          const { data: doctors } = await supabase
+            .from('profiles_public')
+            .select('id, full_name, specialty')
+            .in('id', doctorIds)
+
+          const doctorMap = Object.fromEntries((doctors || []).map(d => [d.id, d]))
 
           const mapped: DiagnosisItem[] = (data || []).map(r => ({
             id: r.id,
@@ -181,13 +274,17 @@ export function MedicalRecords() {
             category: r.category || 'consulta',
             status: r.status_detail || 'Registrado',
             description: r.description || '',
-            doctor: (r.doctor as any)?.full_name,
-            doctorSpecialty: (r.doctor as any)?.specialty,
+            doctor: r.doctor_id ? doctorMap[r.doctor_id]?.full_name : undefined,
+            doctorSpecialty: r.doctor_id ? doctorMap[r.doctor_id]?.specialty : undefined,
             diagnosisCode: (r.diagnosis_catalog as any)?.code,
             diagnosisDescription: (r.diagnosis_catalog as any)?.description,
             isChronic: (r.diagnosis_catalog as any)?.is_chronic,
             fileUrl: r.file_url ? (r.file_url.startsWith('http') ? r.file_url : `https://gateway.pinata.cloud/ipfs/${r.file_url}`) : undefined,
             verificationStatus: 'unverified',
+            patient_id: r.patient_id,
+            diagnosis_id: r.diagnosis_id,
+            created_at: r.created_at,
+            date_recorded: r.date_recorded,
           }))
 
           setRecords(mapped)
@@ -340,7 +437,8 @@ export function MedicalRecords() {
             return (
               <div
                 key={record.id}
-                className={`${cfg.bg} border ${cfg.border} backdrop-blur-sm rounded-2xl p-5 hover:scale-[1.01] transition-all group`}
+                onClick={() => handleViewDetail(record)}
+                className={`${cfg.bg} border ${cfg.border} backdrop-blur-sm rounded-2xl p-5 hover:scale-[1.01] transition-all group cursor-pointer`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-start gap-5">
                   {/* Icon */}
@@ -517,6 +615,167 @@ export function MedicalRecords() {
           </Link>
         </div>
       </div>
+
+      {/* Modal de Detalle de Diagnóstico */}
+      <Dialog open={selectedRecord !== null} onOpenChange={(open) => { if (!open) setSelectedRecord(null) }}>
+        <DialogContent 
+          showCloseButton={false}
+          className="w-full sm:max-w-3xl max-h-[85vh] rounded-2xl border-border bg-card shadow-2xl p-0 overflow-hidden flex flex-col"
+        >
+          {selectedRecord && (() => {
+            const item = selectedRecord
+            const parsed = parseDescription(item.description)
+            
+            return (
+              <div className="flex flex-col max-h-[85vh] overflow-hidden flex-1">
+                {/* Header con gradiente premium */}
+                <div className="bg-gradient-premium p-6 text-white shrink-0">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
+                      <Stethoscope className="h-6 w-6" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
+                        Diagnóstico Registrado
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedRecord(null)}
+                        className="h-8 w-8 rounded-full text-white hover:bg-white/10 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <DialogTitle className="text-2xl font-black text-white">{item.title}</DialogTitle>
+                  <DialogDescription className="sr-only">
+                    Detalles del diagnóstico, caso clínico SOAP y medicamentos prescritos.
+                  </DialogDescription>
+                  <p className="text-white/60 text-xs mt-1 uppercase tracking-widest font-bold">
+                    ID Registro: {item.id.slice(0, 8)}...
+                  </p>
+                </div>
+
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                  {/* Datos del Diagnóstico */}
+                  <div className="rounded-xl bg-muted/20 p-4 border border-muted/50">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Información del Registro</h4>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Paciente</p>
+                        <p className="text-sm font-bold text-foreground">
+                          {patientProfile?.full_name || 'Paciente del Sistema'}
+                        </p>
+                        {patientProfile?.cedula_identidad && (
+                          <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                            CI: {patientProfile.cedula_identidad}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Médico Tratante</p>
+                        <p className="text-sm font-bold text-foreground">
+                          {item.doctor ? `Dr(a). ${item.doctor}` : 'Médico del Sistema'}
+                        </p>
+                        {item.doctorSpecialty && (
+                          <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                            {item.doctorSpecialty}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Fecha de Registro</p>
+                        <p className="text-sm font-bold text-foreground">{item.date}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SOAP / Caso Clínico */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b pb-1">Evaluación Clínica (SOAP)</h4>
+                    
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {parsed.reason && (
+                        <div className="bg-muted/10 p-3 rounded-lg border">
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground">1. Motivo de Consulta</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{parsed.reason}</p>
+                        </div>
+                      )}
+                      {parsed.anamnesis && (
+                        <div className="bg-muted/10 p-3 rounded-lg border">
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground">2. Anamnesis y Antecedentes</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{parsed.anamnesis}</p>
+                        </div>
+                      )}
+                      {parsed.physicalExam && (
+                        <div className="bg-muted/10 p-3 rounded-lg border">
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground">3. Examen Físico</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{parsed.physicalExam}</p>
+                        </div>
+                      )}
+                      {parsed.observations && (
+                        <div className="bg-muted/10 p-3 rounded-lg border">
+                          <p className="text-[10px] uppercase font-bold text-muted-foreground">Observaciones / Recomendaciones</p>
+                          <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{parsed.observations}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Medicamentos Prescritos */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground border-b pb-1">Tratamiento Farmacológico</h4>
+                    
+                    {loadingMedsForDetail ? (
+                      <div className="flex justify-center py-6">
+                        <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                      </div>
+                    ) : detailMeds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No hay medicamentos registrados en este diagnóstico.</p>
+                    ) : (
+                      <div className="divide-y rounded-xl border overflow-hidden">
+                        {detailMeds.map((med, index) => (
+                          <div key={med.id} className="p-3 bg-card hover:bg-muted/20 transition-all flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white font-black text-xs">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <p className="text-sm font-black text-foreground">
+                                  {med.name} <span className="text-primary font-bold text-xs ml-1">{med.dosage}</span>
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Frecuencia: {med.frequency} {med.start_date && `• Desde: ${new Date(med.start_date.replace(/-/g, '/')).toLocaleDateString('es-ES')}`}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Verificación Blockchain */}
+                  <div className="bg-azul-profundo/95 text-white p-4 rounded-xl shadow-xl border border-white/10">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white">Integridad Digital Blockchain</h4>
+                        <p className="text-[11px] text-white/70 mt-1 leading-relaxed">
+                          {parsed.tx 
+                            ? 'Este registro se encuentra firmado digitalmente e integrado de forma segura en la blockchain de Avalanche.' 
+                            : 'Este diagnóstico fue registrado localmente sin firma criptográfica.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

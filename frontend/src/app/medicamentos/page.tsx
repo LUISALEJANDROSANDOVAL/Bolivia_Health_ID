@@ -121,10 +121,10 @@ export default function MedicamentosPage() {
               dosage: m.dosage || med?.concentration || '',
               frequency: m.frequency || '',
               startDate: m.start_date
-                ? new Date(m.start_date).toLocaleDateString('es-ES')
+                ? new Date(m.start_date.replace(/-/g, '/')).toLocaleDateString('es-ES')
                 : new Date(m.created_at).toLocaleDateString('es-ES'),
               endDate: m.end_date
-                ? new Date(m.end_date).toLocaleDateString('es-ES')
+                ? new Date(m.end_date.replace(/-/g, '/')).toLocaleDateString('es-ES')
                 : null,
               status: m.status === 'active' ? 'activo'
                 : m.status === 'suspended' ? 'suspendido'

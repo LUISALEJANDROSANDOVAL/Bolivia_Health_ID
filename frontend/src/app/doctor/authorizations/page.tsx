@@ -5,7 +5,7 @@ import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, XCircle, Clock, Shield, FileText, Users, Key, Activity, Send, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Shield, FileText, Users, Key, Activity, Send, Loader2, AlertCircle } from 'lucide-react'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
@@ -325,7 +325,14 @@ export default function DoctorAuthorizationsPage() {
             </Card>
           ) : (
             authorizations.map((auth, i) => (
-              <Card key={auth.id || i} className="bg-foreground/[0.03] backdrop-blur-xl border border-border/50 shadow-md shadow-black/5 hover:border-cyan-500/20 rounded-[2rem] transition-all duration-300 group overflow-hidden">
+              <Card 
+                key={auth.id || i} 
+                className={`bg-foreground/[0.03] backdrop-blur-xl border border-border/50 shadow-md shadow-black/5 rounded-[2rem] transition-all duration-300 group overflow-hidden ${
+                  (auth.status?.toLowerCase() === 'revoked' || auth.status?.toLowerCase() === 'expired' || auth.status?.toLowerCase() === 'rejected' || auth.status === 'Revocado' || auth.status === 'Expirado' || auth.status === 'Rechazado') 
+                    ? 'opacity-60 grayscale-[20%]' 
+                    : 'hover:border-cyan-500/20'
+                }`}
+              >
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
@@ -339,11 +346,18 @@ export default function DoctorAuthorizationsPage() {
                             <Clock className="size-3.5 text-cyan-500" /> 
                             Solicitado: {auth.created_at ? format(new Date(auth.created_at), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                           </span>
-                          {auth.expires_at && (
+                          {auth.expires_at ? (
                             <span className="flex items-center gap-1.5 bg-foreground/5 dark:bg-white/5 px-2.5 py-1 rounded-lg">
                               <Activity className="size-3.5 text-orange-500" /> 
                               Expira: {format(new Date(auth.expires_at), 'dd MMM yyyy', { locale: es })}
                             </span>
+                          ) : (
+                            (auth.status?.toLowerCase() === 'active' || auth.status?.toLowerCase() === 'approved' || auth.status === 'Aprobado' || auth.status?.toLowerCase() === 'revoked' || auth.status === 'Revocado' || auth.status?.toLowerCase() === 'expired' || auth.status === 'Expirado') ? (
+                              <span className="flex items-center gap-1.5 bg-emerald-500/10 dark:bg-emerald-500/5 text-emerald-500 px-2.5 py-1 rounded-lg border border-emerald-500/15">
+                                <Shield className="size-3.5 text-emerald-500" /> 
+                                Expira: Permanente
+                              </span>
+                            ) : null
                           )}
                         </div>
                       </div>
@@ -363,6 +377,16 @@ export default function DoctorAuthorizationsPage() {
                       {(auth.status?.toLowerCase() === 'rejected' || auth.status === 'Rechazado') && (
                         <Badge className="bg-red-100/50 text-red-700 border-red-200 font-bold rounded-lg px-2.5 py-1">
                           <XCircle className="size-3 mr-1" /> Rechazado
+                        </Badge>
+                      )}
+                      {(auth.status?.toLowerCase() === 'revoked' || auth.status === 'Revocado') && (
+                        <Badge className="bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-white/40 border-slate-200 dark:border-white/10 font-bold rounded-lg px-2.5 py-1">
+                          <XCircle className="size-3 mr-1" /> Revocado
+                        </Badge>
+                      )}
+                      {(auth.status?.toLowerCase() === 'expired' || auth.status === 'Expirado') && (
+                        <Badge className="bg-rose-100/50 text-rose-700 border-rose-200 font-bold rounded-lg px-2.5 py-1">
+                          <AlertCircle className="size-3 mr-1" /> Expirado
                         </Badge>
                       )}
                       

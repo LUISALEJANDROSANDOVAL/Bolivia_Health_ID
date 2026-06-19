@@ -171,6 +171,11 @@ CREATE POLICY select_permitted_medical_background ON public.medical_background
     )
   );
 
+-- Permitir a médicos ver las consultas que ellos mismos crearon/emitieron
+CREATE POLICY select_own_created_medical_background ON public.medical_background
+  FOR SELECT TO authenticated
+  USING (public.get_profile_id() = doctor_id);
+
 -- Se fuerza doctor_id = public.get_profile_id() y se usa referencia explícita de tabla
 CREATE POLICY insert_permitted_medical_background ON public.medical_background
   FOR INSERT TO authenticated
@@ -247,6 +252,11 @@ CREATE POLICY select_permitted_medications ON public.medications
         AND (ap.expires_at IS NULL OR ap.expires_at > now())
     )
   );
+
+-- Permitir a médicos ver las recetas/medicamentos que ellos mismos crearon/emitieron
+CREATE POLICY select_own_created_medications ON public.medications
+  FOR SELECT TO authenticated
+  USING (public.get_profile_id() = doctor_id);
 
 -- Se fuerza doctor_id = public.get_profile_id() y referencia explícita de tabla
 CREATE POLICY insert_permitted_medications ON public.medications

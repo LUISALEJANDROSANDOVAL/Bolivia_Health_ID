@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select"
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
-import { MockDataGenerator } from '@/components/mock-data-generator'
 import { useReadContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { getAddress } from 'viem'
@@ -125,18 +124,42 @@ export default function HistorialPage() {
         if (profile) {
           const { data: background } = await supabase
             .from('medical_background')
-            .select('*')
+            .select(`
+              *,
+              diagnosis_catalog (
+                code,
+                description,
+                is_chronic
+              )
+            `)
             .eq('patient_id', profile.id)
+            .not('doctor_id', 'is', null)
+            .order('created_at', { ascending: false })
+
+          // Enriquecer con nombres de médicos desde profiles_public
+          const bgDoctorIds = [...new Set((background || []).map((r: any) => r.doctor_id).filter(Boolean))] as string[]
+          let doctorMap: Record<string, any> = {}
+          if (bgDoctorIds.length > 0) {
+            const { data: doctors } = await supabase
+              .from('profiles_public')
+              .select('id, full_name, specialty')
+              .in('id', bgDoctorIds)
+            doctorMap = Object.fromEntries((doctors || []).map(d => [d.id, d]))
+          }
 
           const { data: healthDocs } = await supabase
             .from('health_records')
             .select('*')
             .eq('patient_id', profile.id)
+            .order('created_at', { ascending: false })
+          // Filtrar health_records con file_url mock
+          const realHealthDocs = (healthDocs || []).filter(h => !h.file_url?.startsWith('mock_'))
 
           const combined: HistoryRecord[] = [
             ...(background || []).map(b => {
               const ipfsMatch = (b.description || '').match(/IPFS:\s*([a-zA-Z0-9]+)/)
               const ipfs = ipfsMatch ? ipfsMatch[1] : null
+              const doctorInfo = b.doctor_id ? doctorMap[b.doctor_id] : null
               return {
                 id: b.id,
                 title: b.title,
@@ -146,13 +169,13 @@ export default function HistorialPage() {
                 type: (b.category === 'surgery' ? 'cirugia' : b.category === 'vaccine' ? 'vacuna' : 'consulta') as any,
                 status: (b.status_detail === 'Completa' ? 'completado' : 'pendiente') as any,
                 institution: b.institution,
-                doctor: b.doctor,
+                doctor: doctorInfo?.full_name || undefined,
                 attachments: ipfs ? 1 : 0,
                 fileUrl: ipfs ? `https://gateway.pinata.cloud/ipfs/${ipfs}` : undefined,
                 source: 'supabase' as const,
               }
             }),
-            ...(healthDocs || []).map(h => ({
+            ...(realHealthDocs || []).map(h => ({
               id: h.id,
               title: h.title,
               description: `${h.category === 'Laboratorio' || h.category === 'Imágenes' ? 'Estudios' : h.category === 'Recetas' ? 'Medicamentos' : h.category === 'Otros' ? 'Diagnósticos' : h.category} · ${h.file_size}`,
@@ -178,13 +201,29 @@ export default function HistorialPage() {
     fetchHistory()
   }, [walletAddress])
 
-  // 4. Fusionar: Supabase enriquece los datos de blockchain. Si Supabase está vacío, se muestran solo los de blockchain.
+  // 4. Fusionar: Combinar Supabase (metadatos ricos) + blockchain (registros on-chain)
+  //    Deduplicar por IPFS hash: si Supabase ya tiene el hash, no agregar el de blockchain.
   const records = useMemo<HistoryRecord[]>(() => {
-    // Si hay datos en Supabase, úsalos como base (tienen metadatos ricos)
-    if (supabaseRecords.length > 0) return supabaseRecords
+    // Recopilar todos los hashes IPFS que ya tiene Supabase
+    const supabaseIpfsHashes = new Set(
+      supabaseRecords
+        .map(r => {
+          const match = (r.description || '').match(/IPFS:\s*([a-zA-Z0-9]+)/)
+          return match ? match[1] : null
+        })
+        .filter(Boolean)
+    )
 
-    // Si Supabase está vacío, mostrar los registros de la blockchain directamente
-    return blockchainRecords
+    // Registros de blockchain que NO están ya en Supabase
+    const onlyOnChain = blockchainRecords.filter(r => {
+      const hash = r.fileUrl ? r.fileUrl.split('/ipfs/')[1] : null
+      return !hash || !supabaseIpfsHashes.has(hash)
+    })
+
+    // Combinar: Supabase primero (más completo), luego los exclusivos de blockchain
+    return [...supabaseRecords, ...onlyOnChain].sort(
+      (a, b) => b.rawDate.getTime() - a.rawDate.getTime()
+    )
   }, [supabaseRecords, blockchainRecords])
 
   const filteredRecords = records.filter(record => {
@@ -270,7 +309,6 @@ export default function HistorialPage() {
               </SelectContent>
             </Select>
           </div>
-          <MockDataGenerator onGenerate={() => window.location.reload()} />
         </div>
 
         {/* Timeline */}
