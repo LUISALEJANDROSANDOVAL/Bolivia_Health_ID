@@ -224,12 +224,6 @@ export default function DoctorPrescriptionsPage() {
             code,
             description,
             is_chronic
-          ),
-          patient:profiles!patient_id (
-            id,
-            full_name,
-            cedula_identidad,
-            wallet_address
           )
         `)
         .eq('doctor_id', id)
@@ -237,7 +231,29 @@ export default function DoctorPrescriptionsPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setHistory(data || [])
+
+      // Enriquecer pacientes y doctores desde profiles_public (sin RLS restrictiva)
+      const allProfileIds = [...new Set([
+        ...(data || []).map((r: any) => r.patient_id),
+        ...(data || []).map((r: any) => r.doctor_id)
+      ].filter(Boolean))] as string[]
+
+      let profilesMap: Record<string, any> = {}
+      if (allProfileIds.length > 0) {
+        const { data: pubProfiles } = await supabase
+          .from('profiles_public')
+          .select('id, full_name, specialty, wallet_address')
+          .in('id', allProfileIds)
+        profilesMap = Object.fromEntries((pubProfiles || []).map(p => [p.id, p]))
+      }
+
+      const enriched = (data || []).map((r: any) => ({
+        ...r,
+        patient: r.patient_id ? (profilesMap[r.patient_id] ?? null) : null,
+        doctor: r.doctor_id ? (profilesMap[r.doctor_id] ?? null) : null,
+      }))
+
+      setHistory(enriched)
     } catch (err) {
       console.error('Error fetching prescription history:', err)
     } finally {
@@ -246,18 +262,18 @@ export default function DoctorPrescriptionsPage() {
   }, [])
 
   const fetchDetailMeds = async (patientId: string, diagId: string | null, dateRecorded: string) => {
-    if (!doctorId) return
     setLoadingMedsForDetail(true)
     try {
       let query = supabase
         .from('medications')
         .select('*')
         .eq('patient_id', patientId)
-        .eq('doctor_id', doctorId)
 
       if (diagId) {
+        // Si hay diagnosis_id, filtrar ÚNICAMENTE por él (el más preciso)
         query = query.eq('diagnosis_id', diagId)
-      } else {
+      } else if (dateRecorded) {
+        // Solo si no hay diagnosis_id, filtrar por fecha
         query = query.eq('start_date', dateRecorded)
       }
 
@@ -325,12 +341,13 @@ export default function DoctorPrescriptionsPage() {
 
       setIsSearching(true)
 
-      // 1. Obtener IDs de pacientes con permiso activo para este doctor
+      // 1. Obtener IDs de pacientes con permiso activo para este doctor (y no expirado)
       const { data: permissions } = await supabase
         .from('access_permissions')
         .select('patient_id')
         .eq('doctor_id', doctorId)
         .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
 
       const authorizedIds = permissions?.map(p => p.patient_id) || []
 
@@ -1450,29 +1467,40 @@ export default function DoctorPrescriptionsPage() {
 
       {/* Modal de Detalle de Receta */}
       <Dialog open={selectedHistoryItem !== null} onOpenChange={(open) => { if (!open) setSelectedHistoryItem(null) }}>
-        <DialogContent className="max-w-3xl overflow-y-auto max-h-[85vh] rounded-2xl border-border bg-card shadow-2xl p-0 overflow-hidden">
+        <DialogContent 
+          showCloseButton={false}
+          className="w-full sm:max-w-3xl max-h-[85vh] rounded-2xl border-border bg-card shadow-2xl p-0 overflow-hidden flex flex-col"
+        >
           {selectedHistoryItem && (() => {
             const item = selectedHistoryItem
             const parsed = parseDescription(item.description)
-            const recordDate = new Date(item.created_at).toLocaleString('es-ES', {
+            const recordDate = new Date(item.created_at).toLocaleDateString('es-ES', {
               day: '2-digit',
               month: 'long',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
+              year: 'numeric'
             })
             
             return (
-              <div className="flex flex-col">
+              <div className="flex flex-col max-h-[85vh] overflow-hidden flex-1">
                 {/* Header con gradiente premium */}
-                <div className="bg-gradient-premium p-6 text-white">
+                <div className="bg-gradient-premium p-6 text-white shrink-0">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
                       <Stethoscope className="h-6 w-6" />
                     </div>
-                    <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
-                      Receta Emitida
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
+                        Diagnóstico Registrado
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedHistoryItem(null)}
+                        className="h-8 w-8 rounded-full text-white hover:bg-white/10 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <DialogTitle className="text-2xl font-black text-white">{item.title}</DialogTitle>
                   <DialogDescription className="sr-only">
@@ -1483,30 +1511,38 @@ export default function DoctorPrescriptionsPage() {
                   </p>
                 </div>
 
-                <div className="p-6 space-y-6">
-                  {/* Datos del Paciente */}
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                  {/* Datos del Diagnóstico */}
                   <div className="rounded-xl bg-muted/20 p-4 border border-muted/50">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Información del Paciente</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Información del Registro</h4>
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div>
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Nombre Completo</p>
-                        <p className="text-sm font-bold text-foreground">{item.patient?.full_name || 'Paciente Desconocido'}</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Paciente</p>
+                        <p className="text-sm font-bold text-foreground">
+                          {item.patient?.full_name || 'Paciente Desconocido'}
+                        </p>
+                        {item.patient?.cedula_identidad && (
+                          <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                            CI: {item.patient.cedula_identidad}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Cédula de Identidad</p>
-                        <p className="text-sm font-bold text-foreground">CI: {item.patient?.cedula_identidad || 'N/A'}</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Médico Tratante</p>
+                        <p className="text-sm font-bold text-foreground">
+                          {item.doctor?.full_name ? `Dr(a). ${item.doctor.full_name}` : 'Médico del Sistema'}
+                        </p>
+                        {item.doctor?.specialty && (
+                          <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                            {item.doctor.specialty}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Fecha de Emisión</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Fecha de Registro</p>
                         <p className="text-sm font-bold text-foreground">{recordDate}</p>
                       </div>
                     </div>
-                    {item.patient?.wallet_address && (
-                      <div className="mt-3 pt-3 border-t border-muted/40">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground/60">Dirección de Wallet (Health ID)</p>
-                        <p className="text-xs font-mono text-cyan-600 dark:text-cyan-400 truncate mt-0.5">{item.patient.wallet_address}</p>
-                      </div>
-                    )}
                   </div>
 
                   {/* SOAP / Caso Clínico */}
@@ -1564,7 +1600,7 @@ export default function DoctorPrescriptionsPage() {
                                   {med.name} <span className="text-primary font-bold text-xs ml-1">{med.dosage}</span>
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  Frecuencia: {med.frequency} {med.start_date && `• Desde: ${med.start_date}`}
+                                  Frecuencia: {med.frequency} {med.start_date && `• Desde: ${new Date(med.start_date.replace(/-/g, '/')).toLocaleDateString('es-ES')}`}
                                 </p>
                               </div>
                             </div>
@@ -1575,44 +1611,17 @@ export default function DoctorPrescriptionsPage() {
                   </div>
 
                   {/* Verificación Blockchain */}
-                  <div className="bg-azul-profundo/95 text-white p-5 rounded-xl space-y-4 shadow-xl border border-white/10">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-white">Integridad Digital Blockchain</h4>
-                    </div>
-
-                    <div className="grid gap-3 text-xs">
-                      {parsed.ipfs && (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-white/5 p-2 rounded border border-white/5">
-                          <span className="text-white/60 font-semibold shrink-0">Hash IPFS (Metadata):</span>
-                          <a 
-                            href={`https://gateway.pinata.cloud/ipfs/${parsed.ipfs}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-mono text-cyan-400 hover:text-cyan-300 truncate hover:underline"
-                          >
-                            {parsed.ipfs}
-                          </a>
-                        </div>
-                      )}
-                      
-                      {parsed.tx ? (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 bg-white/5 p-2 rounded border border-white/5">
-                          <span className="text-white/60 font-semibold shrink-0">Transacción On-Chain (Tx):</span>
-                          <a 
-                            href={`https://testnet.snowtrace.io/tx/${parsed.tx}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-mono text-cyan-400 hover:text-cyan-300 truncate hover:underline"
-                          >
-                            {parsed.tx}
-                          </a>
-                        </div>
-                      ) : (
-                        <div className="bg-amber-500/10 text-amber-300 p-2 rounded border border-amber-500/20">
-                          Esta receta fue registrada localmente sin firma criptográfica.
-                        </div>
-                      )}
+                  <div className="bg-azul-profundo/95 text-white p-4 rounded-xl shadow-xl border border-white/10">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white">Integridad Digital Blockchain</h4>
+                        <p className="text-[11px] text-white/70 mt-1 leading-relaxed">
+                          {parsed.tx 
+                            ? 'Este registro se encuentra firmado digitalmente e integrado de forma segura en la blockchain de Avalanche.' 
+                            : 'Esta receta fue registrada localmente sin firma criptográfica.'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
