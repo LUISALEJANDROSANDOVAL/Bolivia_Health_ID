@@ -12,19 +12,50 @@ Antes de tocar la terminal, asegúrense de tener esto listo:
 
 ---
 
-## 2. Instalación del Proyecto
-La primera vez que descarguen el proyecto (o hagan `git pull`), deben instalar las librerías:
+## 2. Instalación del Proyecto y Dependencias
 
-1. Abran una terminal y entren a la carpeta `mobile`:
-   ```bash
-   cd mobile
-   ```
-2. Instalen las dependencias ejecutando:
-   ```bash
-   npm install
-   ```
+Para instalar todas las dependencias necesarias de la aplicación, abre una terminal en la raíz de tu proyecto y ejecuta:
+
+```bash
+# 1. Entrar a la carpeta mobile
+cd mobile
+
+# 2. Instalar todas las dependencias y librerías del proyecto
+npm install
+```
+
+### 📦 ¿Qué dependencias se instalarán en tu entorno?
+
+Al correr `npm install`, se descargarán automáticamente todas las dependencias configuradas en el archivo `package.json`. A continuación, se detalla qué hace cada una:
+
+#### 🔹 Core y Configuración de Expo
+* **`expo` (~54.0.0)**: El framework base de desarrollo híbrido.
+* **`react` (19.1.0) & `react-native` (0.81.5)**: Los motores principales de la app.
+* **`typescript`**: Soporte completo para tipado seguro en la app.
+
+#### 🔹 Navegación entre Pantallas
+* **`@react-navigation/native` & `@react-navigation/native-stack`**: Permite la navegación básica y el historial de pantallas (ej. ir del Login a la pantalla de Inicio).
+* **`@react-navigation/bottom-tabs`**: Añade la barra de navegación inferior (pestañas) para cambiar rápidamente de sección.
+* **`react-native-screens` & `react-native-safe-area-context`**: Optimizan el rendimiento de las pantallas y aseguran que el contenido no quede debajo del "notch" o barra de estado del celular.
+
+#### 🔹 Base de Datos y Backend
+* **`@supabase/supabase-js`**: Cliente oficial para conectarse a Supabase (autenticación de pacientes, consulta de registros de salud y fichas).
+* **`@react-native-async-storage/async-storage`**: Almacenamiento local persistente para recordar la sesión iniciada del paciente en el dispositivo.
+* **`react-native-url-polyfill`**: Polyfill necesario para que el cliente de Supabase funcione correctamente en entornos móviles.
+
+#### 🔹 Autenticación Biométrica y Seguridad
+* **`expo-local-authentication`**: Librería que permite validar la identidad del paciente mediante la huella dactilar o reconocimiento facial (FaceID) del dispositivo de forma segura.
+
+#### 🔹 Diseño Visual, Iconografía y Animaciones
+* **`nativewind` & `tailwindcss`**: Permite usar clases estilizadas de Tailwind CSS directamente en los componentes nativos de la aplicación.
+* **`lucide-react-native`**: Colección de íconos vectoriales modernos y ligeros (como estetoscopios, códigos QR, llaves, etc.).
+* **`react-native-reanimated` & `react-native-svg`**: Soporte para animaciones avanzadas de alto rendimiento y renderizado de gráficos vectoriales (SVG).
+
+#### 🔹 Herramientas de Desarrollo
+* **`@expo/ngrok`**: Paquete para generar el túnel seguro y compartir tu servidor local con tu celular conectado a redes distintas.
 
 ---
+
 
 ## 3. Ejecutar la Aplicación (Paso a Paso)
 

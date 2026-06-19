@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   SafeAreaView,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
+  Clipboard,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -22,6 +24,8 @@ import {
   Pill,
   Stethoscope,
 } from 'lucide-react-native';
+import { getActiveWallet, getPatientData, PatientProfile, PatientVitals } from '../services/patientService';
+
 
 const { width } = Dimensions.get('window');
 
@@ -71,6 +75,50 @@ const HISTORIAL_DEMO = [
 ];
 
 export default function HealthIDScreen({ navigation }: any) {
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [patientVitals, setPatientVitals] = useState<PatientVitals | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadPatientData = async () => {
+    try {
+      setLoading(true);
+      const wallet = await getActiveWallet();
+      const data = await getPatientData(wallet);
+      setPatientProfile(data.profile);
+      setPatientVitals(data.vitals);
+    } catch (error) {
+      console.error('Error loading patient data in HealthIDScreen:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadPatientData();
+    });
+    loadPatientData();
+    return unsubscribe;
+  }, [navigation]);
+
+  const copyToClipboard = () => {
+    if (patientProfile?.wallet_address) {
+      Clipboard.setString(patientProfile.wallet_address);
+      alert('Dirección de wallet copiada!');
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingCenter}>
+          <ActivityIndicator size="large" color="#2D7FF9" />
+          <Text style={styles.loadingText}>Cargando perfil digital...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
 
@@ -88,6 +136,7 @@ export default function HealthIDScreen({ navigation }: any) {
         </View>
       </View>
 
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -100,18 +149,29 @@ export default function HealthIDScreen({ navigation }: any) {
             <View style={styles.idCardLogo}>
               <Shield size={18} color="#14B8A6" strokeWidth={2.5} />
             </View>
-            <View style={styles.idCardBadge}>
-              <View style={styles.idCardBadgeDot} />
-              <Text style={styles.idCardBadgeText}>VERIFICADO EN AVALANCHE</Text>
+            <View style={[
+              styles.idCardBadge,
+              !patientProfile?.cedula_identidad && { borderColor: 'rgba(249, 115, 22, 0.3)', backgroundColor: 'rgba(249, 115, 22, 0.15)' }
+            ]}>
+              <View style={[styles.idCardBadgeDot, !patientProfile?.cedula_identidad && { backgroundColor: '#F97316' }]} />
+              <Text style={[styles.idCardBadgeText, !patientProfile?.cedula_identidad && { color: '#F97316' }]}>
+                {patientProfile?.cedula_identidad ? 'VERIFICADO EN AVALANCHE' : 'REGISTRO PENDIENTE'}
+              </Text>
             </View>
           </View>
 
           {/* Nombre y Cédula */}
           <View style={styles.idCardNameRow}>
-            <Text style={styles.idCardName}>{PACIENTE_DEMO.nombre}</Text>
-            <CheckCircle size={20} color="#14B8A6" fill="#14B8A6" />
+            <Text style={styles.idCardName}>{patientProfile?.full_name}</Text>
+            {patientProfile?.cedula_identidad ? (
+              <CheckCircle size={20} color="#14B8A6" fill="#14B8A6" />
+            ) : (
+              <CheckCircle size={20} color="#94A3B8" />
+            )}
           </View>
-          <Text style={styles.idCardCedula}>{PACIENTE_DEMO.cedula}</Text>
+          <Text style={styles.idCardCedula}>
+            {patientProfile?.cedula_identidad ? `CI: ${patientProfile.cedula_identidad}` : 'Cédula no validada'}
+          </Text>
 
           {/* Información Médica Rápida */}
           <View style={styles.idCardStats}>
@@ -119,7 +179,7 @@ export default function HealthIDScreen({ navigation }: any) {
               <Droplets size={14} color="rgba(255,255,255,0.6)" />
               <View>
                 <Text style={styles.idCardStatLabel}>GRUPO SANGUÍNEO</Text>
-                <Text style={styles.idCardStatValue}>{PACIENTE_DEMO.grupoSanguineo}</Text>
+                <Text style={styles.idCardStatValue}>{patientVitals?.blood_type || '--'}</Text>
               </View>
             </View>
             <View style={styles.idCardDivider} />
@@ -127,7 +187,7 @@ export default function HealthIDScreen({ navigation }: any) {
               <Heart size={14} color="rgba(255,255,255,0.6)" />
               <View>
                 <Text style={styles.idCardStatLabel}>SEGURO ACTIVO</Text>
-                <Text style={styles.idCardStatValue}>{PACIENTE_DEMO.seguro}</Text>
+                <Text style={styles.idCardStatValue}>SUS & CNS</Text>
               </View>
             </View>
           </View>
@@ -146,13 +206,14 @@ export default function HealthIDScreen({ navigation }: any) {
           </View>
 
           {/* Dirección de Wallet Abajo */}
-          <TouchableOpacity style={styles.walletRow} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.walletRow} activeOpacity={0.7} onPress={copyToClipboard}>
             <Text style={styles.walletText} numberOfLines={1}>
-              {PACIENTE_DEMO.walletId}
+              {patientProfile?.wallet_address}
             </Text>
             <Copy size={16} color="#2D7FF9" />
           </TouchableOpacity>
         </View>
+
 
         {/* ── SECCIÓN: HISTORIAL CLÍNICO ── */}
         <View style={styles.historialHeaderContainer}>
@@ -303,4 +364,17 @@ const styles = StyleSheet.create({
   historialHash: { fontSize: 11, color: '#64748B', fontWeight: '700', fontFamily: 'monospace' },
   historialHashLabel: { fontSize: 11, color: '#14B8A6', fontWeight: '700' },
   historialArrow: { position: 'absolute', right: 16, top: '50%', transform: [{ translateY: -9 }] },
+  loadingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: '#F4F7FC',
+  },
+  loadingText: {
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '700',
+  },
 });
+

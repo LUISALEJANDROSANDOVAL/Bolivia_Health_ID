@@ -10,8 +10,25 @@ import {
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Shield, Fingerprint, Wallet } from 'lucide-react-native';
+import { loginPatient, DEFAULT_WALLET } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
+
+const TEST_ACCOUNTS = [
+  {
+    name: 'Luis (O+)',
+    wallet: '0x4e475c495f2b76624321480a7ecec6946168e865',
+  },
+  {
+    name: 'David (A+)',
+    wallet: '0x7a25c09c279375323f6f77e8334f50160519282e',
+  },
+  {
+    name: 'Maciel (B-)',
+    wallet: '0xfa68127255f0f4216f7083f7f1f31a13485bfffe',
+  }
+];
+
 
 export default function LoginScreen({ navigation }: any) {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
@@ -39,7 +56,12 @@ export default function LoginScreen({ navigation }: any) {
         disableDeviceFallback: false,
       });
       if (biometricAuth.success) {
-        navigation?.navigate('Home');
+        const ok = await loginPatient(DEFAULT_WALLET);
+        if (ok) {
+          navigation?.navigate('Home');
+        } else {
+          alert('Error al iniciar sesión en Supabase.');
+        }
       }
     } catch (error) {
       console.error(error);
@@ -47,6 +69,7 @@ export default function LoginScreen({ navigation }: any) {
       setIsAuthenticating(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,16 +115,70 @@ export default function LoginScreen({ navigation }: any) {
         {/* BOTONES */}
         <View style={styles.buttonsSection}>
           {/* Botón Google */}
-          <TouchableOpacity style={styles.googleButton} activeOpacity={0.7} onPress={() => navigation?.navigate('Home')}>
+          <TouchableOpacity
+            style={styles.googleButton}
+            activeOpacity={0.7}
+            disabled={isAuthenticating}
+            onPress={async () => {
+              setIsAuthenticating(true);
+              const ok = await loginPatient(DEFAULT_WALLET);
+              setIsAuthenticating(false);
+              if (ok) {
+                navigation?.navigate('Home');
+              } else {
+                alert('Error al iniciar sesión en Supabase.');
+              }
+            }}
+          >
             <Text style={styles.googleIcon}>G</Text>
             <Text style={styles.googleButtonText}>Continuar con Google</Text>
           </TouchableOpacity>
 
           {/* Botón Web3 */}
-          <TouchableOpacity style={styles.web3Button} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.web3Button}
+            activeOpacity={0.7}
+            disabled={isAuthenticating}
+            onPress={async () => {
+              setIsAuthenticating(true);
+              const ok = await loginPatient(DEFAULT_WALLET);
+              setIsAuthenticating(false);
+              if (ok) {
+                navigation?.navigate('Home');
+              } else {
+                alert('Error al iniciar sesión en Supabase.');
+              }
+            }}
+          >
             <Wallet size={20} color="#14B8A6" />
             <Text style={styles.web3ButtonText}>  Conectar Billetera Web3</Text>
           </TouchableOpacity>
+
+          {/* Cuentas de Pruebas / Dev */}
+          <View style={styles.devSection}>
+            <Text style={styles.devTitle}>Cuentas de Prueba (Simulador):</Text>
+            <View style={styles.devButtonsRow}>
+              {TEST_ACCOUNTS.map((acc, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.devAccButton}
+                  disabled={isAuthenticating}
+                  onPress={async () => {
+                    setIsAuthenticating(true);
+                    const ok = await loginPatient(acc.wallet);
+                    setIsAuthenticating(false);
+                    if (ok) {
+                      navigation?.navigate('Home');
+                    } else {
+                      alert(`Error al iniciar sesión para ${acc.name}`);
+                    }
+                  }}
+                >
+                  <Text style={styles.devAccButtonText}>{acc.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
           {/* Texto legal */}
           <Text style={styles.legalText}>
@@ -111,6 +188,7 @@ export default function LoginScreen({ navigation }: any) {
             <Text style={styles.legalLink}>Política de Privacidad de Datos Médicos</Text>.
           </Text>
         </View>
+
 
       </View>
     </SafeAreaView>
@@ -291,4 +369,49 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     color: '#64748B',
   },
+  devSection: {
+    backgroundColor: '#EEF2F6',
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  devTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  devButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  devAccButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  devAccButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F2B3D',
+  },
 });
+

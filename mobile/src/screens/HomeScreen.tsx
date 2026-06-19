@@ -9,8 +9,11 @@ import {
   Image,
   Dimensions,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getActiveWallet, getPatientData, PatientProfile, PatientVitals } from '../services/patientService';
+
 import {
   Shield,
   FileText,
@@ -50,8 +53,35 @@ export default function HomeScreen({ navigation }: any) {
   const [tabActivo, setTabActivo] = useState('home');
   const insets = useSafeAreaInsets();
 
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [patientVitals, setPatientVitals] = useState<PatientVitals | null>(null);
+  const [loading, setLoading] = useState(true);
+
   // Animación de respiración (breathing) para la tarjeta Health ID
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const loadPatientData = async () => {
+    try {
+      setLoading(true);
+      const wallet = await getActiveWallet();
+      const data = await getPatientData(wallet);
+      setPatientProfile(data.profile);
+      setPatientVitals(data.vitals);
+    } catch (error) {
+      console.error('Error loading patient data in HomeScreen:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadPatientData();
+    });
+    // Initial load
+    loadPatientData();
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     Animated.loop(
@@ -61,6 +91,21 @@ export default function HomeScreen({ navigation }: any) {
       ])
     ).start();
   }, []);
+
+  const formatWalletAddress = (addr?: string) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingCenter, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color="#2D7FF9" />
+        <Text style={styles.loadingText}>Sincronizando con Supabase...</Text>
+      </View>
+    );
+  }
+
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -113,14 +158,28 @@ export default function HomeScreen({ navigation }: any) {
 
             {/* Nombre y verificación */}
             <View style={styles.identityNameRow}>
-              <Text style={styles.identityName}>{PACIENTE_DEMO.nombre}</Text>
-              <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
+              <Text style={styles.identityName}>{patientProfile?.full_name}</Text>
+              {patientProfile?.cedula_identidad ? (
+                <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
+              ) : (
+                <CheckCircle size={18} color="#94A3B8" />
+              )}
             </View>
 
             <View style={styles.identitySubRow}>
-              <Text style={styles.identityCedula}>{PACIENTE_DEMO.cedula}</Text>
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>✓ VERIFIED</Text>
+              <Text style={styles.identityCedula}>
+                {patientProfile?.cedula_identidad ? `CI: ${patientProfile.cedula_identidad}` : 'Cédula no validada'}
+              </Text>
+              <View style={[
+                styles.verifiedBadge,
+                !patientProfile?.cedula_identidad && { backgroundColor: 'rgba(249, 115, 22, 0.15)', borderColor: 'rgba(249, 115, 22, 0.3)' }
+              ]}>
+                <Text style={[
+                  styles.verifiedText,
+                  !patientProfile?.cedula_identidad && { color: '#F97316' }
+                ]}>
+                  {patientProfile?.cedula_identidad ? '✓ VERIFIED' : 'PENDIENTE'}
+                </Text>
               </View>
             </View>
 
@@ -130,7 +189,7 @@ export default function HomeScreen({ navigation }: any) {
                 <Droplets size={14} color="#64748B" />
                 <View>
                   <Text style={styles.identityStatLabel}>GRUPO SANGUÍNEO</Text>
-                  <Text style={styles.identityStatValue}>{PACIENTE_DEMO.grupoSanguineo}</Text>
+                  <Text style={styles.identityStatValue}>{patientVitals?.blood_type || '--'}</Text>
                 </View>
               </View>
               <View style={styles.identityDivider} />
@@ -148,16 +207,17 @@ export default function HomeScreen({ navigation }: any) {
               {/* 
               TODO: Reemplazar este bloque por <QRCode value={walletId} size={90} />
               después de instalar: npm install react-native-qrcode-svg react-native-svg
-            */}
+              */}
               <View style={styles.qrPlaceholder}>
                 <Text style={styles.qrPlaceholderText}>QR</Text>
               </View>
               <Text style={styles.walletIdText}>
-                WALLET ID: {PACIENTE_DEMO.walletId}
+                WALLET ID: {formatWalletAddress(patientProfile?.wallet_address)}
               </Text>
             </View>
           </TouchableOpacity>
         </Animated.View>
+
 
         {/* ── SECCIÓN: CITA ACTIVA ──────────────────────────────────── */}
         <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
@@ -614,4 +674,17 @@ const styles = StyleSheet.create({
     color: '#2D7FF9',
     fontWeight: '700',
   },
+  loadingCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: '#F4F7FC',
+  },
+  loadingText: {
+    fontSize: 15,
+    color: '#475569',
+    fontWeight: '700',
+  },
 });
+
