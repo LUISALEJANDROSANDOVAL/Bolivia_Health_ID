@@ -51,8 +51,8 @@ export function MedicamentosActuales() {
             nombre: m.name,
             dosis: m.dosage || 'N/A',
             frecuencia: m.frequency || 'N/A',
-            inicio: m.start_date ? new Date(m.start_date).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
-            fin: m.end_date ? new Date(m.end_date).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+            inicio: m.start_date ? new Date(m.start_date.replace(/-/g, '/')).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A',
+            fin: m.end_date ? new Date(m.end_date.replace(/-/g, '/')).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
             estado: m.status === 'active' ? 'Activo' : m.status === 'completed' ? 'Finalizado' : 'Suspendido',
             indicacion: 'Tratamiento Médico'
           }))

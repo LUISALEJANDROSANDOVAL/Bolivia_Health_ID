@@ -65,7 +65,7 @@ export function DataManagement() {
       if (!profile) return
 
       // 2. Count records
-      let medicalQuery = supabase.from('medical_background').select('id', { count: 'exact' })
+      let medicalQuery = supabase.from('medical_background').select('id', { count: 'exact' }).not('doctor_id', 'is', null)
       let appointmentQuery = supabase.from('appointments').select('id', { count: 'exact' })
       
       if (profile.role === 'doctor') {
@@ -127,7 +127,7 @@ export function DataManagement() {
       // 2. Obtener el historial médico
       // Si es doctor, exportamos los registros que él creó. 
       // Si es paciente, exportamos sus propios registros médicos.
-      let query = supabase.from('medical_background').select('*')
+      let query = supabase.from('medical_background').select('*').not('doctor_id', 'is', null)
       
       if (profile.role === 'doctor') {
         query = query.eq('doctor_id', profile.id)

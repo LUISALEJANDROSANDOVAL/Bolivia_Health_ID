@@ -28,12 +28,13 @@ export default function DoctorPatientsPage() {
     if (!doctorId) return
     setLoading(true)
     try {
-      // 1. Obtener los permisos activos para este doctor
+      // 1. Obtener los permisos activos para este doctor (y no expirados)
       const { data: permissionsData, error: permError } = await supabase
         .from('access_permissions')
         .select('id, patient_id, created_at, status')
         .eq('doctor_id', doctorId)
         .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
 
       if (permError) throw permError
       if (!permissionsData || permissionsData.length === 0) {

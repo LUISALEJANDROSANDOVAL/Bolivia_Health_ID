@@ -40,6 +40,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 import { useProfile } from '@/hooks/useProfile'
@@ -111,6 +118,12 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
   const [doctorDetails, setDoctorDetails] = useState<any>(null)
   const [loadingDoctor, setLoadingDoctor] = useState(false)
 
+  // Approve dialog states
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false)
+  const [permissionToApprove, setPermissionToApprove] = useState<Permission | null>(null)
+  const [approvalDuration, setApprovalDuration] = useState<'1h' | '24h' | 'permanent'>('permanent')
+  const [isApproving, setIsApproving] = useState(false)
+
   useEffect(() => {
     async function fetchPermissions() {
       if (!walletAddress) return
@@ -141,7 +154,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
             doctorId: p.doctor_id, // Keep doctor ID
             hospitalName: p.profiles?.full_name || 'Médico Autorizado',
             accessDate: new Date(p.created_at).toLocaleDateString(),
-            expirationDate: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'N/A',
+            expirationDate: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Permanente',
             status: p.status as any,
             accessType: 'Acceso Universal',
             description: 'Acceso a historial, recetas y registros médicos'
@@ -210,11 +223,11 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
     setSelectedPermission(null)
   }
 
-  const handleApprove = async (id: string) => {
+  const handleApproveConfirm = async () => {
+    if (!permissionToApprove) return
+    setIsApproving(true)
     try {
       if (!walletAddress) return
-      const perm = permissions.find(p => p.id === id)
-      if (!perm) return
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -222,18 +235,40 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
         .eq('wallet_address', walletAddress.toLowerCase())
         .single()
 
+      let expiresAt: string | null = null
+      const now = new Date()
+      if (approvalDuration === '1h') {
+        now.setHours(now.getHours() + 1)
+        expiresAt = now.toISOString()
+      } else if (approvalDuration === '24h') {
+        now.setHours(now.getHours() + 24)
+        expiresAt = now.toISOString()
+      }
+
       const { error } = await supabase
         .from('access_permissions')
-        .update({ status: 'active' })
-        .eq('id', id)
+        .update({ 
+          status: 'active',
+          expires_at: expiresAt
+        })
+        .eq('id', permissionToApprove.id)
+
       if (!error) {
-        setPermissions(prev => prev.map(p => p.id === id ? { ...p, status: 'active' } : p))
-        toast({ title: 'Acceso Autorizado', description: `Se ha aprobado el acceso para ${perm.hospitalName}.` })
+        setPermissions(prev => prev.map(p => p.id === permissionToApprove.id ? { 
+          ...p, 
+          status: 'active',
+          expirationDate: expiresAt ? new Date(expiresAt).toLocaleDateString() : 'Permanente'
+        } : p))
+
+        toast({ 
+          title: 'Acceso Autorizado', 
+          description: `Se ha aprobado el acceso para ${permissionToApprove.hospitalName}.` 
+        })
         
         // Notificar al doctor (con try/catch para no bloquear)
         try {
           await sendNotification({
-            recipientId: perm.doctorId,
+            recipientId: permissionToApprove.doctorId,
             senderId: profile?.id,
             title: 'Solicitud Aprobada',
             message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
@@ -247,6 +282,10 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
     } catch (err: any) {
       console.error('Error approving permission:', err)
       toast({ title: 'Error', description: err.message || 'No se pudo aprobar el acceso o firma cancelada.', variant: 'destructive' })
+    } finally {
+      setIsApproving(false)
+      setApproveDialogOpen(false)
+      setPermissionToApprove(null)
     }
   }
 
@@ -408,7 +447,11 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
                                   <Button
                                     size="sm"
                                     className="bg-emerald-500 text-white hover:bg-emerald-600 h-8 text-xs font-bold"
-                                    onClick={() => handleApprove(permission.id)}
+                                    onClick={() => {
+                                      setPermissionToApprove(permission)
+                                      setApprovalDuration('permanent')
+                                      setApproveDialogOpen(true)
+                                    }}
                                   >
                                     Aprobar
                                   </Button>
@@ -479,6 +522,112 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de Aprobación de Acceso con Opciones de Tiempo */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        <DialogContent className="bg-background border-border max-w-md rounded-2xl p-0 overflow-hidden text-foreground">
+          <div className="p-6 space-y-6">
+            <div>
+              <DialogHeader>
+                <div className="flex size-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mb-3">
+                  <Shield className="size-6 text-emerald-500" />
+                </div>
+                <DialogTitle className="text-xl font-black text-foreground">Aprobar Acceso Médico</DialogTitle>
+                <DialogDescription className="text-foreground/50 mt-1">
+                  Estás a punto de autorizar al médico <span className="font-semibold text-cyan-500">{permissionToApprove?.hospitalName}</span> para acceder a tu historial clínico.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+
+            <div className="space-y-4">
+              <label className="text-xs font-black uppercase tracking-widest text-foreground/40 block">
+                Duración del Acceso
+              </label>
+              
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  onClick={() => setApprovalDuration('1h')}
+                  className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                    approvalDuration === '1h'
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-border bg-foreground/5 hover:bg-foreground/10'
+                  }`}
+                >
+                  <div>
+                    <p className="font-bold text-sm text-foreground">Acceso Temporal (1 Hora)</p>
+                    <p className="text-xs text-foreground/50 mt-0.5">Ideal para una consulta médica inmediata.</p>
+                  </div>
+                  <div className={`size-4 rounded-full border flex items-center justify-center ${
+                    approvalDuration === '1h' ? 'border-emerald-500' : 'border-muted-foreground'
+                  }`}>
+                    {approvalDuration === '1h' && <div className="size-2 rounded-full bg-emerald-500" />}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalDuration('24h')}
+                  className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                    approvalDuration === '24h'
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-border bg-foreground/5 hover:bg-foreground/10'
+                  }`}
+                >
+                  <div>
+                    <p className="font-bold text-sm text-foreground">Acceso Diario (24 Horas)</p>
+                    <p className="text-xs text-foreground/50 mt-0.5">Válido por el día de hoy para revisiones continuas.</p>
+                  </div>
+                  <div className={`size-4 rounded-full border flex items-center justify-center ${
+                    approvalDuration === '24h' ? 'border-emerald-500' : 'border-muted-foreground'
+                  }`}>
+                    {approvalDuration === '24h' && <div className="size-2 rounded-full bg-emerald-500" />}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApprovalDuration('permanent')}
+                  className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                    approvalDuration === 'permanent'
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-border bg-foreground/5 hover:bg-foreground/10'
+                  }`}
+                >
+                  <div>
+                    <p className="font-bold text-sm text-foreground">Acceso Permanente</p>
+                    <p className="text-xs text-foreground/50 mt-0.5">El acceso estará activo hasta que decidas revocarlo manualmente.</p>
+                  </div>
+                  <div className={`size-4 rounded-full border flex items-center justify-center ${
+                    approvalDuration === 'permanent' ? 'border-emerald-500' : 'border-muted-foreground'
+                  }`}>
+                    {approvalDuration === 'permanent' && <div className="size-2 rounded-full bg-emerald-500" />}
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setApproveDialogOpen(false)}
+                disabled={isApproving}
+                className="flex-1 bg-transparent border-border text-foreground hover:bg-foreground/5 font-black rounded-xl h-12"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleApproveConfirm}
+                disabled={isApproving}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl h-12"
+              >
+                {isApproving ? 'Aprobando...' : 'Confirmar Acceso'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de Detalles del Médico */}
       <AlertDialog open={viewDoctorOpen} onOpenChange={setViewDoctorOpen}>
         <AlertDialogContent className="bg-background border-border max-w-md rounded-2xl p-0 overflow-hidden">
