@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { DoctorLayout } from '@/components/doctor-layout'
@@ -10,9 +10,43 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
-import { AlertCircle, Heart, Pill, FileText, Loader2, UploadCloud, Download, Edit2, Check, X, Lock, Zap } from 'lucide-react'
+import {
+  AlertCircle,
+  Heart,
+  Pill,
+  FileText,
+  Loader2,
+  UploadCloud,
+  Download,
+  Edit2,
+  Check,
+  X,
+  Lock,
+  Zap,
+  FlaskConical,
+  ScanLine,
+  Dna,
+  FileSpreadsheet,
+  Stethoscope,
+  Syringe,
+  HeartPulse,
+  Activity,
+  Eye,
+  File,
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  Share2,
+  Calendar,
+  User,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Image
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useWriteContract } from 'wagmi'
+import { useWriteContract, useReadContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
@@ -24,6 +58,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getAddress } from 'viem'
+
+const studyTypeConfig = {
+  laboratorio: {
+    icon: FlaskConical,
+    bg: 'bg-blue-500/15',
+    color: 'text-blue-400',
+    border: 'border-blue-500/30',
+    label: 'Laboratorio',
+  },
+  imagen: {
+    icon: Image,
+    bg: 'bg-violet-500/15',
+    color: 'text-violet-400',
+    border: 'border-violet-500/30',
+    label: 'Imágenes',
+  },
+  radiologia: {
+    icon: ScanLine,
+    bg: 'bg-cyan-500/15',
+    color: 'text-cyan-400',
+    border: 'border-cyan-500/30',
+    label: 'Radiología',
+  },
+  genetico: {
+    icon: Dna,
+    bg: 'bg-rose-500/15',
+    color: 'text-rose-400',
+    border: 'border-rose-500/30',
+    label: 'Genético',
+  },
+  otro: {
+    icon: FileSpreadsheet,
+    bg: 'bg-amber-500/15',
+    color: 'text-amber-400',
+    border: 'border-amber-500/30',
+    label: 'Otro',
+  },
+}
+
+const categoryConfig: Record<string, { icon: any; bg: string; color: string; border: string; label: string }> = {
+  consulta: {
+    icon: Stethoscope,
+    bg: 'bg-blue-500/15',
+    color: 'text-blue-400',
+    border: 'border-blue-500/30',
+    label: 'Consulta',
+  },
+  vaccine: {
+    icon: Syringe,
+    bg: 'bg-purple-500/15',
+    color: 'text-purple-400',
+    border: 'border-purple-500/30',
+    label: 'Vacuna',
+  },
+  surgery: {
+    icon: HeartPulse,
+    bg: 'bg-rose-500/15',
+    color: 'text-rose-400',
+    border: 'border-rose-500/30',
+    label: 'Cirugía',
+  },
+  chronic: {
+    icon: Activity,
+    bg: 'bg-orange-500/15',
+    color: 'text-orange-400',
+    border: 'border-orange-500/30',
+    label: 'Crónico',
+  },
+  default: {
+    icon: FileText,
+    bg: 'bg-teal-500/15',
+    color: 'text-teal-400',
+    border: 'border-teal-500/30',
+    label: 'Diagnóstico',
+  },
+}
+
+const statusConfig: Record<string, { icon: any; color: string; bg: string; label: string }> = {
+  Completa: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Completado' },
+  Pendiente: { icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-400/10',   label: 'Pendiente'  },
+  default:   { icon: XCircle,      color: 'text-white/40',    bg: 'bg-white/5',         label: 'Registrado' },
+}
 
 export default function PatientView360() {
   const params = useParams()
@@ -52,6 +169,19 @@ export default function PatientView360() {
     height: ''
   })
   const [selectedCategory, setSelectedCategory] = useState<string>('Estudios')
+
+  // File Preview & Drag/Drop states
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
 
   const fetchPatientData = useCallback(async () => {
     try {
@@ -116,11 +246,23 @@ export default function PatientView360() {
 
       setMedications(medsData || [])
 
-      // 4. Background (Condiciones crónicas y otras cosas, filtraremos)
+      // 4. Background (Condiciones crónicas y otras cosas, con relaciones)
       const { data: bgData } = await supabase
         .from('medical_background')
-        .select('*')
+        .select(`
+          *,
+          diagnosis_catalog (
+            code,
+            description,
+            is_chronic
+          ),
+          doctor:profiles!medical_background_doctor_id_fkey (
+            full_name,
+            specialty
+          )
+        `)
         .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
 
       setBackground(bgData || [])
 
@@ -204,6 +346,42 @@ export default function PatientView360() {
     }
   }
 
+  // 1. Fetch blockchain records
+  const checksumWallet = profile?.wallet_address ? (() => { try { return getAddress(profile.wallet_address) } catch { return null } })() : null
+
+  const { data: blockchainRecords } = useReadContract({
+    address: MEDICAL_RECORDS_ADDRESS,
+    abi: MEDICAL_RECORDS_ABI,
+    functionName: 'getRecords',
+    args: checksumWallet ? [checksumWallet as `0x${string}`] : undefined,
+    query: { enabled: !!checksumWallet }
+  })
+
+  // 2. Cross-reference records with blockchain
+  const verifiedRecords = useMemo(() => {
+    const onChainHashes = blockchainRecords ? (blockchainRecords as any[]).map(r => r.ipfsHash) : []
+    return background.map(record => {
+      const desc = record.description || ''
+      const ipfsMatch = desc.match(/IPFS:\s*([a-zA-Z0-9]+)/)
+      const txMatch = desc.match(/Tx:\s*(0x[a-fA-F0-9]+)/)
+      const ipfs = ipfsMatch ? ipfsMatch[1] : null
+      const tx = txMatch ? txMatch[1] : null
+
+      let verificationStatus: 'verified' | 'unverified' | 'tampered' = 'unverified'
+      if (ipfs) {
+        const existsOnChain = onChainHashes.includes(ipfs)
+        verificationStatus = existsOnChain ? 'verified' : 'tampered'
+      }
+
+      return {
+        ...record,
+        ipfsHash: ipfs,
+        txHash: tx,
+        verificationStatus
+      }
+    })
+  }, [background, blockchainRecords])
+
   const calculateAge = (birthDate: string) => {
     if (!birthDate) return 'N/A'
     const today = new Date()
@@ -216,9 +394,75 @@ export default function PatientView360() {
     return age
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    
+    // Validar archivo (máx 50MB, PDF/Imagen)
+    const maxSize = 50 * 1024 * 1024
+    if (file.size > maxSize) {
+      toast.error('El archivo no puede exceder los 50MB')
+      return
+    }
+    if (!file.type.includes('pdf') && !file.type.startsWith('image/')) {
+      toast.error('Solo se permiten archivos PDF o imágenes')
+      return
+    }
+
+    setPendingFile(file)
+    if (file.type.startsWith('image/')) {
+      setPreviewUrl(URL.createObjectURL(file))
+    } else {
+      setPreviewUrl(null)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+
+    // Validar archivo
+    const maxSize = 50 * 1024 * 1024
+    if (file.size > maxSize) {
+      toast.error('El archivo no puede exceder los 50MB')
+      return
+    }
+    if (!file.type.includes('pdf') && !file.type.startsWith('image/')) {
+      toast.error('Solo se permiten archivos PDF o imágenes')
+      return
+    }
+
+    setPendingFile(file)
+    if (file.type.startsWith('image/')) {
+      setPreviewUrl(URL.createObjectURL(file))
+    } else {
+      setPreviewUrl(null)
+    }
+  }
+
+  const handleCancelPreview = () => {
+    setPendingFile(null)
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
+  }
+
+  const handleConfirmUpload = async () => {
+    if (!pendingFile) return
 
     setUploading(true)
     try {
@@ -228,8 +472,8 @@ export default function PatientView360() {
 
       // 1. Upload to Pinata IPFS
       const formData = new FormData()
-      formData.append('file', file)
-      formData.append('pinataMetadata', JSON.stringify({ name: file.name }))
+      formData.append('file', pendingFile)
+      formData.append('pinataMetadata', JSON.stringify({ name: pendingFile.name }))
       
       const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
       if (!pinataJwt) {
@@ -295,14 +539,14 @@ export default function PatientView360() {
       txHash = relayerData.txHash
 
       // 3. Insert into health_records table
-      const fileExt = file.name.split('.').pop()
-      const fileSizeInMB = (file.size / (1024 * 1024)).toFixed(2)
+      const fileExt = pendingFile.name.split('.').pop()
+      const fileSizeInMB = (pendingFile.size / (1024 * 1024)).toFixed(2)
 
-        const { error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from('health_records')
         .insert({
           patient_id: patientId,
-          title: file.name,
+          title: pendingFile.name,
           category: selectedCategory === 'Estudios' ? 'Laboratorio' : selectedCategory === 'Medicamentos' ? 'Recetas' : 'Otros',
           file_size: `${fileSizeInMB} MB`,
           file_url: ipfsHash,
@@ -314,6 +558,7 @@ export default function PatientView360() {
       if (dbError) throw dbError
 
       toast.success('Estudio subido a IPFS y registrado on-chain correctamente')
+      handleCancelPreview()
       fetchPatientData() // Recargar estudios
 
     } catch (err: any) {
@@ -321,8 +566,6 @@ export default function PatientView360() {
       toast.error('Error: ' + (err.message || 'Error al subir el archivo'))
     } finally {
       setUploading(false)
-      // Reset input value to allow uploading the same file again if needed
-      e.target.value = ''
     }
   }
 
@@ -445,11 +688,11 @@ export default function PatientView360() {
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
-          <div className="bg-white/50 dark:bg-azul-profundo/30 backdrop-blur-md p-1 rounded-2xl border border-azul-electrico/10 shadow-sm inline-block w-full overflow-x-auto whitespace-nowrap">
-            <TabsList className="flex bg-transparent h-auto p-0 border-none min-w-max">
+          <div className="bg-white/50 dark:bg-azul-profundo/30 backdrop-blur-md p-1 rounded-2xl border border-azul-electrico/10 shadow-sm w-full">
+            <TabsList className="grid grid-cols-3 bg-transparent h-auto p-0 border-none w-full">
               <TabsTrigger 
                 value="overview"
-                className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                className="w-full px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
                            text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
                            data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
               >
@@ -457,7 +700,7 @@ export default function PatientView360() {
               </TabsTrigger>
               <TabsTrigger 
                 value="history"
-                className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                className="w-full px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
                            text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
                            data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
               >
@@ -466,7 +709,7 @@ export default function PatientView360() {
 
               <TabsTrigger 
                 value="studies"
-                className="px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
+                className="w-full px-4 md:px-6 py-2.5 rounded-xl transition-all duration-300 font-semibold
                            text-gris-grafito/70 hover:text-azul-electrico hover:bg-azul-electrico/5
                            data-[state=active]:bg-azul-profundo data-[state=active]:text-white data-[state=active]:shadow-md"
               >
@@ -684,18 +927,18 @@ export default function PatientView360() {
             {/* Stats summary */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl bg-azul-electrico/8 border border-azul-electrico/20 p-4 text-center">
-                <p className="text-2xl font-black text-azul-profundo">{background.length}</p>
+                <p className="text-2xl font-black text-azul-profundo">{verifiedRecords.length}</p>
                 <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Total Registros</p>
               </div>
               <div className="rounded-2xl bg-emerald-500/8 border border-emerald-500/20 p-4 text-center">
                 <p className="text-2xl font-black text-emerald-600">
-                  {background.filter((r: any) => r.status_detail === 'Activo' || !r.status_detail).length}
+                  {verifiedRecords.filter((r: any) => r.status_detail === 'Activo' || !r.status_detail || r.status === 'Completa' || r.status_detail === 'Completa').length}
                 </p>
-                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Activos</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Activos / Completos</p>
               </div>
               <div className="rounded-2xl bg-violet-500/8 border border-violet-500/20 p-4 text-center">
                 <p className="text-2xl font-black text-violet-600">
-                  {background.length > 0 ? new Date(background[0]?.created_at).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                  {verifiedRecords.length > 0 ? new Date(verifiedRecords[0]?.created_at).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
                 </p>
                 <p className="text-xs font-bold uppercase tracking-widest text-gris-grafito/60 mt-1">Último Registro</p>
               </div>
@@ -716,56 +959,91 @@ export default function PatientView360() {
                 <CardDescription>Línea de tiempo clínica del paciente — registros verificados en cadena</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                {background.length > 0 ? (
-                  <div className="relative">
-                    {/* Vertical line */}
-                    <div className="absolute left-[22px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-azul-electrico/40 via-azul-electrico/20 to-transparent rounded-full" />
+                {verifiedRecords.length > 0 ? (
+                  <div className="space-y-4">
+                    {verifiedRecords.map((record: any) => {
+                      const cfg = categoryConfig[record.category] ?? categoryConfig.default
+                      const TypeIcon = cfg.icon
+                      const scfg = statusConfig[record.status_detail || record.status] ?? statusConfig.default
+                      const StatusIcon = scfg.icon
 
-                    <div className="space-y-6">
-                      {background.map((record: any, idx: number) => {
-                        // Limpiar descripción: quitar IPFS y Tx
-                        const parts = (record.description || '')
-                          .split(' | ')
-                          .filter((p: string) =>
-                            !p.startsWith('IPFS:') &&
-                            !p.startsWith('Tx:') &&
-                            !p.match(/^0x[a-fA-F0-9]{40,}/)
-                          )
+                      const parts = (record.description || '')
+                        .split(' | ')
+                        .filter((p: string) =>
+                          !p.startsWith('IPFS:') &&
+                          !p.startsWith('Tx:') &&
+                          !p.match(/^0x[a-fA-F0-9]{40,}/)
+                        )
 
-                        const categoryColors: Record<string, string> = {
-                          'Consulta': 'bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20',
-                          'Diagnóstico': 'bg-violet-500/10 text-violet-600 border-violet-500/20',
-                          'Procedimiento': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-                          'Laboratorio': 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
-                          'Receta': 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-                          'Antecedente': 'bg-red-500/10 text-red-600 border-red-500/20',
-                        }
-                        const catColor = categoryColors[record.category] || 'bg-gris-grafito/10 text-gris-grafito border-gris-grafito/20'
-                        const dotColors = ['bg-azul-electrico', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-cyan-500']
-                        const dotColor = dotColors[idx % dotColors.length]
+                      const fileUrl = record.file_url ? (record.file_url.startsWith('http') ? record.file_url : `https://gateway.pinata.cloud/ipfs/${record.file_url}`) : undefined
 
-                        return (
-                          <div key={record.id} className="relative flex gap-5 group">
-                            {/* Timeline dot */}
-                            <div className={`relative z-10 flex-shrink-0 size-11 rounded-full ${dotColor}/10 border-2 ${dotColor.replace('bg-', 'border-')}/30 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
-                              <div className={`size-3.5 rounded-full ${dotColor}`} />
+                      return (
+                        <div
+                          key={record.id}
+                          className={`${cfg.bg} border ${cfg.border} backdrop-blur-sm rounded-2xl p-5 hover:scale-[1.01] transition-all group`}
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+                            {/* Icon */}
+                            <div className={`size-14 rounded-2xl ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
+                              <TypeIcon className={`size-7 ${cfg.color}`} />
                             </div>
 
-                            {/* Content card */}
-                            <div className="flex-1 min-w-0 bg-foreground/[0.02] hover:bg-foreground/[0.04] border border-border/40 hover:border-azul-electrico/30 rounded-2xl p-4 transition-all">
-                              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="font-bold text-azul-profundo text-base leading-tight">{record.title}</h4>
-                                  <Badge className={`text-[10px] uppercase font-bold border ${catColor} px-2 py-0`}>
-                                    {record.category || 'Registro'}
-                                  </Badge>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-xs text-gris-grafito/50 bg-foreground/5 px-2.5 py-1 rounded-lg font-medium">
-                                    {new Date(record.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                                    {cfg.label}
                                   </span>
+                                  {record.diagnosis_catalog?.is_chronic && (
+                                    <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                                      Crónico
+                                    </span>
+                                  )}
+                                  <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full ${scfg.bg}`}>
+                                    <StatusIcon className={`size-3 ${scfg.color}`} />
+                                    <span className={`text-[10px] font-bold uppercase ${scfg.color}`}>{scfg.label}</span>
+                                  </div>
+                                  
+                                  {/* Blockchain Verification Badge */}
+                                  {record.verificationStatus === 'verified' && (
+                                    <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                      <ShieldCheck className="size-3 text-emerald-400" />
+                                      <span className="text-[10px] font-black uppercase text-[9px]">Verificado Blockchain</span>
+                                    </div>
+                                  )}
+                                  {record.verificationStatus === 'tampered' && (
+                                    <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse">
+                                      <ShieldAlert className="size-3 text-red-400" />
+                                      <span className="text-[10px] font-black uppercase text-[9px]">Datos Alterados</span>
+                                    </div>
+                                  )}
+                                  {record.verificationStatus === 'unverified' && record.ipfsHash && (
+                                    <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                      <Shield className="size-3 text-amber-400" />
+                                      <span className="text-[10px] font-black uppercase text-[9px]">Falta Firma On-Chain</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs text-foreground/40">
+                                  <Calendar className="size-3.5 text-cyan-500" />
+                                  <span>{new Date(record.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
                                 </div>
                               </div>
+
+                              <h3 className={`text-base font-black text-foreground group-hover:${cfg.color} transition-colors tracking-tight`}>
+                                {record.title}
+                              </h3>
+
+                              {/* CIE-10 badge */}
+                              {record.diagnosis_catalog?.code && (
+                                <div className="mt-1 inline-flex items-center gap-1.5 text-xs bg-foreground/10 px-2.5 py-1 rounded-lg">
+                                  <span className="font-black text-cyan-400">{record.diagnosis_catalog.code}</span>
+                                  {record.diagnosis_catalog.description && (
+                                    <span className="text-foreground/60">{record.diagnosis_catalog.description}</span>
+                                  )}
+                                </div>
+                              )}
 
                               {/* Description fields as chips */}
                               {parts.length > 0 && (
@@ -774,33 +1052,90 @@ export default function PatientView360() {
                                     const [label, ...rest] = part.split(': ')
                                     const val = rest.join(': ')
                                     if (!val) return (
-                                      <span key={i} className="text-sm text-gris-grafito/70">{label}</span>
+                                      <span key={i} className="text-sm text-foreground/70">{label}</span>
                                     )
                                     return (
                                       <div key={i} className="flex items-baseline gap-1 bg-foreground/5 border border-border/30 rounded-lg px-2.5 py-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-gris-grafito/50">{label}:</span>
-                                        <span className="text-xs text-azul-profundo font-semibold">{val}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/50">{label}:</span>
+                                        <span className="text-xs text-foreground font-semibold">{val}</span>
                                       </div>
                                     )
                                   })}
                                 </div>
                               )}
 
-                              {/* Footer */}
-                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/20">
-                                <div className="flex items-center gap-1.5 text-[10px] text-gris-grafito/40 font-medium">
-                                  <Lock className="size-3" />
-                                  Verificado en blockchain
-                                </div>
-                                <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[10px] font-bold">
-                                  {record.status_detail || 'Registrado'}
-                                </Badge>
+                              {/* Meta */}
+                              <div className="mt-3 flex flex-wrap gap-4 text-xs text-foreground/40">
+                                {record.doctor?.full_name && (
+                                  <div className="flex items-center gap-1.5">
+                                    <User className="size-3.5 text-cyan-500" />
+                                    <span>Dr(a). {record.doctor.full_name}{record.doctor.specialty ? ` · ${record.doctor.specialty}` : ''}</span>
+                                  </div>
+                                )}
+                                {fileUrl && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5 ml-auto"
+                                    onClick={async (e) => {
+                                      e.stopPropagation()
+                                      try {
+                                        const res = await fetch(fileUrl)
+                                        const blob = await res.blob()
+                                        const contentType = res.headers.get('content-type')
+                                        let extension = '.pdf'
+                                        if (contentType?.includes('image/png')) extension = '.png'
+                                        else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                                        else if (contentType?.includes('image/webp')) extension = '.webp'
+
+                                        const url = window.URL.createObjectURL(blob)
+                                        const a = document.createElement('a')
+                                        a.href = url
+                                        a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
+                                        document.body.appendChild(a)
+                                        a.click()
+                                        window.URL.revokeObjectURL(url)
+                                        document.body.removeChild(a)
+                                      } catch (err) {
+                                        window.open(fileUrl, '_blank')
+                                      }
+                                    }}
+                                  >
+                                    <Download className="size-3" />
+                                    Descargar
+                                  </Button>
+                                )}
+                                {/* IPFS & Tx Links */}
+                                {record.ipfsHash && (
+                                  <a
+                                    href={`https://gateway.pinata.cloud/ipfs/${record.ipfsHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-cyan-500 hover:underline hover:text-cyan-400"
+                                  >
+                                    <FileText className="size-3.5" />
+                                    <span>IPFS</span>
+                                  </a>
+                                )}
+                                {record.txHash && (
+                                  <a
+                                    href={`https://testnet.snowtrace.io/tx/${record.txHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-purple-500 hover:underline hover:text-purple-400"
+                                  >
+                                    <Share2 className="size-3.5" />
+                                    <span>Transacción</span>
+                                  </a>
+                                )}
                               </div>
                             </div>
+
+                            <ChevronRight className={`size-5 text-foreground/20 group-hover:${cfg.color} transition-all shrink-0 self-center`} />
                           </div>
-                        )
-                      })}
-                    </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-16 flex flex-col items-center">
@@ -842,62 +1177,242 @@ export default function PatientView360() {
                   </Select>
                 </div>
 
-                {/* Upload Area */}
-                <div className="relative rounded-xl border-2 border-dashed border-border/50 bg-foreground/5 hover:bg-foreground/10 transition-colors p-10 text-center group cursor-pointer">
-                  <input
-                    type="file"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                  />
-                  <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
-                    {uploading ? (
-                      <Loader2 className="size-10 animate-spin text-primary" />
-                    ) : (
-                      <UploadCloud className="size-10 text-muted-foreground group-hover:text-primary transition-colors" />
-                    )}
-                    <p className="text-foreground font-semibold text-lg">
-                      {uploading ? 'Subiendo archivo y registrando...' : 'Arrastra archivos o haz clic para subir'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Soporta archivos PDF, JPG, PNG (máx. 20MB)</p>
+                {/* Preview Box or Drop Zone */}
+                {pendingFile ? (
+                  <div className="border border-cyan-500/30 rounded-2xl p-6 bg-gradient-to-b from-cyan-500/5 to-transparent space-y-6 animate-in fade-in zoom-in duration-300">
+                    <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                      <h3 className="font-black text-foreground uppercase tracking-tight flex items-center gap-2">
+                        <Eye className="size-5 text-cyan-500" />
+                        Vista Previa del Archivo
+                      </h3>
+                      <span className="text-xs font-bold text-foreground/40 uppercase tracking-widest bg-foreground/5 px-2 py-1 rounded-md">
+                        Sin Confirmar
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row gap-6 items-center">
+                      {/* Thumbnail / Icon */}
+                      <div className="w-full md:w-1/3 flex items-center justify-center bg-foreground/5 rounded-xl border border-border p-4 h-[180px] relative overflow-hidden group">
+                        {previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={previewUrl}
+                            alt="Vista previa"
+                            className="max-h-full max-w-full object-contain rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="flex size-14 items-center justify-center rounded-2xl bg-red-500/10 border border-red-500/20 shadow-lg shadow-red-500/5">
+                              <FileText className="size-8 text-red-500" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest text-foreground/55">Documento PDF</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex-1 space-y-3 w-full">
+                        <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
+                          <span className="text-xs font-bold text-foreground/40 uppercase tracking-widest">Nombre:</span>
+                          <span className="text-sm font-black text-foreground col-span-2 truncate">{pendingFile.name}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
+                          <span className="text-xs font-bold text-foreground/40 uppercase tracking-widest">Tamaño:</span>
+                          <span className="text-sm font-bold text-foreground col-span-2">{(pendingFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 border-b border-border/50 pb-2">
+                          <span className="text-xs font-bold text-foreground/40 uppercase tracking-widest">Categoría:</span>
+                          <span className="text-sm font-bold text-cyan-500 col-span-2 flex items-center gap-1.5">
+                            <span className="size-2 rounded-full bg-cyan-500" />
+                            {selectedCategory}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs text-amber-500/95 font-bold bg-amber-500/5 border border-amber-500/10 px-3 py-2 rounded-xl mt-2">
+                          <AlertCircle className="size-4 shrink-0" />
+                          <span>Verifica que el archivo y la categoría seleccionada sean correctos antes de subirlo.</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-border/50">
+                      <Button
+                        onClick={handleConfirmUpload}
+                        disabled={uploading}
+                        className="flex-1 bg-gradient-electric hover:scale-[1.02] text-white font-black rounded-xl h-12 border-none transition-all"
+                      >
+                        {uploading ? (
+                          <>
+                            <Loader2 className="size-4 mr-2 animate-spin" />
+                            Subiendo y Firmando...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="size-4 mr-2" />
+                            Confirmar y Subir
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleCancelPreview}
+                        disabled={uploading}
+                        className="flex-1 bg-transparent border-border text-foreground hover:bg-foreground/5 font-black rounded-xl h-12 transition-all"
+                      >
+                        <X className="size-4 mr-2" />
+                        Cancelar
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* Drop Zone */
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`relative rounded-xl border-2 border-dashed transition-all p-10 text-center group cursor-pointer ${
+                      isDragging
+                        ? 'border-cyan-500 bg-cyan-500/5'
+                        : 'border-border/50 bg-foreground/5 hover:bg-foreground/10'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      onChange={handleFileSelect}
+                      disabled={uploading}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                    />
+                    <div className="flex flex-col items-center justify-center space-y-3 pointer-events-none">
+                      <UploadCloud className="size-10 text-muted-foreground group-hover:text-cyan-500 transition-colors" />
+                      <p className="text-foreground font-semibold text-lg">
+                        Arrastra archivos o haz clic para subir
+                      </p>
+                      <p className="text-sm text-muted-foreground">Soporta archivos PDF, JPG, PNG (máx. 20MB)</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* List of Studies */}
                 <div className="space-y-4 pt-4">
                   <h4 className="font-semibold text-foreground border-b border-border/30 pb-2">Documentos Guardados</h4>
                   {studies.length > 0 ? (
-                    <div className="grid gap-3">
-                      {studies.map((study) => (
-                        <div key={study.id} className="flex items-center justify-between p-4 rounded-xl border bg-card hover:border-primary/30 transition-colors">
-                          <div className="flex items-center gap-4 overflow-hidden">
-                            <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                              <FileText className="size-6 text-primary" />
-                            </div>
-                            <div className="truncate">
-                              <p className="font-semibold text-foreground truncate">{study.title}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
-                                  {study.category === 'Laboratorio' || study.category === 'Imágenes' ? 'Estudios' : study.category === 'Recetas' ? 'Medicamentos' : study.category === 'Otros' ? 'Diagnósticos' : study.category}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground font-medium">{study.file_size}</span>
-                                <span className="text-xs text-muted-foreground">• {new Date(study.created_at).toLocaleDateString()}</span>
+                    <div className="space-y-4">
+                      {studies.map((study) => {
+                        let studyType: 'laboratorio' | 'imagen' | 'radiologia' | 'genetico' | 'otro' = 'otro'
+                        const cat = (study.category || '').toLowerCase()
+                        if (cat === 'laboratorio' || cat === 'estudios') studyType = 'laboratorio'
+                        else if (cat === 'imágenes' || cat === 'imagenes' || cat === 'imagen') studyType = 'imagen'
+                        else if (cat === 'radiología' || cat === 'radiologia') studyType = 'radiologia'
+                        else if (cat === 'genético' || cat === 'genetico') studyType = 'genetico'
+
+                        const cfg = studyTypeConfig[studyType] || studyTypeConfig.otro
+                        const TypeIcon = cfg.icon
+                        const fileUrl = study.file_url
+                          ? (study.file_url.startsWith('http') ? study.file_url : `https://gateway.pinata.cloud/ipfs/${study.file_url}`)
+                          : '#'
+
+                        return (
+                          <div
+                            key={study.id}
+                            className={`${cfg.bg} border ${cfg.border} backdrop-blur-sm rounded-2xl p-5 hover:scale-[1.01] transition-all group`}
+                          >
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+                              {/* Icon */}
+                              <div className={`size-14 rounded-2xl ${cfg.bg} border ${cfg.border} flex items-center justify-center shrink-0`}>
+                                <TypeIcon className={`size-7 ${cfg.color}`} />
+                              </div>
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h3 className={`text-lg font-black text-foreground group-hover:${cfg.color} transition-colors tracking-tight`}>
+                                        {study.title}
+                                      </h3>
+                                      <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                                        {cfg.label}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-foreground/50 mt-1">
+                                      {study.category} · {study.file_size}
+                                    </p>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-foreground/40 hover:text-cyan-500 hover:bg-foreground/5 text-xs font-black uppercase tracking-widest"
+                                      onClick={() => window.open(fileUrl, '_blank')}
+                                    >
+                                      <Eye className="size-4 mr-1.5" />
+                                      Ver
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-foreground/40 hover:text-emerald-400 hover:bg-foreground/5"
+                                      onClick={async () => {
+                                        try {
+                                          const response = await fetch(fileUrl)
+                                          const blob = await response.blob()
+                                          const contentType = response.headers.get('content-type')
+                                          let extension = '.pdf'
+                                          if (contentType?.includes('image/png')) extension = '.png'
+                                          else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                                          else if (contentType?.includes('image/webp')) extension = '.webp'
+                                          
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = study.title.replace(/\s+/g, '_') + extension
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
+                                        } catch (error) {
+                                          console.error('Error downloading file:', error)
+                                          window.open(fileUrl, '_blank')
+                                        }
+                                      }}
+                                    >
+                                      <Download className="size-4" />
+                                    </Button>
+                                    <ChevronRight className={`size-5 text-foreground/20 group-hover:${cfg.color} transition-all translate-x-0 group-hover:translate-x-1`} />
+                                  </div>
+                                </div>
+
+                                {/* Meta */}
+                                <div className="mt-3 flex flex-wrap gap-5 text-xs text-foreground/40">
+                                  <div className="flex items-center gap-1.5">
+                                    <Calendar className="size-3.5 text-cyan-500" />
+                                    <span>{new Date(study.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <File className="size-3.5 text-amber-400" />
+                                    <span>{study.file_size}</span>
+                                  </div>
+                                  {study.tx_hash && (
+                                    <a
+                                      href={`https://testnet.snowtrace.io/tx/${study.tx_hash}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-purple-500 hover:underline hover:text-purple-400"
+                                    >
+                                      <Share2 className="size-3.5" />
+                                      <span>Transacción Blockchain</span>
+                                    </a>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
-                          <a
-                            href={study.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0"
-                          >
-                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary h-10 w-10 rounded-full bg-foreground/5 hover:bg-primary/10">
-                              <Download className="size-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">

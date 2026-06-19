@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -322,7 +323,30 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               {loading ? (
-                <div className="py-20 text-center text-foreground/40 font-bold uppercase tracking-widest animate-pulse">Cargando permisos...</div>
+                <div className="p-6 space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between py-4 border-b border-border/50 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <Skeleton className="size-10 rounded-xl" />
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-36" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                      </div>
+                      <div className="hidden sm:block space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                      <div>
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                        <Skeleton className="h-8 w-8 rounded-lg" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : permissions.length === 0 ? (
                 <div className="py-20 flex flex-col items-center justify-center">
                   <div className="size-20 rounded-2xl bg-foreground/5 border border-dashed border-border flex items-center justify-center mb-4 transition-all hover:scale-105 group">

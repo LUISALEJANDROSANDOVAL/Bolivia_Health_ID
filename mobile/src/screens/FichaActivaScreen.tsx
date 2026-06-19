@@ -16,6 +16,7 @@ import {
   QrCode,
   CheckCircle2,
   Users,
+  Building2,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -31,7 +32,7 @@ const TURNO_DEMO = {
 
 export default function FichaActivaScreen({ route, navigation }: any) {
   const hospital = route?.params?.hospital ?? { nombre: 'Hospital de Clínicas', tiempo: '~25 min' };
-  const especialidad = route?.params?.especialidad ?? { icono: '🩺', nombre: 'Medicina General' };
+  const especialidad = route?.params?.especialidad ?? { nombre: 'Medicina General' };
 
   const [turnoActual, setTurnoActual] = useState(TURNO_DEMO.turnoActual);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -81,14 +82,14 @@ export default function FichaActivaScreen({ route, navigation }: any) {
       {/* ── TARJETA DEL HOSPITAL ── */}
       <View style={styles.hospitalCard}>
         <View style={styles.hospitalIconBox}>
-          <Text style={styles.hospitalEmoji}>🏥</Text>
+          <Building2 size={24} color="#2D7FF9" />
         </View>
         <View style={styles.hospitalInfo}>
           <Text style={styles.hospitalNombre}>{hospital.nombre}</Text>
           <View style={styles.hospitalMeta}>
             <Stethoscope size={12} color="#64748B" />
             <Text style={styles.hospitalMetaText}>
-              {especialidad.icono} {especialidad.nombre}
+              {especialidad.nombre}
             </Text>
             <Text style={styles.hospitalMetaSeparator}>·</Text>
             <MapPin size={12} color="#64748B" />
@@ -225,7 +226,6 @@ const styles = StyleSheet.create({
     width: 46, height: 46, borderRadius: 12,
     backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center',
   },
-  hospitalEmoji: { fontSize: 24 },
   hospitalInfo: { flex: 1 },
   hospitalNombre: { fontSize: 15, fontWeight: '700', color: '#0F2B3D', marginBottom: 4 },
   hospitalMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },

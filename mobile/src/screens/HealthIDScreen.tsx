@@ -20,6 +20,7 @@ import {
   Activity,
   FileText,
   Pill,
+  Stethoscope,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -180,7 +181,10 @@ export default function HealthIDScreen({ navigation }: any) {
               {/* Cuerpo del registro */}
               <View style={styles.historialBody}>
                 <Text style={styles.historialDesc}>{item.descripcion}</Text>
-                <Text style={styles.historialMedico}>👨‍⚕️ {item.medico}</Text>
+                <View style={styles.medicoRow}>
+                  <Stethoscope size={14} color="#64748B" />
+                  <Text style={styles.historialMedico}>{item.medico}</Text>
+                </View>
 
                 {/* Sello de Blockchain */}
                 <View style={styles.historialHashRow}>
@@ -293,6 +297,7 @@ const styles = StyleSheet.create({
   historialFecha: { fontSize: 12, color: '#64748B', fontWeight: '600' },
   historialBody: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12, gap: 6 },
   historialDesc: { fontSize: 15, fontWeight: '800', color: '#0F2B3D' },
+  medicoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   historialMedico: { fontSize: 13, color: '#64748B', fontWeight: '500' },
   historialHashRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#F8FAFC', padding: 8, borderRadius: 8 },
   historialHash: { fontSize: 11, color: '#64748B', fontWeight: '700', fontFamily: 'monospace' },
