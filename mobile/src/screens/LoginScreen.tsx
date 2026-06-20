@@ -85,7 +85,7 @@ export default function LoginScreen({ navigation }: any) {
           </View>
           <Text style={styles.title}>Bolivia Health ID</Text>
           <Text style={styles.subtitle}>
-            Tu historial clínico, soberano y protegido criptográficamente.
+            Tu historial clínico en tu bolsillo, 100% seguro y privado.
           </Text>
         </View>
 
@@ -134,7 +134,7 @@ export default function LoginScreen({ navigation }: any) {
             <Text style={styles.googleButtonText}>Continuar con Google</Text>
           </TouchableOpacity>
 
-          {/* Botón Web3 */}
+          {/* Botón de Identidad Médica */}
           <TouchableOpacity
             style={styles.web3Button}
             activeOpacity={0.7}
@@ -146,12 +146,12 @@ export default function LoginScreen({ navigation }: any) {
               if (ok) {
                 navigation?.navigate('Home');
               } else {
-                alert('Error al iniciar sesión en Supabase.');
+                alert('Error al vincular identidad médica.');
               }
             }}
           >
             <Wallet size={20} color="#14B8A6" />
-            <Text style={styles.web3ButtonText}>  Conectar Billetera Web3</Text>
+            <Text style={styles.web3ButtonText}>  Vincular Identidad Médica</Text>
           </TouchableOpacity>
 
           {/* Cuentas de Pruebas / Dev */}

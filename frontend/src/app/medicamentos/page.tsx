@@ -6,13 +6,17 @@ import {
   Pill, 
   Search, 
   Calendar, 
-  ChevronRight,
-  CheckCircle2,
-  XCircle,
+  ChevronRight, 
+  CheckCircle2, 
+  XCircle, 
   CalendarDays,
+  Loader2,
+  Sparkles
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useWallet } from '@/contexts/wallet-context'
 
@@ -30,6 +34,8 @@ interface Medication {
   status: 'activo' | 'completado' | 'suspendido'
   diagnosisCode?: string
   diagnosisDesc?: string
+  createdAt: string
+  doctorId?: string
 }
 
 // Configuración de estados
@@ -70,12 +76,71 @@ const formEmoji: Record<string, string> = {
   'default': '💊',
 }
 
+const groupColors = [
+  { border: 'border-t-cyan-500', badge: 'bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 border-cyan-500/20', text: 'text-cyan-500 dark:text-cyan-400' },
+  { border: 'border-t-purple-500', badge: 'bg-purple-500/10 text-purple-500 dark:text-purple-400 border-purple-500/20', text: 'text-purple-500 dark:text-purple-400' },
+  { border: 'border-t-amber-500', badge: 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border-amber-500/20', text: 'text-amber-500 dark:text-amber-400' },
+  { border: 'border-t-pink-500', badge: 'bg-pink-500/10 text-pink-500 dark:text-pink-400 border-pink-500/20', text: 'text-pink-500 dark:text-pink-400' },
+  { border: 'border-t-indigo-500', badge: 'bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 border-indigo-500/20', text: 'text-indigo-500 dark:text-indigo-400' },
+  { border: 'border-t-emerald-500', badge: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border-emerald-500/20', text: 'text-emerald-500 dark:text-emerald-400' }
+]
+
+function getGroupTheme(groupKey: string) {
+  let hash = 0
+  for (let i = 0; i < groupKey.length; i++) {
+    hash = groupKey.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % groupColors.length
+  return groupColors[index]
+}
+
 export default function MedicamentosPage() {
   const { walletAddress } = useWallet()
   const [medications, setMedications] = useState<Medication[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'activos' | 'historial'>('activos')
+  const [aiDescriptions, setAiDescriptions] = useState<Record<string, string>>({})
+  const [loadingAi, setLoadingAi] = useState<Record<string, boolean>>({})
+
+  // Cargar descripciones de IA guardadas
+  useEffect(() => {
+    const cached = localStorage.getItem('medication_ai_descriptions')
+    if (cached) {
+      try {
+        setAiDescriptions(JSON.parse(cached))
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }, [])
+
+  // Consultar la API para obtener la descripción con Gemini
+  const getAiDescription = async (medName: string) => {
+    if (aiDescriptions[medName]) return
+    
+    setLoadingAi(prev => ({ ...prev, [medName]: true }))
+    try {
+      const res = await fetch('/api/medication-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ medicationName: medName })
+      })
+      
+      if (!res.ok) throw new Error()
+      
+      const data = await res.json()
+      const desc = data.description
+      
+      const newDescs = { ...aiDescriptions, [medName]: desc }
+      setAiDescriptions(newDescs)
+      localStorage.setItem('medication_ai_descriptions', JSON.stringify(newDescs))
+    } catch (err) {
+      toast.error('No se pudo obtener la descripción de la IA')
+    } finally {
+      setLoadingAi(prev => ({ ...prev, [medName]: false }))
+    }
+  }
 
   useEffect(() => {
     async function fetchMeds() {
@@ -131,6 +196,8 @@ export default function MedicamentosPage() {
                 : 'completado',
               diagnosisCode: diag?.code,
               diagnosisDesc: diag?.description,
+              createdAt: m.created_at,
+              doctorId: m.doctor_id
             }
           })
 
@@ -146,6 +213,25 @@ export default function MedicamentosPage() {
     fetchMeds()
   }, [walletAddress])
 
+  // Helper para agrupar medicamentos por consulta/prescripción
+  function groupMedications(meds: Medication[]) {
+    const groups: Record<string, Medication[]> = {}
+    
+    meds.forEach(med => {
+      // Agrupar por doctor_id, diagnosis_code y proximidad de tiempo (redondeado a 10s)
+      const time = med.createdAt ? new Date(med.createdAt).getTime() : 0
+      const roundedTime = Math.floor(time / 10000) * 10000
+      const key = `${med.doctorId || 'unknown'}_${med.diagnosisCode || 'no-diag'}_${roundedTime}`
+      
+      if (!groups[key]) {
+        groups[key] = []
+      }
+      groups[key].push(med)
+    })
+    
+    return Object.values(groups)
+  }
+
   // Filtrar medicamentos
   const filteredMedications = medications.filter(med => {
     const matchesSearch = med.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -153,6 +239,18 @@ export default function MedicamentosPage() {
       ? med.status === 'activo'
       : med.status !== 'activo'
     return matchesSearch && matchesView
+  })
+
+  // Calcular grupos de recetas para aplicar bordes superiores distintivos en tarjetas individuales
+  const groupSizes: Record<string, number> = {}
+  const medGroupKeys: Record<string, string> = {}
+
+  filteredMedications.forEach(med => {
+    const time = med.createdAt ? new Date(med.createdAt).getTime() : 0
+    const roundedTime = Math.floor(time / 10000) * 10000
+    const key = `${med.doctorId || 'unknown'}_${med.diagnosisCode || 'no-diag'}_${roundedTime}`
+    medGroupKeys[med.id] = key
+    groupSizes[key] = (groupSizes[key] || 0) + 1
   })
 
   // Estadísticas
@@ -240,10 +338,39 @@ export default function MedicamentosPage() {
               const Status = statusConfig[med.status]
               const StatusIcon = Status.icon
               const emoji = formEmoji[med.form ?? 'default'] ?? formEmoji.default
+              const isAiLoading = loadingAi[med.name]
+              const aiDesc = aiDescriptions[med.name]
+
+              const groupKey = medGroupKeys[med.id]
+              const groupSize = groupSizes[groupKey] || 0
+              const isGrouped = groupSize >= 2
+              const theme = isGrouped ? getGroupTheme(groupKey) : null
 
               return (
-                <div key={med.id} className={`bg-foreground/5 backdrop-blur-sm p-6 rounded-2xl border border-border hover:border-primary/30 transition-all group border-l-4 ${Status.borderColor}`}>
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-6">
+                <div 
+                  key={med.id} 
+                  className={`bg-foreground/5 backdrop-blur-sm p-6 rounded-2xl border border-border hover:border-primary/30 transition-all group border-l-4 ${Status.borderColor} ${isGrouped ? `border-t-4 ${theme?.border}` : ''}`}
+                >
+                  {isGrouped && (
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-border/20 text-xs flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${theme?.badge}`}>
+                          Receta Conjunta ({groupSize} medicamentos)
+                        </span>
+                        {med.diagnosisCode && (
+                          <span className="text-foreground/40 font-semibold">
+                            Diagnóstico: <span className="text-cyan-500 font-bold">{med.diagnosisCode}</span>
+                            {med.diagnosisDesc && <span className="text-foreground/55 font-semibold"> - {med.diagnosisDesc}</span>}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-foreground/30 font-bold uppercase tracking-wider">
+                        Prescrito en conjunto
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col lg:flex-row lg:items-start gap-6">
                     <div className="size-16 rounded-2xl bg-foreground/10 flex items-center justify-center shrink-0">
                       <span className="text-3xl">{emoji}</span>
                     </div>
@@ -263,12 +390,6 @@ export default function MedicamentosPage() {
                             {med.frequency && <span className="text-sm text-foreground/60 font-medium">{med.frequency}</span>}
                             {med.form && <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-foreground/10 text-foreground/50">{med.form}</span>}
                           </div>
-                          {med.diagnosisCode && (
-                            <div className="mt-1 inline-flex items-center gap-1.5 text-xs bg-blue-500/10 px-2 py-0.5 rounded-lg">
-                              <span className="font-black text-blue-400">{med.diagnosisCode}</span>
-                              {med.diagnosisDesc && <span className="text-foreground/50">{med.diagnosisDesc}</span>}
-                            </div>
-                          )}
                         </div>
                         
                         <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${Status.bg}`}>
@@ -292,9 +413,37 @@ export default function MedicamentosPage() {
                           </span>
                         </div>
                       </div>
+
+                      {/* AI Explanation Section */}
+                      <div className="mt-4 pt-4 border-t border-border/20">
+                        {!aiDesc ? (
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => getAiDescription(med.name)}
+                            disabled={isAiLoading}
+                            className="h-8 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-widest text-[9px] cursor-pointer"
+                          >
+                            {isAiLoading ? (
+                              <Loader2 className="size-3 mr-2 animate-spin text-cyan-500" />
+                            ) : (
+                              <Sparkles className="size-3 mr-2 text-cyan-500" />
+                            )}
+                            Explicación de IA
+                          </Button>
+                        ) : (
+                          <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl flex gap-3 text-xs leading-relaxed text-foreground/80 animate-in fade-in slide-in-from-top-1">
+                            <Sparkles className="size-4 text-cyan-500 shrink-0 mt-0.5 animate-pulse" />
+                            <div>
+                              <p className="font-bold text-[9px] text-cyan-500 uppercase tracking-widest mb-0.5">Qué hace este medicamento:</p>
+                              <p className="font-medium italic">"{aiDesc}"</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
-                    <ChevronRight className="size-6 text-foreground/20 group-hover:text-cyan-500 transition-all" />
+                    <ChevronRight className="size-6 text-foreground/20 group-hover:text-cyan-500 transition-all shrink-0 self-center" />
                   </div>
                 </div>
               )

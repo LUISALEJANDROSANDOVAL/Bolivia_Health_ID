@@ -34,7 +34,7 @@ const TURNO_DEMO = {
 };
 
 export default function FichaActivaScreen({ route, navigation }: any) {
-  const hospital = route?.params?.hospital ?? { nombre: 'Hospital de Clínicas', tiempo: '~25 min' };
+  const hospital = route?.params?.hospital ?? { nombre: 'Clínica del Sur', tiempo: '~10 min' };
   const especialidad = route?.params?.especialidad ?? { nombre: 'Medicina General' };
 
   const [turnoActual, setTurnoActual] = useState(TURNO_DEMO.turnoActual);
@@ -139,7 +139,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             <ArrowLeft size={20} color="#0F2B3D" />
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerTitle}>Fila Virtual</Text>
+            <Text style={styles.headerTitle}>Recepción Virtual</Text>
             <Text style={styles.headerSubtitle}>Bolivia Health ID</Text>
           </View>
         </View>
@@ -150,7 +150,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
           </View>
           <Text style={styles.emptyStateTitle}>No tienes turnos activos</Text>
           <Text style={styles.emptyStateDesc}>
-            Solicita una nueva ficha digital para agendar tu próxima cita médica en cualquier hospital público sin tener que hacer filas desde la madrugada.
+            Agenda tu próxima cita médica en nuestra red de clínicas exclusivas. Disfruta de una atención preferencial y sin demoras.
           </Text>
           
           <TouchableOpacity
@@ -158,7 +158,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             activeOpacity={0.8}
             onPress={() => navigation?.navigate('SolicitarFicha')}
           >
-            <Text style={styles.btnSolicitarEmptyText}>Solicitar Nueva Ficha</Text>
+            <Text style={styles.btnSolicitarEmptyText}>Agendar Nueva Cita</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -174,7 +174,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
           <ArrowLeft size={20} color="#0F2B3D" />
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>Fila Virtual</Text>
+          <Text style={styles.headerTitle}>Recepción Virtual</Text>
           <Text style={styles.headerSubtitle}>Bolivia Health ID</Text>
         </View>
         <View style={styles.statusDot}>
@@ -282,7 +282,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btnCancelar} activeOpacity={0.7}>
-          <Text style={styles.btnCancelarText}>Cancelar ficha</Text>
+          <Text style={styles.btnCancelarText}>Cancelar cita</Text>
         </TouchableOpacity>
       </View>
 

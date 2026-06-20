@@ -34,7 +34,7 @@ const PACIENTE_DEMO = {
   nombre: 'Valeria Rojas',
   cedula: 'CL: 8.472.910 LP',
   grupoSanguineo: 'O Positivo',
-  seguro: 'SUS & CNS',
+  seguro: 'Alianza Seguros Privado',
   walletId: '0x8d2a4f1b3c9e7a2d5f8b1e4c7a0d3f6b9c2e5a8d1f4c7b0e3a6d9f2c5b8e1a4',
 };
 
@@ -155,7 +155,7 @@ export default function HealthIDScreen({ navigation }: any) {
             ]}>
               <View style={[styles.idCardBadgeDot, !patientProfile?.cedula_identidad && { backgroundColor: '#F97316' }]} />
               <Text style={[styles.idCardBadgeText, !patientProfile?.cedula_identidad && { color: '#F97316' }]}>
-                {patientProfile?.cedula_identidad ? 'VERIFICADO EN AVALANCHE' : 'REGISTRO PENDIENTE'}
+                {patientProfile?.cedula_identidad ? 'IDENTIDAD VERIFICADA' : 'REGISTRO PENDIENTE'}
               </Text>
             </View>
           </View>
@@ -187,7 +187,7 @@ export default function HealthIDScreen({ navigation }: any) {
               <Heart size={14} color="rgba(255,255,255,0.6)" />
               <View>
                 <Text style={styles.idCardStatLabel}>SEGURO ACTIVO</Text>
-                <Text style={styles.idCardStatValue}>SUS & CNS</Text>
+                <Text style={styles.idCardStatValue}>Alianza Seguros Privado</Text>
               </View>
             </View>
           </View>

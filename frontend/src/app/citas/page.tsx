@@ -64,7 +64,10 @@ export default function PatientAgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+<<<<<<< HEAD
   const [filterMode, setFilterMode] = useState<'all' | 'day'>('all')
+=======
+>>>>>>> develop
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [stats, setStats] = useState({
@@ -289,7 +292,11 @@ export default function PatientAgendaPage() {
                  </div>
                  <h3 className="text-xl font-black text-foreground">No tienes citas agendadas</h3>
                  <p className="text-sm text-foreground/40 font-bold uppercase tracking-widest mt-2">
+<<<<<<< HEAD
                    {filterMode === 'day' ? 'Prueba seleccionando otro día o limpiando el filtro' : 'Usa el formulario superior para agendar una'}
+=======
+                   Usa el formulario superior para agendar una
+>>>>>>> develop
                  </p>
               </div>
             ) : (
