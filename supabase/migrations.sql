@@ -144,3 +144,92 @@ CREATE TABLE public.profiles (
   password_hash text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id)
 );
+
+CREATE TABLE public.sucursales (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  address text,
+  coordinates text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sucursales_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.doctor_sucursal (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  doctor_id uuid NOT NULL,
+  sucursal_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT doctor_sucursal_pkey PRIMARY KEY (id),
+  CONSTRAINT doctor_sucursal_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
+  CONSTRAINT doctor_sucursal_sucursal_id_fkey FOREIGN KEY (sucursal_id) REFERENCES public.sucursales(id)
+);
+
+CREATE TABLE public.doctor_schedules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  doctor_id uuid NOT NULL,
+  sucursal_id uuid NOT NULL,
+  day_of_week integer NOT NULL CHECK (day_of_week >= 1 AND day_of_week <= 7),
+  start_time time without time zone NOT NULL,
+  end_time time without time zone NOT NULL CHECK (end_time > start_time),
+  slot_duration_minutes integer DEFAULT 30,
+  is_active boolean DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT doctor_schedules_pkey PRIMARY KEY (id),
+  CONSTRAINT doctor_schedules_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
+  CONSTRAINT doctor_schedules_sucursal_id_fkey FOREIGN KEY (sucursal_id) REFERENCES public.sucursales(id)
+);
+
+-- Función para generar las "píldoras de hora" (slots disponibles)
+CREATE OR REPLACE FUNCTION public.get_available_slots(
+    p_doctor_id uuid,
+    p_sucursal_id uuid,
+    p_date date
+)
+RETURNS TABLE (
+    slot_time time
+) AS $$
+DECLARE
+    v_day_of_week integer;
+    v_schedule record;
+BEGIN
+    -- En PostgreSQL, extract(isodow from date) devuelve 1=Lunes, 7=Domingo
+    v_day_of_week := extract(isodow from p_date);
+
+    -- Obtener el horario del doctor para ese día en esa sucursal
+    SELECT * INTO v_schedule
+    FROM public.doctor_schedules
+    WHERE doctor_id = p_doctor_id
+      AND sucursal_id = p_sucursal_id
+      AND day_of_week = v_day_of_week
+      AND is_active = true
+    LIMIT 1;
+
+    -- Si no hay horario activo para ese día, no retornar nada
+    IF NOT FOUND OR v_schedule.start_time >= v_schedule.end_time THEN
+        RETURN;
+    END IF;
+
+    -- Generar los slots de tiempo y filtrar los que ya están reservados
+    RETURN QUERY
+    WITH slots AS (
+        SELECT generate_series(
+            v_schedule.start_time::timestamp,
+            (v_schedule.end_time - (v_schedule.slot_duration_minutes || ' minutes')::interval)::timestamp,
+            (v_schedule.slot_duration_minutes || ' minutes')::interval
+        )::time AS slot_time
+    )
+    SELECT s.slot_time
+    FROM slots s
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.appointments a
+        WHERE a.doctor_id = p_doctor_id
+          AND a.appointment_date = p_date
+          AND a.status IN ('scheduled', 'confirmed', 'in_progress')
+          -- Verificamos si hay superposición con una cita existente
+          AND (s.slot_time < COALESCE(a.end_time, a.appointment_time + (v_schedule.slot_duration_minutes || ' minutes')::interval)
+               AND 
+               (s.slot_time + (v_schedule.slot_duration_minutes || ' minutes')::interval) > a.appointment_time)
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
