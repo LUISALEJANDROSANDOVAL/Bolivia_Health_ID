@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Dimensions,
-  Image,
+import { Text } from '../components/CustomText';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  ScrollView, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Dimensions, 
+  Animated,
+  useColorScheme
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import {
   ArrowLeft,
   ShieldCheck,
@@ -19,8 +21,9 @@ import {
   Clock,
   UserCircle,
 } from 'lucide-react-native';
+import { Colors } from '../theme/Colors';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // ── DATOS MOCK DEL DOCTOR ──────────────────────────────────────────────────
 const DOCTOR_DEMO = {
@@ -45,6 +48,29 @@ export default function PermisosScreen({ navigation }: any) {
     'signos',
   ]);
 
+  const isDark = useColorScheme() === 'dark';
+  const theme = isDark ? Colors.dark : Colors.light;
+
+  // Animaciones Premium
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   const toggleCategoria = (id: string) => {
     if (categoriasSeleccionadas.includes(id)) {
       setCategoriasSeleccionadas(categoriasSeleccionadas.filter((c) => c !== id));
@@ -54,56 +80,60 @@ export default function PermisosScreen({ navigation }: any) {
   };
 
   const handleAutorizar = () => {
-    // Aquí iría la lógica de firma en la blockchain
     alert('Acceso autorizado y registrado de forma segura.');
     navigation?.goBack();
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* ── HEADER ── */}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* ── HEADER BLANCO LIMPIO ── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
-          <ArrowLeft size={20} color="#0F2B3D" />
+        <TouchableOpacity 
+          style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]} 
+          onPress={() => navigation?.goBack()}
+        >
+          <ArrowLeft size={20} color={theme.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <ShieldCheck size={16} color="#14B8A6" />
-          <Text style={styles.headerTitle}>Centro de Privacidad</Text>
+          <ShieldCheck size={18} color="#14B8A6" />
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Centro de Privacidad</Text>
         </View>
-        <View style={{ width: 38 }} />
+        <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* ── BANNER DE SEGURIDAD ── */}
-        <View style={styles.securityBanner}>
-          <Lock size={14} color="#8B5CF6" />
-          <Text style={styles.securityBannerText}>
-            Acceso protegido con seguridad avanzada
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        style={[styles.scroll, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+      >
+        {/* ── TÍTULO DE LA PANTALLA ── */}
+        <View style={styles.titleSection}>
+          <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Compartir Mis Datos</Text>
+          <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
+            Estás a punto de otorgar acceso temporal a tu información médica verificada. Tú tienes el control total.
           </Text>
         </View>
 
-        {/* ── TÍTULO DE LA PANTALLA ── */}
-        <View style={styles.titleSection}>
-          <Text style={styles.pageTitle}>Compartir Mis Datos</Text>
-          <Text style={styles.pageSubtitle}>
-            Estás a punto de otorgar acceso temporal a tu información médica verificada. Tú tienes el control total.
+        {/* ── BANNER DE SEGURIDAD ── */}
+        <View style={[styles.securityBanner, isDark && { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)' }]}>
+          <Lock size={14} color="#8B5CF6" />
+          <Text style={[styles.securityBannerText, isDark && { color: '#C4B5FD' }]}>
+            Acceso protegido con seguridad avanzada
           </Text>
         </View>
 
         {/* ── SECCIÓN 1: ¿CON QUIÉN COMPARTES? ── */}
         <Text style={styles.sectionTitle}>¿CON QUIÉN COMPARTES?</Text>
-        <View style={styles.doctorCard}>
-          <View style={styles.doctorAvatarContainer}>
-            {/* Usamos un ícono genérico ya que no tenemos una URL de imagen real a mano */}
-            <UserCircle size={48} color="#94A3B8" strokeWidth={1} />
+        <View style={[styles.doctorCard, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#000' }]}>
+          <View style={[styles.doctorAvatarContainer, { backgroundColor: isDark ? theme.background : '#F8FAFC', borderColor: theme.border }]}>
+            <UserCircle size={48} color={theme.textSecondary} strokeWidth={1} />
           </View>
           <View style={styles.doctorInfo}>
-            <Text style={styles.doctorName}>{DOCTOR_DEMO.nombre}</Text>
-            <Text style={styles.doctorSpecialty}>{DOCTOR_DEMO.especialidad}</Text>
+            <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{DOCTOR_DEMO.nombre}</Text>
+            <Text style={[styles.doctorSpecialty, isDark && { color: '#60A5FA' }]}>{DOCTOR_DEMO.especialidad}</Text>
             <View style={styles.doctorHospitalRow}>
-              <MapPin size={12} color="#64748B" />
-              <Text style={styles.doctorHospitalText}>{DOCTOR_DEMO.hospital}</Text>
+              <MapPin size={12} color={theme.textSecondary} />
+              <Text style={[styles.doctorHospitalText, { color: theme.textSecondary }]}>{DOCTOR_DEMO.hospital}</Text>
             </View>
           </View>
         </View>
@@ -111,7 +141,7 @@ export default function PermisosScreen({ navigation }: any) {
         {/* ── SECCIÓN 2: TIEMPO DE ACCESO ── */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>DURACIÓN DEL ACCESO</Text>
-          <Clock size={14} color="#64748B" />
+          <Clock size={14} color={theme.textSecondary} />
         </View>
         <View style={styles.duracionGrid}>
           {DURACIONES.map((duracion) => {
@@ -119,11 +149,19 @@ export default function PermisosScreen({ navigation }: any) {
             return (
               <TouchableOpacity
                 key={duracion}
-                style={[styles.duracionBtn, isSelected && styles.duracionBtnActivo]}
+                style={[
+                  styles.duracionBtn,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  isSelected && [styles.duracionBtnActivo, { backgroundColor: theme.primary, borderColor: theme.primary }]
+                ]}
                 onPress={() => setDuracionSeleccionada(duracion)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.duracionBtnText, isSelected && styles.duracionBtnTextActivo]}>
+                <Text style={[
+                  styles.duracionBtnText,
+                  { color: theme.textSecondary },
+                  isSelected && styles.duracionBtnTextActivo
+                ]}>
                   {duracion}
                 </Text>
               </TouchableOpacity>
@@ -133,7 +171,7 @@ export default function PermisosScreen({ navigation }: any) {
 
         {/* ── SECCIÓN 3: ¿QUÉ INFORMACIÓN COMPARTIR? ── */}
         <Text style={styles.sectionTitle}>¿QUÉ DATOS DESEAS COMPARTIR?</Text>
-        <View style={styles.categoriasContainer}>
+        <View style={[styles.categoriasContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#000' }]}>
           {CATEGORIAS_DATOS.map((cat, index) => {
             const isSelected = categoriasSeleccionadas.includes(cat.id);
             return (
@@ -141,21 +179,25 @@ export default function PermisosScreen({ navigation }: any) {
                 key={cat.id}
                 style={[
                   styles.categoriaRow,
-                  index !== CATEGORIAS_DATOS.length - 1 && styles.categoriaBorderBottom,
+                  index !== CATEGORIAS_DATOS.length - 1 && [styles.categoriaBorderBottom, { borderBottomColor: theme.border }],
                 ]}
                 onPress={() => toggleCategoria(cat.id)}
                 activeOpacity={0.7}
               >
                 <View style={styles.categoriaLeft}>
-                  <Text style={[styles.categoriaLabel, isSelected && styles.categoriaLabelActivo]}>
+                  <Text style={[
+                    styles.categoriaLabel,
+                    { color: theme.textSecondary },
+                    isSelected && [styles.categoriaLabelActivo, { color: theme.textPrimary }]
+                  ]}>
                     {cat.label}
                   </Text>
                 </View>
                 <View style={styles.checkboxContainer}>
                   {isSelected ? (
-                    <CheckSquare size={24} color="#0F2B3D" fill="#F4F7FC" />
+                    <CheckSquare size={24} color={theme.primary} fill={isDark ? theme.primary : '#EFF6FF'} />
                   ) : (
-                    <Square size={24} color="#CBD5E1" />
+                    <Square size={24} color={theme.border} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -163,127 +205,262 @@ export default function PermisosScreen({ navigation }: any) {
           })}
         </View>
 
-        {/* ── ESPACIADOR PARA EMPUJAR BOTONES AL FONDO ── */}
-        <View style={{ height: 40 }} />
+        <View style={{ height: 20 }} />
 
         {/* ── BOTONES DE ACCIÓN ── */}
-        <TouchableOpacity style={styles.btnPrimary} onPress={handleAutorizar} activeOpacity={0.85}>
+        <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={handleAutorizar} activeOpacity={0.85}>
           <Lock size={18} color="#FFFFFF" />
           <Text style={styles.btnPrimaryText}> Autorizar Acceso Seguro</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation?.goBack()} activeOpacity={0.7}>
-          <Text style={styles.btnSecondaryText}>Cancelar</Text>
+          <Text style={[styles.btnSecondaryText, { color: theme.textSecondary }]}>Cancelar</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 20 }} />
-      </ScrollView>
+        <View style={{ height: 60 }} />
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: {
+    flex: 1,
+  },
   
-  // Header
+  // Header Limpio
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   backButton: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  headerTitleContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerTitle: { fontSize: 14, fontWeight: '700', color: '#0F2B3D' },
-  
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  // Título de Pantalla
+  titleSection: {
+    marginBottom: 24,
+  },
+  pageTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
   
   // Banner Seguridad
   securityBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#F5F3FF', borderRadius: 12, paddingVertical: 10, marginBottom: 24,
-    borderWidth: 1, borderColor: '#EDE9FE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F5F3FF',
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
   },
-  securityBannerText: { fontSize: 11, fontWeight: '700', color: '#8B5CF6' },
-  
-  // Título
-  titleSection: { marginBottom: 32 },
-  pageTitle: { fontSize: 26, fontWeight: '900', color: '#0F2B3D', letterSpacing: -0.5, marginBottom: 8 },
-  pageSubtitle: { fontSize: 14, color: '#64748B', fontWeight: '500', lineHeight: 20 },
+  securityBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8B5CF6',
+  },
   
   // Títulos de Sección
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  sectionTitle: { fontSize: 11, fontWeight: '800', color: '#94A3B8', letterSpacing: 1, marginBottom: 12 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+  },
   
   // Tarjeta de Doctor
   doctorCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 32,
-    borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 32,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 15,
+    elevation: 3,
   },
   doctorAvatarContainer: {
-    width: 60, height: 60, borderRadius: 16,
-    backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  doctorInfo: { flex: 1, justifyContent: 'center' },
-  doctorName: { fontSize: 17, fontWeight: '800', color: '#0F2B3D', marginBottom: 4 },
-  doctorSpecialty: { fontSize: 11, fontWeight: '700', color: '#2D7FF9', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
-  doctorHospitalRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  doctorHospitalText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  doctorInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  doctorName: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  doctorSpecialty: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2D7FF9',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  doctorHospitalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  doctorHospitalText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   
   // Grid de Duración
   duracionGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 32,
   },
   duracionBtn: {
-    width: '48%', backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 14,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
+    width: '48%',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
   duracionBtnActivo: {
-    backgroundColor: '#0F2B3D', borderColor: '#0F2B3D',
-    shadowColor: '#0F2B3D', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  duracionBtnText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
-  duracionBtnTextActivo: { color: '#FFFFFF', fontWeight: '700' },
+  duracionBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  duracionBtnTextActivo: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
   
   // Categorías de Datos (Checkboxes)
   categoriasContainer: {
-    backgroundColor: '#FFFFFF', borderRadius: 16,
-    borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
     marginBottom: 32,
+    overflow: 'hidden',
   },
   categoriaRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 16, paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
   },
   categoriaBorderBottom: {
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 1,
   },
-  categoriaLeft: { flex: 1, paddingRight: 16 },
-  categoriaLabel: { fontSize: 15, fontWeight: '500', color: '#64748B' },
-  categoriaLabelActivo: { color: '#0F2B3D', fontWeight: '700' },
-  checkboxContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  categoriaLeft: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  categoriaLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  categoriaLabelActivo: {
+    fontWeight: '800',
+  },
+  checkboxContainer: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   
   // Botones de Acción
   btnPrimary: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0F2B3D', borderRadius: 16, paddingVertical: 18,
-    shadowColor: '#0F2B3D', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    paddingVertical: 18,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
     marginBottom: 16,
   },
-  btnPrimaryText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
-  btnSecondary: {
-    alignItems: 'center', justifyContent: 'center', paddingVertical: 14,
+  btnPrimaryText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  btnSecondaryText: { fontSize: 15, fontWeight: '700', color: '#64748B' },
+  btnSecondary: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  btnSecondaryText: {
+    fontSize: 15,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
 });

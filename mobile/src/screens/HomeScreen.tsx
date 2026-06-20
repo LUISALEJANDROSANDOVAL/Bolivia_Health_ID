@@ -1,22 +1,12 @@
+import { Text } from '../components/CustomText';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Dimensions,
-  Animated,
-  ActivityIndicator,
-  Modal,
-  Linking,
-  Platform
-} from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
+
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getActiveWallet, getPatientData, PatientProfile } from '../services/patientService';
 import { supabase } from '../services/supabase';
+import { Colors } from '../theme/Colors';
 import {
   Stethoscope,
   Pill,
@@ -45,6 +35,9 @@ export default function HomeScreen({ navigation }: any) {
   const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
   const [activeAppointment, setActiveAppointment] = useState<any>(null);
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+
+  const isDark = useColorScheme() === 'dark';
+  const theme = isDark ? Colors.dark : Colors.light;
 
   const loadData = async () => {
     try {
@@ -127,8 +120,8 @@ export default function HomeScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.loadingCenter}>
-        <ActivityIndicator size="large" color="#2D7FF9" />
+      <View style={[styles.loadingCenter, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text style={styles.loadingText}>Sincronizando datos...</Text>
       </View>
     );
@@ -137,16 +130,16 @@ export default function HomeScreen({ navigation }: any) {
   const firstName = patientProfile?.full_name ? patientProfile.full_name.split(' ')[0] : 'Rajesh';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       
       {/* ─── HEADER GRADIENT BACKGROUND ─── */}
       <View style={styles.gradientHeaderContainer}>
         <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
           <Defs>
             <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor="#0F2B3D" />
-              <Stop offset="50%" stopColor="#1E40AF" />
-              <Stop offset="100%" stopColor="#3B82F6" />
+              <Stop offset="0%" stopColor={isDark ? '#081720' : '#0F2B3D'} />
+              <Stop offset="50%" stopColor={isDark ? '#0D2A6E' : '#1E40AF'} />
+              <Stop offset="100%" stopColor={isDark ? '#1C4A9E' : '#3B82F6'} />
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" />
@@ -190,8 +183,8 @@ export default function HomeScreen({ navigation }: any) {
         </SafeAreaView>
       </View>
 
-      {/* ─── BOTTOM SHEET (WHITE AREA) ─── */}
-      <View style={styles.bottomSheet}>
+      {/* ─── BOTTOM SHEET (WHITE/DARK AREA) ─── */}
+      <View style={[styles.bottomSheet, { backgroundColor: theme.background }]}>
         <ScrollView 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -200,22 +193,22 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>Servicios Clínicos</Text>
           <View style={styles.servicesGrid}>
             <View style={styles.serviceItem}>
-              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('SolicitarFicha')}>
-                <Stethoscope size={28} color="#2D7FF9" strokeWidth={1.5} />
+              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('SolicitarFicha')}>
+                <Stethoscope size={28} color={theme.primary} strokeWidth={1.5} />
               </TouchableOpacity>
               <Text style={styles.serviceText}>Agendar Cita</Text>
             </View>
 
             <View style={styles.serviceItem}>
-              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('Historial')}>
-                <FileText size={28} color="#2D7FF9" strokeWidth={1.5} />
+              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('Historial')}>
+                <FileText size={28} color={theme.primary} strokeWidth={1.5} />
               </TouchableOpacity>
               <Text style={styles.serviceText}>Historial</Text>
             </View>
 
             <View style={styles.serviceItem}>
-              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('Permisos')}>
-                <Lock size={28} color="#2D7FF9" strokeWidth={1.5} />
+              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('Permisos')}>
+                <Lock size={28} color={theme.primary} strokeWidth={1.5} />
               </TouchableOpacity>
               <Text style={styles.serviceText}>Permisos</Text>
             </View>
@@ -224,27 +217,27 @@ export default function HomeScreen({ navigation }: any) {
           {/* Appointment Section */}
           <View style={styles.appointmentHeader}>
             <Text style={styles.sectionTitle}>Próxima Cita</Text>
-            <TouchableOpacity onPress={() => navigation?.navigate('FichaActiva')}>
+            <TouchableOpacity onPress={() => navigation?.navigate('MisCitas')}>
               <Text style={styles.seeAllText}>Ver todas</Text>
             </TouchableOpacity>
           </View>
 
           {activeAppointment ? (
-            <View style={styles.appointmentCard}>
+            <View style={[styles.appointmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <View style={styles.appointmentDateRow}>
                 <View style={styles.dateInfo}>
-                  <Clock size={16} color="#000000" strokeWidth={2} />
+                  <Clock size={16} color={theme.textPrimary} strokeWidth={2} />
                   <Text style={styles.dateText}>
                     {formatAppointmentDate(activeAppointment.appointment_date, activeAppointment.appointment_time)}
                   </Text>
                 </View>
-                <MoreVertical size={20} color="#94A3B8" />
+                <MoreVertical size={20} color={theme.textSecondary} />
               </View>
 
-              <View style={styles.appointmentDivider} />
+              <View style={[styles.appointmentDivider, { backgroundColor: theme.border }]} />
 
               <View style={styles.doctorInfoRow}>
-                <View style={styles.doctorAvatarContainer}>
+                <View style={[styles.doctorAvatarContainer, { backgroundColor: theme.background }]}>
                   <Image 
                     source={require('../../assets/doctor_hero_female_cropped.png')} 
                     style={styles.cardDoctorImage} 
@@ -259,7 +252,7 @@ export default function HomeScreen({ navigation }: any) {
             </View>
           ) : (
             <TouchableOpacity 
-              style={styles.appointmentCard}
+              style={[styles.appointmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => navigation?.navigate('SolicitarFicha')}
             >
               <Text style={styles.dateText}>No tienes citas próximas</Text>
@@ -271,35 +264,6 @@ export default function HomeScreen({ navigation }: any) {
         </ScrollView>
       </View>
 
-      {/* ─── BOTTOM TAB BAR (CUSTOM NAVBAR) ─── */}
-      <View style={[styles.navBar, { paddingBottom: Math.max(insets.bottom, 15) }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
-          <Home size={24} color="#2D7FF9" />
-          <Text style={[styles.navText, styles.navTextActive]}>Inicio</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('Historial')}>
-          <FileText size={24} color="#94A3B8" />
-          <Text style={styles.navText}>Historial</Text>
-        </TouchableOpacity>
-
-        <View style={styles.navItemCenter}>
-          <TouchableOpacity style={styles.fab} onPress={() => navigation?.navigate('SolicitarFicha')}>
-            <Plus size={32} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('FichaActiva')}>
-          <Calendar size={24} color="#94A3B8" />
-          <Text style={styles.navText}>Mis Citas</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('Permisos')}>
-          <User size={24} color="#94A3B8" />
-          <Text style={styles.navText}>Mi ID</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* ─── EMERGENCY MODAL ─── */}
       <Modal
         animationType="fade"
@@ -308,12 +272,12 @@ export default function HomeScreen({ navigation }: any) {
         onRequestClose={() => setEmergencyModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             <TouchableOpacity 
-              style={styles.modalCloseButton}
+              style={[styles.modalCloseButton, { backgroundColor: theme.background }]}
               onPress={() => setEmergencyModalVisible(false)}
             >
-              <X size={20} color="#64748B" />
+              <X size={20} color={theme.textSecondary} />
             </TouchableOpacity>
             
             <View style={styles.modalHeaderIcon}>
@@ -355,13 +319,11 @@ export default function HomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   loadingCenter: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF'
   },
   loadingText: {
     marginTop: 10,
@@ -451,7 +413,7 @@ const styles = StyleSheet.create({
   doctorImage: {
     position: 'absolute',
     right: -15,
-    bottom: -30, // pushed down to hide perfectly behind the white sheet
+    bottom: -30, 
     width: width * 0.58,
     height: height * 0.46,
     zIndex: 5,
@@ -460,7 +422,6 @@ const styles = StyleSheet.create({
   // Bottom Sheet White Area
   bottomSheet: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     marginTop: -30,
@@ -480,7 +441,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#000000',
   },
   servicesGrid: {
     flexDirection: 'row',
@@ -496,11 +456,9 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -510,7 +468,6 @@ const styles = StyleSheet.create({
   serviceText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1E293B',
   },
 
   // Appointment Section
@@ -526,11 +483,9 @@ const styles = StyleSheet.create({
     color: '#2D7FF9',
   },
   appointmentCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.04,
@@ -552,11 +507,9 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1E293B',
   },
   appointmentDivider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
     marginVertical: 16,
     marginLeft: 26,
   },
@@ -569,7 +522,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F1F5F9',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -595,74 +547,22 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#000000',
   },
   doctorSpecialty: {
     fontSize: 13,
-    color: '#94A3B8',
     marginTop: 2,
-  },
-
-  // Bottom Tab Bar (Custom Navbar)
-  navBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingTop: 10,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navText: {
-    fontSize: 10,
-    color: '#94A3B8',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  navTextActive: {
-    color: '#2D7FF9',
-    fontWeight: '700',
-  },
-  navItemCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#0F2B3D',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -35,
-    shadowColor: '#0F2B3D',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
   },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 43, 61, 0.4)',
+    backgroundColor: 'rgba(15, 43, 61, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     padding: 24,
     alignItems: 'center',
@@ -674,7 +574,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -690,13 +589,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F2B3D',
     textAlign: 'center',
     marginBottom: 8,
   },
   modalText: {
     fontSize: 13,
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -730,7 +627,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   btnModalCloseText: {
-    color: '#64748B',
     fontSize: 13,
     fontWeight: '700',
   },

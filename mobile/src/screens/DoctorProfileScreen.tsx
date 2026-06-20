@@ -1,0 +1,422 @@
+import { Text } from '../components/CustomText';
+import React, { useState } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, SafeAreaView, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
+
+import {
+  ArrowLeft,
+  MapPin,
+  MessageCircle,
+  Video,
+  Phone,
+  GraduationCap,
+  Languages
+} from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors } from '../theme/Colors';
+
+const { width, height } = Dimensions.get('window');
+
+const DATES_MOCK = [
+  { id: '1', day: '07', dayName: 'Lun' },
+  { id: '2', day: '08', dayName: 'Mar' },
+  { id: '3', day: '09', dayName: 'Mie' },
+  { id: '4', day: '10', dayName: 'Jue' },
+  { id: '5', day: '11', dayName: 'Vie' },
+  { id: '6', day: '12', dayName: 'Sab' },
+  { id: '7', day: '13', dayName: 'Dom' },
+];
+
+const TIMES_MOCK = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00'
+];
+
+export default function DoctorProfileScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const { doctor } = route.params || {};
+
+  const isDark = useColorScheme() === 'dark';
+  const theme = isDark ? Colors.dark : Colors.light;
+
+  const [selectedDate, setSelectedDate] = useState('10'); // Default selected to match image vibe
+  const [selectedTime, setSelectedTime] = useState('10:30');
+
+  // Fallback si no hay doctor (por error de navegación)
+  if (!doctor) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.textPrimary, margin: 20 }}>Error: Doctor no encontrado.</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 20 }}>
+          <Text style={{ color: theme.primary }}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* ── HERO IMAGE SECTION ── */}
+      <View style={styles.heroContainer}>
+        {/* Usamos el gradiente corporativo */}
+        <LinearGradient
+          colors={isDark ? ['#081720', '#1C4A9E'] : ['#0F2B3D', '#2D7FF9']}
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        
+        <Image 
+          source={{ uri: doctor.image }} 
+          style={styles.heroImage} 
+          resizeMode="cover"
+        />
+
+        {/* Top Header Buttons */}
+        <SafeAreaView style={styles.heroSafeArea}>
+          <View style={styles.topBar}>
+            <TouchableOpacity 
+              style={styles.glassButtonRound} 
+              onPress={() => navigation.goBack()}
+            >
+              <ArrowLeft size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            
+            <View style={styles.topRightActions}>
+              <TouchableOpacity style={styles.glassButtonRound}>
+                <MessageCircle size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Glassmorphism Pills overlaid on image */}
+          <View style={styles.pillsContainer}>
+            <View style={styles.glassPill}>
+              <GraduationCap size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.glassPillText}>{doctor.university}</Text>
+            </View>
+            <View style={styles.glassPill}>
+              <Text style={styles.glassPillText}>Bs. 150 /consulta</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
+
+      {/* ── BOTTOM SHEET SECTION ── */}
+      <View style={[styles.bottomSheet, { backgroundColor: theme.background }]}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          {/* Doctor Info */}
+          <View style={styles.headerInfoRow}>
+            <View>
+              <Text style={styles.doctorName}>{doctor.name}</Text>
+              <Text style={styles.specialtyText}>{doctor.specialty}</Text>
+            </View>
+          </View>
+
+          {/* Summary Cards */}
+          <View style={styles.summaryCardsRow}>
+            <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: isDark ? theme.background : '#FFFFFF' }]}>
+                <MapPin size={20} color={theme.primary} />
+              </View>
+              <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Sucursal</Text>
+              <Text style={styles.summaryCardValue}>{doctor.branch}</Text>
+            </View>
+
+            <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[styles.summaryIconContainer, { backgroundColor: isDark ? theme.background : '#FFFFFF' }]}>
+                <Languages size={20} color={theme.primary} />
+              </View>
+              <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Idiomas</Text>
+              <Text style={styles.summaryCardValue}>{doctor.languages}</Text>
+            </View>
+          </View>
+
+          {/* Date Selector */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Selecciona fecha y hora</Text>
+            <Text style={[styles.monthText, { color: theme.textSecondary }]}>Nov ▾</Text>
+          </View>
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateCarousel}>
+            {DATES_MOCK.map((item) => {
+              const isSelected = selectedDate === item.day;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.dateItem,
+                    { backgroundColor: theme.surface },
+                    isSelected && [styles.dateItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
+                  ]}
+                  onPress={() => setSelectedDate(item.day)}
+                >
+                  <Text style={[styles.dateDayText, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.day}</Text>
+                  <Text style={[styles.dateDayNameText, { color: theme.textSecondary }, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.dayName}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Time Selector */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeCarousel}>
+            {TIMES_MOCK.map((time, index) => {
+              const isSelected = selectedTime === time;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.timeItem,
+                    { backgroundColor: theme.surface },
+                    isSelected && [styles.timeItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
+                  ]}
+                  onPress={() => setSelectedTime(time)}
+                >
+                  <Text style={[styles.timeText, isSelected && [styles.timeTextActive, isDark && { color: '#F97316' }]]}>{time}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Spacer for bottom button */}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </View>
+
+      {/* ── BOTTOM FIXED BUTTON ── */}
+      <View style={[styles.bottomButtonContainer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <TouchableOpacity 
+          style={styles.bookButton}
+          onPress={() => {
+            navigation.navigate('MainTabs', { screen: 'MisCitas' });
+          }}
+        >
+          <Text style={styles.bookButtonText}>Confirmar Cita</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  heroContainer: {
+    height: height * 0.45,
+    width: '100%',
+    position: 'relative',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.9, 
+  },
+  heroSafeArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 40 : 10,
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  glassButtonRound: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  pillsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  glassPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  glassPillText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  // Bottom Sheet
+  bottomSheet: {
+    flex: 1,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: -30, 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  scrollContent: {
+    padding: 24,
+  },
+  headerInfoRow: {
+    marginBottom: 24,
+  },
+  doctorName: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  specialtyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  
+  // Summary Cards
+  summaryCardsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 32,
+  },
+  summaryCard: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+  },
+  summaryIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  summaryCardLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  summaryCardValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+
+  // Selectors
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  monthText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Dates
+  dateCarousel: {
+    marginBottom: 24,
+  },
+  dateItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginRight: 12,
+    borderRadius: 16,
+  },
+  dateItemActive: {
+    backgroundColor: '#FFF7ED', 
+  },
+  dateDayText: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  dateDayNameText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateTextActive: {
+    color: '#EA580C', 
+  },
+
+  // Times
+  timeCarousel: {
+    marginBottom: 20,
+  },
+  timeItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  timeItemActive: {
+    backgroundColor: '#FFF7ED',
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  timeTextActive: {
+    color: '#EA580C',
+  },
+
+  // Bottom Fixed Button
+  bottomButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  bookButton: {
+    backgroundColor: '#2D7FF9',
+    borderRadius: 100,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2D7FF9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  bookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+});
