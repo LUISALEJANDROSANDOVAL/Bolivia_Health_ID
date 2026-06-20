@@ -55,7 +55,7 @@ const QRCodeMock = ({ size = 240 }: { size?: number }) => {
 
 export default function QRAdmisionScreen({ route, navigation }: any) {
   const turno = route?.params?.turno ?? 18;
-  const hospital = route?.params?.hospital ?? 'Hospital de Clínicas';
+  const hospital = route?.params?.hospital ?? 'Clínica del Sur';
   const especialidad = route?.params?.especialidad ?? 'Medicina General';
 
   const glowAnim = useRef(new Animated.Value(0.5)).current;
@@ -81,8 +81,8 @@ export default function QRAdmisionScreen({ route, navigation }: any) {
   const handleCompartir = async () => {
     try {
       await Share.share({
-        message: `Bolivia Health ID\nFicha #${turno}\nHospital: ${hospital}\nEspecialidad: ${especialidad}\nFecha: ${new Date().toLocaleDateString('es-BO')}`,
-        title: 'Mi Ficha Bolivia Health ID',
+        message: `Bolivia Health ID\nCita #${turno}\nClínica: ${hospital}\nEspecialidad: ${especialidad}\nFecha: ${new Date().toLocaleDateString('es-BO')}`,
+        title: 'Mi Cita - Bolivia Health ID',
       });
     } catch (error) {
       console.error(error);
@@ -108,7 +108,7 @@ export default function QRAdmisionScreen({ route, navigation }: any) {
 
         {/* Instrucción */}
         <Text style={styles.instruccion}>
-          Muestra este código al llegar al hospital
+          Muestra este código al llegar a la clínica
         </Text>
         <Text style={styles.instruccionSub}>
           El personal escaneará tu QR para confirmar tu turno
@@ -136,7 +136,7 @@ export default function QRAdmisionScreen({ route, navigation }: any) {
           {/* Info del turno debajo del QR */}
           <View style={styles.qrInfo}>
             <View style={styles.qrTurnoRow}>
-              <Text style={styles.qrTurnoLabel}>FICHA</Text>
+              <Text style={styles.qrTurnoLabel}>CITA</Text>
               <Text style={styles.qrTurnoNumero}>#{turno}</Text>
             </View>
             <View style={styles.qrDivider} />
@@ -161,7 +161,7 @@ export default function QRAdmisionScreen({ route, navigation }: any) {
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.btnCompartir} onPress={handleCompartir} activeOpacity={0.85}>
           <Share2 size={18} color="#2D7FF9" />
-          <Text style={styles.btnCompartirText}>  Compartir ficha</Text>
+          <Text style={styles.btnCompartirText}>  Compartir cita</Text>
         </TouchableOpacity>
       </View>
 

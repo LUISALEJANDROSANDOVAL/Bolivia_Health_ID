@@ -4,71 +4,73 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   Image,
   Dimensions,
   Animated,
   ActivityIndicator,
+  Modal,
+  Linking,
+  Platform
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getActiveWallet, getPatientData, PatientProfile, PatientVitals } from '../services/patientService';
-
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { getActiveWallet, getPatientData, PatientProfile } from '../services/patientService';
+import { supabase } from '../services/supabase';
 import {
-  Shield,
-  FileText,
-  ChevronRight,
-  CheckCircle,
+  Stethoscope,
+  Pill,
+  Ambulance,
   Lock,
-  LayoutDashboard,
   Ticket,
   User,
-  ClipboardList,
-  Wifi,
-  Droplets,
-  Heart,
+  Bell,
+  Activity,
+  MoreVertical,
+  Clock,
+  Phone,
+  X,
+  Plus,
+  Home,
+  FileText,
+  MessageSquare,
+  Calendar
 } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// ─── DATOS DE DEMO (en la app real vendrían de Supabase) ──────────────────────
-const PACIENTE_DEMO = {
-  nombre: 'Valeria Rojas',
-  cedula: 'CL: 8.472.910 LP',
-  grupoSanguineo: 'O+',
-  seguro: 'SUS & CNS',
-  walletId: '0x8d2a...AF1C',
-  foto: null, // URL de imagen real en producción
-  turnoActivo: {
-    numero: 18,
-    actual: 15,
-    hospital: 'Hospital de Clínicas',
-    especialidad: 'Medicina General',
-  },
-  historialCount: 3,
-};
-
-// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function HomeScreen({ navigation }: any) {
-  const [tabActivo, setTabActivo] = useState('home');
   const insets = useSafeAreaInsets();
-
-  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
-  const [patientVitals, setPatientVitals] = useState<PatientVitals | null>(null);
   const [loading, setLoading] = useState(true);
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [activeAppointment, setActiveAppointment] = useState<any>(null);
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
 
-  // Animación de respiración (breathing) para la tarjeta Health ID
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  const loadPatientData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       const wallet = await getActiveWallet();
-      const data = await getPatientData(wallet);
-      setPatientProfile(data.profile);
-      setPatientVitals(data.vitals);
+      const patientData = await getPatientData(wallet);
+      setPatientProfile(patientData.profile);
+
+      if (patientData.profile?.id) {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('patient_id', patientData.profile.id)
+          .in('status', ['scheduled', 'confirmed', 'in_progress'])
+          .order('appointment_date', { ascending: true })
+          .order('appointment_time', { ascending: true })
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setActiveAppointment(data[0]);
+        } else {
+          setActiveAppointment(null);
+        }
+      }
     } catch (error) {
-      console.error('Error loading patient data in HomeScreen:', error);
+      console.error('Error al cargar datos en el HomeScreen:', error);
     } finally {
       setLoading(false);
     }
@@ -76,615 +78,660 @@ export default function HomeScreen({ navigation }: any) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      loadPatientData();
+      loadData();
     });
-    // Initial load
-    loadPatientData();
+    loadData();
     return unsubscribe;
   }, [navigation]);
 
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.02, duration: 2000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  const formatAppointmentDate = (dateStr: string, timeStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const parts = dateStr.split('-');
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      const date = new Date(year, month, day);
+      const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+      const formattedDate = date.toLocaleDateString('en-US', options);
+      const formattedTime = timeStr ? timeStr.slice(0, 5) : '';
+      
+      // Calculate end time
+      let endTimeStr = '';
+      if (timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        let endHours = hours;
+        let endMinutes = minutes + 30;
+        if (endMinutes >= 60) {
+          endMinutes -= 60;
+          endHours += 1;
+        }
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const endPeriod = endHours >= 12 ? 'PM' : 'AM';
+        
+        const format12H = (h: number) => {
+          if (h === 0) return 12;
+          if (h > 12) return h - 12;
+          return h;
+        };
+        
+        endTimeStr = `${format12H(hours)}:${minutes.toString().padStart(2, '0')} - ${format12H(endHours)}:${endMinutes.toString().padStart(2, '0')} ${endPeriod}`;
+      }
 
-  const formatWalletAddress = (addr?: string) => {
-    if (!addr) return '';
-    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+      return `${formattedDate} • ${endTimeStr}`;
+    } catch (e) {
+      return `${dateStr} • ${timeStr}`;
+    }
   };
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.loadingCenter, { paddingTop: insets.top }]}>
+      <View style={styles.loadingCenter}>
         <ActivityIndicator size="large" color="#2D7FF9" />
-        <Text style={styles.loadingText}>Sincronizando con Supabase...</Text>
+        <Text style={styles.loadingText}>Sincronizando datos...</Text>
       </View>
     );
   }
 
+  const firstName = patientProfile?.full_name ? patientProfile.full_name.split(' ')[0] : 'Rajesh';
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
+      
+      {/* ─── HEADER GRADIENT BACKGROUND ─── */}
+      <View style={styles.gradientHeaderContainer}>
+        <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
+          <Defs>
+            <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor="#0F2B3D" />
+              <Stop offset="50%" stopColor="#1E40AF" />
+              <Stop offset="100%" stopColor="#3B82F6" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" />
+        </Svg>
 
-      {/* ── HEADER ─────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {/* Avatar del paciente */}
-          <View style={styles.avatar}>
-            <User size={20} color="#FFFFFF" />
+        <SafeAreaView style={styles.safeArea}>
+          {/* Header Row */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity style={styles.avatarImageContainer} onPress={() => navigation?.navigate('HealthID')}>
+              <Image 
+                source={{uri: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop'}} 
+                style={styles.avatarImage} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bellButton}>
+              <Bell size={20} color="#0F2B3D" strokeWidth={2} />
+            </TouchableOpacity>
           </View>
-          <View>
-            <Text style={styles.headerAppName}>Bolivia Health ID</Text>
-            <View style={styles.badgeRegistrado}>
-              <Text style={styles.badgeRegistradoText}>PACIENTE REGISTRADO</Text>
-            </View>
+
+          {/* Welcome Text & Urgent Care Button */}
+          <View style={styles.welcomeContainer}>
+            <Text style={styles.welcomeText}>¡Hola,</Text>
+            <Text style={styles.nameText}>{firstName}!</Text>
+            <Text style={styles.subtitleText}>¿Cómo te sientes hoy?</Text>
+            
+            <TouchableOpacity 
+              style={styles.urgentCareBtn}
+              onPress={() => setEmergencyModalVisible(true)}
+            >
+              <Activity size={18} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.urgentCareText}>Atención Urgente</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-        {/* Ícono de seguridad */}
-        <View style={styles.headerShield}>
-          <Shield size={20} color="#14B8A6" strokeWidth={2} />
-        </View>
+
+          {/* Doctor Image Overlay */}
+          <Image
+            source={require('../../assets/doctor_hero_female_cropped.png')}
+            style={styles.doctorImage}
+            resizeMode="contain"
+          />
+        </SafeAreaView>
       </View>
 
-      {/* ── BADGE BLOCKCHAIN ───────────────────────────────────────── */}
-      <View style={styles.blockchainBadgeContainer}>
-        <View style={styles.blockchainBadge}>
-          <Wifi size={12} color="#2D7FF9" />
-          <Text style={styles.blockchainBadgeText}>  Identidad Protegida por Blockchain</Text>
-        </View>
+      {/* ─── BOTTOM SHEET (WHITE AREA) ─── */}
+      <View style={styles.bottomSheet}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Services Section */}
+          <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>Servicios Clínicos</Text>
+          <View style={styles.servicesGrid}>
+            <View style={styles.serviceItem}>
+              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('SolicitarFicha')}>
+                <Stethoscope size={28} color="#2D7FF9" strokeWidth={1.5} />
+              </TouchableOpacity>
+              <Text style={styles.serviceText}>Agendar Cita</Text>
+            </View>
+
+            <View style={styles.serviceItem}>
+              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('Historial')}>
+                <FileText size={28} color="#2D7FF9" strokeWidth={1.5} />
+              </TouchableOpacity>
+              <Text style={styles.serviceText}>Historial</Text>
+            </View>
+
+            <View style={styles.serviceItem}>
+              <TouchableOpacity style={styles.serviceCircle} onPress={() => navigation?.navigate('Permisos')}>
+                <Lock size={28} color="#2D7FF9" strokeWidth={1.5} />
+              </TouchableOpacity>
+              <Text style={styles.serviceText}>Permisos</Text>
+            </View>
+          </View>
+
+          {/* Appointment Section */}
+          <View style={styles.appointmentHeader}>
+            <Text style={styles.sectionTitle}>Próxima Cita</Text>
+            <TouchableOpacity onPress={() => navigation?.navigate('FichaActiva')}>
+              <Text style={styles.seeAllText}>Ver todas</Text>
+            </TouchableOpacity>
+          </View>
+
+          {activeAppointment ? (
+            <View style={styles.appointmentCard}>
+              <View style={styles.appointmentDateRow}>
+                <View style={styles.dateInfo}>
+                  <Clock size={16} color="#000000" strokeWidth={2} />
+                  <Text style={styles.dateText}>
+                    {formatAppointmentDate(activeAppointment.appointment_date, activeAppointment.appointment_time)}
+                  </Text>
+                </View>
+                <MoreVertical size={20} color="#94A3B8" />
+              </View>
+
+              <View style={styles.appointmentDivider} />
+
+              <View style={styles.doctorInfoRow}>
+                <View style={styles.doctorAvatarContainer}>
+                  <Image 
+                    source={require('../../assets/doctor_hero_female_cropped.png')} 
+                    style={styles.cardDoctorImage} 
+                  />
+                  <View style={styles.onlineIndicator} />
+                </View>
+                <View style={styles.doctorDetails}>
+                  <Text style={styles.doctorName}>{activeAppointment.doctor_name || 'Dr. Prem Tiwari'}</Text>
+                  <Text style={styles.doctorSpecialty}>{activeAppointment.specialty || 'Orthopedic'}</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.appointmentCard}
+              onPress={() => navigation?.navigate('SolicitarFicha')}
+            >
+              <Text style={styles.dateText}>No tienes citas próximas</Text>
+              <Text style={[styles.doctorSpecialty, {marginTop: 4}]}>Toca aquí para agendar una consulta</Text>
+            </TouchableOpacity>
+          )}
+          
+          <View style={{height: 130}} />
+        </ScrollView>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* ─── BOTTOM TAB BAR (CUSTOM NAVBAR) ─── */}
+      <View style={[styles.navBar, { paddingBottom: Math.max(insets.bottom, 15) }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <Home size={24} color="#2D7FF9" />
+          <Text style={[styles.navText, styles.navTextActive]}>Inicio</Text>
+        </TouchableOpacity>
 
-        {/* ── TARJETA DE IDENTIDAD HOLOGRÁFICA ────────────────────── */}
-        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-          <TouchableOpacity
-            style={styles.identityCard}
-            activeOpacity={0.9}
-            onPress={() => navigation?.navigate('HealthID')}
-          >
-            {/* Efecto de Marca de Agua (Fondo) */}
-            <View style={styles.watermarkContainer}>
-              <Shield size={120} color="rgba(255,255,255,0.03)" strokeWidth={1} />
-            </View>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('Historial')}>
+          <FileText size={24} color="#94A3B8" />
+          <Text style={styles.navText}>Historial</Text>
+        </TouchableOpacity>
 
-            {/* Nombre y verificación */}
-            <View style={styles.identityNameRow}>
-              <Text style={styles.identityName}>{patientProfile?.full_name}</Text>
-              {patientProfile?.cedula_identidad ? (
-                <CheckCircle size={18} color="#14B8A6" fill="#14B8A6" />
-              ) : (
-                <CheckCircle size={18} color="#94A3B8" />
-              )}
-            </View>
-
-            <View style={styles.identitySubRow}>
-              <Text style={styles.identityCedula}>
-                {patientProfile?.cedula_identidad ? `CI: ${patientProfile.cedula_identidad}` : 'Cédula no validada'}
-              </Text>
-              <View style={[
-                styles.verifiedBadge,
-                !patientProfile?.cedula_identidad && { backgroundColor: 'rgba(249, 115, 22, 0.15)', borderColor: 'rgba(249, 115, 22, 0.3)' }
-              ]}>
-                <Text style={[
-                  styles.verifiedText,
-                  !patientProfile?.cedula_identidad && { color: '#F97316' }
-                ]}>
-                  {patientProfile?.cedula_identidad ? '✓ VERIFIED' : 'PENDIENTE'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Datos médicos básicos */}
-            <View style={styles.identityStatsRow}>
-              <View style={styles.identityStat}>
-                <Droplets size={14} color="#64748B" />
-                <View>
-                  <Text style={styles.identityStatLabel}>GRUPO SANGUÍNEO</Text>
-                  <Text style={styles.identityStatValue}>{patientVitals?.blood_type || '--'}</Text>
-                </View>
-              </View>
-              <View style={styles.identityDivider} />
-              <View style={styles.identityStat}>
-                <Heart size={14} color="#64748B" />
-                <View>
-                  <Text style={styles.identityStatLabel}>SEGURO ACTIVO</Text>
-                  <Text style={styles.identityStatValue}>{PACIENTE_DEMO.seguro}</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* QR Wallet */}
-            <View style={styles.qrContainer}>
-              {/* 
-              TODO: Reemplazar este bloque por <QRCode value={walletId} size={90} />
-              después de instalar: npm install react-native-qrcode-svg react-native-svg
-              */}
-              <View style={styles.qrPlaceholder}>
-                <Text style={styles.qrPlaceholderText}>QR</Text>
-              </View>
-              <Text style={styles.walletIdText}>
-                WALLET ID: {formatWalletAddress(patientProfile?.wallet_address)}
-              </Text>
-            </View>
+        <View style={styles.navItemCenter}>
+          <TouchableOpacity style={styles.fab} onPress={() => navigation?.navigate('SolicitarFicha')}>
+            <Plus size={32} color="#FFFFFF" />
           </TouchableOpacity>
-        </Animated.View>
+        </View>
 
-
-        {/* ── SECCIÓN: CITA ACTIVA ──────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Acciones Rápidas</Text>
-
-        <TouchableOpacity
-          style={styles.cardCitaActiva}
-          activeOpacity={0.8}
-          onPress={() => navigation?.navigate('SolicitarFicha')}
-        >
-          <View style={styles.cardLeft}>
-            <View style={styles.cardIconContainer}>
-              <Ticket size={22} color="#2D7FF9" />
-            </View>
-            <View>
-              <Text style={styles.cardTitle}>Cita Activa</Text>
-              <Text style={styles.cardSubtitle}>
-                Ver mi turno actual en la fila virtual
-              </Text>
-            </View>
-          </View>
-          <View style={styles.turnoContainer}>
-            <Text style={styles.turnoLabel}>TURNO</Text>
-            <Text style={styles.turnoNumber}>{PACIENTE_DEMO.turnoActivo.numero}</Text>
-          </View>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('FichaActiva')}>
+          <Calendar size={24} color="#94A3B8" />
+          <Text style={styles.navText}>Mis Citas</Text>
         </TouchableOpacity>
 
-        {/* ── SECCIÓN: HISTORIAL CLÍNICO ────────────────────────────── */}
-        <TouchableOpacity
-          style={styles.cardGeneric}
-          activeOpacity={0.8}
-          onPress={() => navigation?.navigate('Historial')}
-        >
-          <View style={styles.cardLeft}>
-            <View style={[styles.cardIconContainer, { backgroundColor: '#EFF6FF' }]}>
-              <ClipboardList size={22} color="#2D7FF9" />
-            </View>
-            <View>
-              <Text style={styles.cardTitle}>Historial Clínico</Text>
-              <Text style={styles.cardSubtitle}>
-                {PACIENTE_DEMO.historialCount} nuevos registros de Lab.
-              </Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color="#94A3B8" />
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation?.navigate('Permisos')}>
+          <User size={24} color="#94A3B8" />
+          <Text style={styles.navText}>Mi ID</Text>
         </TouchableOpacity>
-
-        {/* ── SECCIÓN: AUTORIZAR MÉDICO ─────────────────────────────── */}
-        <TouchableOpacity
-          style={[styles.cardGeneric, styles.cardMedico]}
-          activeOpacity={0.8}
-          onPress={() => navigation?.navigate('Permisos')}
-        >
-          <View style={styles.cardLeft}>
-            <View style={[styles.cardIconContainer, { backgroundColor: '#FFF7ED' }]}>
-              <Lock size={22} color="#F97316" />
-            </View>
-            <View>
-              <Text style={styles.cardTitle}>Autorizar Médico</Text>
-              <Text style={styles.cardSubtitle}>
-                Gestionar acceso a tu historial clínico
-              </Text>
-            </View>
-          </View>
-          <ChevronRight size={20} color="#94A3B8" />
-        </TouchableOpacity>
-
-      </ScrollView>
-
-      {/* ── TAB BAR INFERIOR ────────── */}
-      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setTabActivo('home')}
-        >
-          <LayoutDashboard
-            size={22}
-            color={tabActivo === 'home' ? '#2D7FF9' : '#94A3B8'}
-            strokeWidth={tabActivo === 'home' ? 2.5 : 1.5}
-          />
-          <Text style={[styles.tabLabel, tabActivo === 'home' && styles.tabLabelActive]}>
-            Dashboard
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setTabActivo('records')}
-        >
-          <FileText
-            size={22}
-            color={tabActivo === 'records' ? '#2D7FF9' : '#94A3B8'}
-            strokeWidth={tabActivo === 'records' ? 2.5 : 1.5}
-          />
-          <Text style={[styles.tabLabel, tabActivo === 'records' && styles.tabLabelActive]}>
-            Records
-          </Text>
-        </TouchableOpacity>
-
-        {/* CORRECCIÓN UX: Era "Scanner" (función de médico). Ahora es "Mi Turno" (función de paciente) */}
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setTabActivo('turno')}
-        >
-          <Ticket
-            size={22}
-            color={tabActivo === 'turno' ? '#2D7FF9' : '#94A3B8'}
-            strokeWidth={tabActivo === 'turno' ? 2.5 : 1.5}
-          />
-          <Text style={[styles.tabLabel, tabActivo === 'turno' && styles.tabLabelActive]}>
-            Mi Turno
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setTabActivo('profile')}
-        >
-          <User
-            size={22}
-            color={tabActivo === 'profile' ? '#2D7FF9' : '#94A3B8'}
-            strokeWidth={tabActivo === 'profile' ? 2.5 : 1.5}
-          />
-          <Text style={[styles.tabLabel, tabActivo === 'profile' && styles.tabLabelActive]}>
-            Profile
-          </Text>
-        </TouchableOpacity>
-
       </View>
+
+      {/* ─── EMERGENCY MODAL ─── */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={emergencyModalVisible}
+        onRequestClose={() => setEmergencyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setEmergencyModalVisible(false)}
+            >
+              <X size={20} color="#64748B" />
+            </TouchableOpacity>
+            
+            <View style={styles.modalHeaderIcon}>
+              <Activity size={32} color="#EF4444" />
+            </View>
+
+            <Text style={styles.modalTitle}>Asistencia de Emergencia</Text>
+            <Text style={styles.modalText}>
+              Llama a una ambulancia inmediatamente.
+            </Text>
+
+            <View style={styles.emergencyPhonesList}>
+              <TouchableOpacity 
+                style={styles.emergencyPhoneItem}
+                onPress={() => Linking.openURL('tel:165')}
+              >
+                <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
+                <View style={styles.phoneTexts}>
+                  <Text style={styles.phoneLabel}>Ambulancia Nacional</Text>
+                  <Text style={styles.phoneValue}>165</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.btnModalClose}
+              onPress={() => setEmergencyModalVisible(false)}
+            >
+              <Text style={styles.btnModalCloseText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );
 }
 
-// ─── ESTILOS ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F7FC',
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0F2B3D',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerAppName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F2B3D',
-  },
-  badgeRegistrado: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 2,
-  },
-  badgeRegistradoText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#2D7FF9',
-    letterSpacing: 0.5,
-  },
-  headerShield: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F0FDF9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Badge blockchain
-  blockchainBadgeContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  blockchainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  blockchainBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#2D7FF9',
-  },
-
-  // Scroll
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 24, gap: 12 },
-
-  // Tarjeta de identidad
-  identityCard: {
-    backgroundColor: '#0F2B3D',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 4,
-    shadowColor: '#0F2B3D',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 184, 166, 0.2)', // Borde turquesa sutil (Glass effect)
-    overflow: 'hidden',
-  },
-  watermarkContainer: {
-    position: 'absolute',
-    right: -20,
-    top: -20,
-    transform: [{ rotate: '-15deg' }],
-  },
-  identityNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  identityName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  identitySubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  identityCedula: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  verifiedBadge: {
-    backgroundColor: 'rgba(20, 184, 166, 0.15)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(20, 184, 166, 0.3)',
-  },
-  verifiedText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#14B8A6',
-    letterSpacing: 0.5,
-  },
-  identityStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 12,
-  },
-  identityStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  identityDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  identityStatLabel: {
-    fontSize: 9,
-    color: '#64748B',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  identityStatValue: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  // QR
-  qrContainer: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-  },
-  qrPlaceholder: {
-    width: 90,
-    height: 90,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    marginBottom: 8,
-  },
-  qrPlaceholderText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F2B3D',
-  },
-  walletIdText: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-
-  // Section title
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-
-  // Tarjeta Cita Activa
-  cardCitaActiva: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2D7FF9',
-  },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  cardIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F2B3D',
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  turnoContainer: {
-    backgroundColor: '#2D7FF9',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: 'center',
-    minWidth: 54,
-  },
-  turnoLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
-    letterSpacing: 1,
-  },
-  turnoNumber: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 24,
-  },
-
-  // Tarjetas genéricas
-  cardGeneric: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  cardMedico: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#F97316',
-  },
-
-  // Tab Bar
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94A3B8',
-  },
-  tabLabelActive: {
-    color: '#2D7FF9',
-    fontWeight: '700',
   },
   loadingCenter: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#F4F7FC',
+    backgroundColor: '#FFFFFF'
   },
   loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  
+  // Header Gradient Area
+  gradientHeaderContainer: {
+    height: height * 0.45,
+    width: '100%',
+    position: 'relative',
+  },
+  safeArea: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    zIndex: 10,
+  },
+  avatarImageContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bellButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Welcome Text
+  welcomeContainer: {
+    marginTop: 20,
+    zIndex: 10,
+    maxWidth: '52%',
+  },
+  welcomeText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 38,
+  },
+  nameText: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 38,
+  },
+  subtitleText: {
+    fontSize: 16,
+    color: '#E2E8F0',
+    marginTop: 8,
+  },
+  urgentCareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EF4444',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 15,
+    gap: 6,
+  },
+  urgentCareText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+
+  // Doctor Image Override
+  doctorImage: {
+    position: 'absolute',
+    right: -15,
+    bottom: -30, // pushed down to hide perfectly behind the white sheet
+    width: width * 0.58,
+    height: height * 0.46,
+    zIndex: 5,
+  },
+
+  // Bottom Sheet White Area
+  bottomSheet: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: -30,
+    zIndex: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  scrollContent: {
+    padding: 24,
+    paddingTop: 30,
+  },
+
+  // Services
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#000000',
+  },
+  servicesGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginBottom: 35,
+  },
+  serviceItem: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  serviceCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  serviceText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+
+  // Appointment Section
+  appointmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  seeAllText: {
     fontSize: 15,
-    color: '#475569',
+    fontWeight: '700',
+    color: '#2D7FF9',
+  },
+  appointmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 15,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2D7FF9',
+  },
+  appointmentDateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dateText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  appointmentDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 16,
+    marginLeft: 26,
+  },
+  doctorInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  doctorAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F5F9',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  cardDoctorImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  doctorDetails: {
+    flex: 1,
+  },
+  doctorName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  doctorSpecialty: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+
+  // Bottom Tab Bar (Custom Navbar)
+  navBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    paddingTop: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  navTextActive: {
+    color: '#2D7FF9',
+    fontWeight: '700',
+  },
+  navItemCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#0F2B3D',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -35,
+    shadowColor: '#0F2B3D',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 43, 61, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalHeaderIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F2B3D',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emergencyPhonesList: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  emergencyPhoneItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EF4444',
+    padding: 14,
+    borderRadius: 16,
+    gap: 12,
+  },
+  phoneTexts: {
+    flex: 1,
+  },
+  phoneLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase',
+  },
+  phoneValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  btnModalClose: {
+    paddingVertical: 12,
+  },
+  btnModalCloseText: {
+    color: '#64748B',
+    fontSize: 13,
     fontWeight: '700',
   },
 });
-

@@ -30,11 +30,11 @@ const { width } = Dimensions.get('window');
 
 // ── DATOS DE DEMO ────────────────────────────────────────────────────────────
 const HOSPITALES = [
-  { id: 1, nombre: 'Hospital de Clínicas', ciudad: 'La Paz', tiempo: '~20 min espera' },
-  { id: 2, nombre: 'Hospital del Norte', ciudad: 'La Paz', tiempo: '~35 min espera' },
-  { id: 3, nombre: 'Caja Nacional de Salud', ciudad: 'La Paz', tiempo: '~45 min espera' },
-  { id: 4, nombre: 'Hospital Obrero Nº1', ciudad: 'La Paz', tiempo: '~15 min espera' },
-  { id: 5, nombre: 'Hospital San Gabriel', ciudad: 'La Paz', tiempo: '~30 min espera' },
+  { id: 1, nombre: 'Clínica del Sur (Sede Central)', ciudad: 'La Paz', tiempo: '~10 min espera' },
+  { id: 2, nombre: 'Centro Médico Especializado', ciudad: 'La Paz', tiempo: '~15 min espera' },
+  { id: 3, nombre: 'Clínica Alemana', ciudad: 'La Paz', tiempo: '~20 min espera' },
+  { id: 4, nombre: 'Clínica Los Andes', ciudad: 'La Paz', tiempo: '~5 min espera' },
+  { id: 5, nombre: 'Policlínico Privado', ciudad: 'La Paz', tiempo: '~12 min espera' },
 ];
 
 const ESPECIALIDADES = [
@@ -110,8 +110,8 @@ export default function SolicitarFichaScreen({ navigation }: any) {
           <ArrowLeft size={20} color="#0F2B3D" />
         </TouchableOpacity>
         <View>
-          <Text style={styles.headerTitle}>Solicitar Ficha</Text>
-          <Text style={styles.headerSubtitle}>Turno digital para hoy</Text>
+          <Text style={styles.headerTitle}>Agendar Cita</Text>
+          <Text style={styles.headerSubtitle}>Reserva tu atención médica</Text>
         </View>
         <View style={styles.headerRight}>
           <Ticket size={22} color="#2D7FF9" />
@@ -129,12 +129,12 @@ export default function SolicitarFichaScreen({ navigation }: any) {
         <View style={styles.banner}>
           <Clock size={18} color="#2D7FF9" />
           <Text style={styles.bannerText}>
-            Solicita tu ficha ahora y evita las filas. Recibirás una notificación cuando sea tu turno.
+            Agenda tu cita médica ahora y disfruta de atención preferencial. Te notificaremos cuando sea tu turno.
           </Text>
         </View>
 
         {/* ── PASO 1: HOSPITAL ── */}
-        <Text style={styles.stepLabel}>Paso 1 de 2 · Selecciona el hospital</Text>
+        <Text style={styles.stepLabel}>Paso 1 de 2 · Selecciona la clínica</Text>
         <TouchableOpacity
           style={[styles.selector, hospitalSeleccionado !== null ? styles.selectorActivo : null]}
           activeOpacity={0.8}
@@ -146,7 +146,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
           <MapPin size={20} color={hospitalSeleccionado !== null ? '#2D7FF9' : '#94A3B8'} />
           <View style={styles.selectorTexts}>
             <Text style={[styles.selectorPlaceholder, hospitalSeleccionado !== null ? styles.selectorPlaceholderActivo : null]}>
-              {hospitalActual ? hospitalActual.nombre : 'Elige un hospital o centro de salud'}
+              {hospitalActual ? hospitalActual.nombre : 'Elige una clínica o centro médico'}
             </Text>
             {hospitalActual ? (
               <Text style={styles.selectorMeta}>{hospitalActual.ciudad} · {hospitalActual.tiempo}</Text>
@@ -267,7 +267,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
           disabled={!formularioCompleto || isSubmitting}
         >
           <Ticket size={20} color="#FFFFFF" />
-          <Text style={styles.btnSolicitarText}>{isSubmitting ? '  Procesando...' : '  Solicitar mi Ficha Digital'}</Text>
+          <Text style={styles.btnSolicitarText}>{isSubmitting ? '  Procesando...' : '  Agendar mi Cita Médica'}</Text>
           <ChevronRight size={20} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>

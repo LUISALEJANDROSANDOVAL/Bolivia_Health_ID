@@ -61,7 +61,7 @@ const REGISTROS_DEMO = [
     id: 3,
     categoria: 'Imágenes',
     titulo: 'Rayos X de Tórax PA/LAT',
-    medico: 'Hospital Obrero',
+    medico: 'Clínica del Sur',
     fecha: '05 Ago 2023',
     estado: 'Imagen Disponible',
     hash: '0xc7...2d4f',
@@ -109,7 +109,7 @@ export default function HistorialScreen({ navigation }: any) {
         {/* ── TÍTULO DE SECCIÓN ── */}
         <View style={styles.titleSection}>
           <Text style={styles.pageTitle}>Expedientes Clínicos</Text>
-          <Text style={styles.pageSubtitle}>Historial médico verificado en Blockchain</Text>
+          <Text style={styles.pageSubtitle}>Tu historial médico verificado y seguro</Text>
         </View>
 
         {/* ── CONTROLES (Búsqueda y Filtros Fijos al hacer scroll) ── */}
@@ -196,7 +196,7 @@ export default function HistorialScreen({ navigation }: any) {
               <View style={styles.blockchainRow}>
                 <View style={styles.blockchainBadge}>
                   <Shield size={12} color="#8B5CF6" />
-                  <Text style={styles.blockchainText}> Verificado en Blockchain</Text>
+                  <Text style={styles.blockchainText}> Registro Verificado</Text>
                 </View>
                 <Text style={styles.hashText}>{item.hash}</Text>
               </View>

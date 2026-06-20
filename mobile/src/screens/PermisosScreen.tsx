@@ -26,7 +26,7 @@ const { width } = Dimensions.get('window');
 const DOCTOR_DEMO = {
   nombre: 'Dr. Jose Mamani',
   especialidad: 'Cardiología',
-  hospital: 'Hospital de Clínicas',
+  hospital: 'Clínica del Sur',
 };
 
 const DURACIONES = ['Solo hoy', '24 horas', '7 días', 'Persistente'];
@@ -55,7 +55,7 @@ export default function PermisosScreen({ navigation }: any) {
 
   const handleAutorizar = () => {
     // Aquí iría la lógica de firma en la blockchain
-    alert('Acceso autorizado y registrado en la Blockchain exitosamente.');
+    alert('Acceso autorizado y registrado de forma segura.');
     navigation?.goBack();
   };
 
@@ -79,7 +79,7 @@ export default function PermisosScreen({ navigation }: any) {
         <View style={styles.securityBanner}>
           <Lock size={14} color="#8B5CF6" />
           <Text style={styles.securityBannerText}>
-            Acceso protegido por Blockchain y Biometría
+            Acceso protegido con seguridad avanzada
           </Text>
         </View>
 
