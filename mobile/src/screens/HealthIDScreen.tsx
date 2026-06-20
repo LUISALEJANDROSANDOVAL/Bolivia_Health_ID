@@ -1,380 +1,416 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  Clipboard,
-} from 'react-native';
+import { Text } from '../components/CustomText';
+import React, { useState } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, Platform } from 'react-native';
+
 import {
   ArrowLeft,
-  Shield,
-  QrCode,
-  CheckCircle,
-  Droplets,
-  Heart,
-  ChevronRight,
   Copy,
   Activity,
-  FileText,
-  Pill,
-  Stethoscope,
+  Droplets,
+  Shield,
 } from 'lucide-react-native';
-import { getActiveWallet, getPatientData, PatientProfile, PatientVitals } from '../services/patientService';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Clipboard from 'expo-clipboard';
+import { Colors } from '../theme/Colors';
 
 const { width } = Dimensions.get('window');
 
 // ── DATOS DE DEMO (MOCK DATA) ────────────────────────────────────────────────
 const PACIENTE_DEMO = {
   nombre: 'Valeria Rojas',
-  cedula: 'CL: 8.472.910 LP',
-  grupoSanguineo: 'O Positivo',
-  seguro: 'Alianza Seguros Privado',
-  walletId: '0x8d2a4f1b3c9e7a2d5f8b1e4c7a0d3f6b9c2e5a8d1f4c7b0e3a6d9f2c5b8e1a4',
+  cedula: '8472910 LP',
+  grupoSanguineo: 'O+',
+  seguro: 'Alianza Seguros',
+  walletId: '0x8d2a...b8e1a4',
+  foto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200&auto=format&fit=crop',
 };
 
-const HISTORIAL_DEMO = [
-  {
-    id: 1,
-    tipo: 'Diagnóstico',
-    icono: <Activity size={16} color="#2D7FF9" />,
-    descripcion: 'Hipertensión arterial leve',
-    medico: 'Dr. Carlos Mendoza',
-    fecha: '12 Jun 2026',
-    hash: '0xQmT7...f3k9',
-    colorFondo: '#EFF6FF',
-    colorBorde: '#2D7FF9',
-  },
-  {
-    id: 2,
-    tipo: 'Laboratorio',
-    icono: <FileText size={16} color="#14B8A6" />,
-    descripcion: 'Hemograma completo - Normal',
-    medico: 'Dra. Ana Flores',
-    fecha: '05 Jun 2026',
-    hash: '0xQmR2...a1b4',
-    colorFondo: '#F0FDF9',
-    colorBorde: '#14B8A6',
-  },
-  {
-    id: 3,
-    tipo: 'Receta',
-    icono: <Pill size={16} color="#F97316" />,
-    descripcion: 'Enalapril 10mg - 1 vez al día',
-    medico: 'Dr. Carlos Mendoza',
-    fecha: '12 Jun 2026',
-    hash: '0xQmW8...z2c7',
-    colorFondo: '#FFF7ED',
-    colorBorde: '#F97316',
-  },
-];
+const ALERGIAS_DEMO = ['Penicilina', 'Ibuprofeno'];
+const CONDICIONES_DEMO = ['Asma Leve'];
 
 export default function HealthIDScreen({ navigation }: any) {
-  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
-  const [patientVitals, setPatientVitals] = useState<PatientVitals | null>(null);
-  const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
+  const [copied, setCopied] = useState(false);
 
-  const loadPatientData = async () => {
-    try {
-      setLoading(true);
-      const wallet = await getActiveWallet();
-      const data = await getPatientData(wallet);
-      setPatientProfile(data.profile);
-      setPatientVitals(data.vitals);
-    } catch (error) {
-      console.error('Error loading patient data in HealthIDScreen:', error);
-    } finally {
-      setLoading(false);
-    }
+  const isDark = useColorScheme() === 'dark';
+  const theme = isDark ? Colors.dark : Colors.light;
+
+  const handleCopyWallet = async () => {
+    await Clipboard.setStringAsync(PACIENTE_DEMO.walletId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadPatientData();
-    });
-    loadPatientData();
-    return unsubscribe;
-  }, [navigation]);
-
-  const copyToClipboard = () => {
-    if (patientProfile?.wallet_address) {
-      Clipboard.setString(patientProfile.wallet_address);
-      alert('Dirección de wallet copiada!');
-    }
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color="#2D7FF9" />
-          <Text style={styles.loadingText}>Cargando perfil digital...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
-    <SafeAreaView style={styles.container}>
-
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), backgroundColor: theme.background }]}>
       {/* ── HEADER ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
-          <ArrowLeft size={20} color="#0F2B3D" />
+      <View style={styles.headerRow}>
+        <TouchableOpacity 
+          style={[styles.iconButton, { backgroundColor: theme.surface, borderColor: theme.border }]} 
+          onPress={() => navigation.goBack()}
+        >
+          <ArrowLeft size={22} color={theme.textPrimary} />
         </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>Mi Health ID</Text>
-          <Text style={styles.headerSubtitle}>Identidad Médica Digital</Text>
-        </View>
-        <View style={styles.headerShield}>
-          <Shield size={20} color="#14B8A6" strokeWidth={2} />
-        </View>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Mi Identidad Médica</Text>
+        <View style={{ width: 44 }} /> {/* Spacer */}
       </View>
 
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── TARJETA DE IDENTIDAD PRINCIPAL ── */}
-        <View style={styles.idCard}>
-          {/* Logo y Badge de Blockchain */}
-          <View style={styles.idCardTop}>
-            <View style={styles.idCardLogo}>
-              <Shield size={18} color="#14B8A6" strokeWidth={2.5} />
-            </View>
-            <View style={[
-              styles.idCardBadge,
-              !patientProfile?.cedula_identidad && { borderColor: 'rgba(249, 115, 22, 0.3)', backgroundColor: 'rgba(249, 115, 22, 0.15)' }
-            ]}>
-              <View style={[styles.idCardBadgeDot, !patientProfile?.cedula_identidad && { backgroundColor: '#F97316' }]} />
-              <Text style={[styles.idCardBadgeText, !patientProfile?.cedula_identidad && { color: '#F97316' }]}>
-                {patientProfile?.cedula_identidad ? 'IDENTIDAD VERIFICADA' : 'REGISTRO PENDIENTE'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Nombre y Cédula */}
-          <View style={styles.idCardNameRow}>
-            <Text style={styles.idCardName}>{patientProfile?.full_name}</Text>
-            {patientProfile?.cedula_identidad ? (
-              <CheckCircle size={20} color="#14B8A6" fill="#14B8A6" />
-            ) : (
-              <CheckCircle size={20} color="#94A3B8" />
-            )}
-          </View>
-          <Text style={styles.idCardCedula}>
-            {patientProfile?.cedula_identidad ? `CI: ${patientProfile.cedula_identidad}` : 'Cédula no validada'}
-          </Text>
-
-          {/* Información Médica Rápida */}
-          <View style={styles.idCardStats}>
-            <View style={styles.idCardStat}>
-              <Droplets size={14} color="rgba(255,255,255,0.6)" />
-              <View>
-                <Text style={styles.idCardStatLabel}>GRUPO SANGUÍNEO</Text>
-                <Text style={styles.idCardStatValue}>{patientVitals?.blood_type || '--'}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* ── TARJETA DIGITAL (APPLE WALLET STYLE) ── */}
+        <View style={[styles.cardWrapper, isDark && { shadowColor: '#000', shadowOpacity: 0.5, elevation: 15 }]}>
+          <LinearGradient
+            colors={isDark ? ['#081720', '#0D2A6E', '#1C4A9E'] : ['#0F2B3D', '#1E40AF', '#2D7FF9']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.idCard}
+          >
+            {/* Header Tarjeta */}
+            <View style={styles.cardHeader}>
+              <View style={styles.logoContainer}>
+                <Shield size={20} color="#FFFFFF" />
+                <Text style={styles.logoText}>Bolivia Health ID</Text>
+              </View>
+              <View style={styles.bloodTypeBadge}>
+                <Droplets size={14} color="#EF4444" fill="#EF4444" />
+                <Text style={styles.bloodTypeText}>{PACIENTE_DEMO.grupoSanguineo}</Text>
               </View>
             </View>
-            <View style={styles.idCardDivider} />
-            <View style={styles.idCardStat}>
-              <Heart size={14} color="rgba(255,255,255,0.6)" />
-              <View>
-                <Text style={styles.idCardStatLabel}>SEGURO ACTIVO</Text>
-                <Text style={styles.idCardStatValue}>Alianza Seguros Privado</Text>
-              </View>
-            </View>
-          </View>
-        </View>
 
-        {/* ── SECCIÓN: QR DE IDENTIDAD ── */}
-        <Text style={styles.sectionTitle}>Código QR de Acceso</Text>
-        <View style={styles.qrSection}>
-          <Text style={styles.qrInstruction}>
-            Muestra este QR al personal médico para concederles acceso temporal a tu historial clínico.
-          </Text>
+            {/* Cuerpo Tarjeta */}
+            <View style={styles.cardBody}>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardLabel}>PACIENTE</Text>
+                <Text style={styles.cardName}>{PACIENTE_DEMO.nombre}</Text>
+                
+                <Text style={[styles.cardLabel, { marginTop: 15 }]}>CÉDULA DE IDENTIDAD</Text>
+                <Text style={styles.cardData}>{PACIENTE_DEMO.cedula}</Text>
 
-          {/* Contenedor del QR (Placeholder para react-native-qrcode-svg) */}
-          <View style={styles.qrBox}>
-            <QrCode size={120} color="#0F2B3D" strokeWidth={1} />
-          </View>
-
-          {/* Dirección de Wallet Abajo */}
-          <TouchableOpacity style={styles.walletRow} activeOpacity={0.7} onPress={copyToClipboard}>
-            <Text style={styles.walletText} numberOfLines={1}>
-              {patientProfile?.wallet_address}
-            </Text>
-            <Copy size={16} color="#2D7FF9" />
-          </TouchableOpacity>
-        </View>
-
-
-        {/* ── SECCIÓN: HISTORIAL CLÍNICO ── */}
-        <View style={styles.historialHeaderContainer}>
-          <Text style={styles.sectionTitle}>Registros Clínicos Recientes</Text>
-          <TouchableOpacity>
-            <Text style={styles.verTodoText}>Ver todo</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.historialList}>
-          {HISTORIAL_DEMO.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.historialCard, { borderLeftColor: item.colorBorde }]}
-              activeOpacity={0.8}
-            >
-              {/* Encabezado del registro */}
-              <View style={[styles.historialItemHeader, { backgroundColor: item.colorFondo }]}>
-                <View style={styles.historialTipoWrapper}>
-                  {item.icono}
-                  <Text style={[styles.historialTipo, { color: item.colorBorde }]}>{item.tipo}</Text>
-                </View>
-                <Text style={styles.historialFecha}>{item.fecha}</Text>
-              </View>
-
-              {/* Cuerpo del registro */}
-              <View style={styles.historialBody}>
-                <Text style={styles.historialDesc}>{item.descripcion}</Text>
-                <View style={styles.medicoRow}>
-                  <Stethoscope size={14} color="#64748B" />
-                  <Text style={styles.historialMedico}>{item.medico}</Text>
-                </View>
-
-                {/* Sello de Blockchain */}
-                <View style={styles.historialHashRow}>
-                  <Shield size={12} color="#14B8A6" />
-                  <Text style={styles.historialHash}> Hash: {item.hash}</Text>
-                  <Text style={styles.historialHashLabel}> • Inmutable</Text>
-                </View>
+                <Text style={[styles.cardLabel, { marginTop: 15 }]}>SEGURO MÉDICO</Text>
+                <Text style={styles.cardData}>{PACIENTE_DEMO.seguro}</Text>
               </View>
               
-              <ChevronRight size={18} color="#CBD5E1" style={styles.historialArrow} />
-            </TouchableOpacity>
-          ))}
+              <View style={styles.avatarContainer}>
+                <Image source={{ uri: PACIENTE_DEMO.foto }} style={styles.avatarImage} />
+              </View>
+            </View>
+
+            {/* Footer Tarjeta (Wallet) */}
+            <View style={styles.cardFooter}>
+              <View>
+                <Text style={styles.walletLabel}>Blockchain Wallet ID</Text>
+                <Text style={styles.walletIdText}>{PACIENTE_DEMO.walletId}</Text>
+              </View>
+              <TouchableOpacity style={styles.copyButton} onPress={handleCopyWallet}>
+                <Copy size={16} color="#FFFFFF" />
+                {copied && <Text style={styles.copiedPopup}>¡Copiado!</Text>}
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
 
-        <View style={{ height: 32 }} />
-      </ScrollView>
+        {/* ── CÓDIGO QR DE EMERGENCIA ── */}
+        <View style={[styles.qrContainer, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
+          <Text style={[styles.qrTitle, { color: theme.textPrimary }]}>Acceso Rápido para Emergencias</Text>
+          <Text style={[styles.qrSubtitle, { color: theme.textSecondary }]}>Muestra este código al personal médico para que accedan a tus signos vitales y tipo de sangre.</Text>
+          
+          <View style={[styles.qrBox, { backgroundColor: '#FFFFFF', borderColor: theme.border }]}>
+            {/* El código QR siempre es blanco de fondo para que funcione */}
+            <Image 
+              source={{ uri: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_ValeriaRojas' }} 
+              style={styles.qrImage} 
+            />
+            <View style={styles.scanLine} />
+          </View>
+        </View>
 
-    </SafeAreaView>
+        {/* ── ALERGIAS Y CONDICIONES (PILLS) ── */}
+        <View style={[styles.medicalAlertsContainer, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
+          <View style={styles.alertHeader}>
+            <Activity size={20} color="#EF4444" />
+            <Text style={[styles.alertTitle, { color: theme.textPrimary }]}>Alertas Médicas</Text>
+          </View>
+          
+          <View style={styles.pillsWrapper}>
+            {ALERGIAS_DEMO.map((alergia, index) => (
+              <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                <Text style={[styles.pillDangerText, isDark && { color: '#FCA5A5' }]}>Alergia: {alergia}</Text>
+              </View>
+            ))}
+            {CONDICIONES_DEMO.map((condicion, index) => (
+              <View key={index} style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
+                <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>{condicion}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FC' },
-  
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
-  },
-  backButton: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F2B3D' },
-  headerSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500' },
-  headerShield: {
-    marginLeft: 'auto', width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#F0FDF9', alignItems: 'center', justifyContent: 'center',
-  },
-  
-  scroll: { flex: 1 },
-  scrollContent: { padding: 20 },
-  
-  // Tarjeta de Identidad
-  idCard: {
-    backgroundColor: '#0F2B3D', borderRadius: 24, padding: 24,
-    shadowColor: '#0F2B3D', shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35, shadowRadius: 20, elevation: 12,
-    marginBottom: 24,
-  },
-  idCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  idCardLogo: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(20,184,166,0.15)', alignItems: 'center', justifyContent: 'center',
-  },
-  idCardBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(20,184,166,0.15)', borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: 'rgba(20,184,166,0.3)',
-  },
-  idCardBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#14B8A6' },
-  idCardBadgeText: { fontSize: 9, fontWeight: '800', color: '#14B8A6', letterSpacing: 0.5 },
-  idCardNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  idCardName: { fontSize: 28, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-  idCardCedula: { fontSize: 14, color: '#94A3B8', fontWeight: '500', marginBottom: 24 },
-  idCardStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  idCardStat: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  idCardDivider: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.1)' },
-  idCardStatLabel: { fontSize: 9, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  idCardStatValue: { fontSize: 14, color: '#FFFFFF', fontWeight: '700' },
-  
-  // Títulos de sección
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#64748B', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
-  
-  // Sección QR
-  qrSection: {
-    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center',
-    borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2,
-    marginBottom: 28,
-  },
-  qrInstruction: { fontSize: 13, color: '#64748B', textAlign: 'center', marginBottom: 20, fontWeight: '500', lineHeight: 18 },
-  qrBox: {
-    width: 180, height: 180, borderRadius: 20, backgroundColor: '#F8FAFC',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#E2E8F0', marginBottom: 20,
-  },
-  walletRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#EFF6FF', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
-    width: '100%',
-  },
-  walletText: { fontSize: 12, color: '#2D7FF9', fontWeight: '600', flex: 1, fontFamily: 'monospace' },
-  
-  // Historial
-  historialHeaderContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  verTodoText: { fontSize: 13, fontWeight: '600', color: '#2D7FF9', marginBottom: 12 },
-  historialList: { gap: 12 },
-  historialCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden',
-    borderLeftWidth: 4, position: 'relative',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
-  historialItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
-  historialTipoWrapper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historialTipo: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  historialFecha: { fontSize: 12, color: '#64748B', fontWeight: '600' },
-  historialBody: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12, gap: 6 },
-  historialDesc: { fontSize: 15, fontWeight: '800', color: '#0F2B3D' },
-  medicoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historialMedico: { fontSize: 13, color: '#64748B', fontWeight: '500' },
-  historialHashRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#F8FAFC', padding: 8, borderRadius: 8 },
-  historialHash: { fontSize: 11, color: '#64748B', fontWeight: '700', fontFamily: 'monospace' },
-  historialHashLabel: { fontSize: 11, color: '#14B8A6', fontWeight: '700' },
-  historialArrow: { position: 'absolute', right: 16, top: '50%', transform: [{ translateY: -9 }] },
-  loadingCenter: {
+  container: {
     flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#F4F7FC',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+    borderWidth: 1,
   },
-  loadingText: {
-    fontSize: 15,
-    color: '#475569',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+
+  // Tarjeta
+  cardWrapper: {
+    shadowColor: '#2D7FF9',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    marginBottom: 30,
+  },
+  idCard: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  bloodTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  bloodTypeText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  cardBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 30,
+  },
+  cardInfo: {
+    flex: 1,
+  },
+  cardLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  cardName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  cardData: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  avatarContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingTop: 15,
+  },
+  walletLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  walletIdText: {
+    fontSize: 12,
+    color: '#93C5FD',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  copyButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  copiedPopup: {
+    position: 'absolute',
+    top: -25,
+    backgroundColor: '#10B981',
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+
+  // QR Section
+  qrContainer: {
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  qrTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  qrSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  qrBox: {
+    width: 200,
+    height: 200,
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  qrImage: {
+    width: '100%',
+    height: '100%',
+  },
+  scanLine: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#2D7FF9',
+    shadowColor: '#2D7FF9',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  // Alertas Médicas
+  medicalAlertsContainer: {
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  alertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  pillsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  pillDanger: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  pillDangerText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pillWarning: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+  },
+  pillWarningText: {
+    color: '#EA580C',
+    fontSize: 13,
     fontWeight: '700',
   },
 });
-

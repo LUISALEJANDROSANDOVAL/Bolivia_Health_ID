@@ -1,13 +1,7 @@
+import { Text } from '../components/CustomText';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  StyleSheet,
-  Animated,
-  Dimensions,
-} from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, SafeAreaView, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
+
 import {
   ArrowLeft,
   MapPin,
@@ -21,6 +15,8 @@ import {
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors } from '../theme/Colors';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +37,9 @@ export default function FichaActivaScreen({ route, navigation }: any) {
   const [appointment, setAppointment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isDark = useColorScheme() === 'dark';
+  const theme = isDark ? Colors.dark : Colors.light;
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -59,7 +58,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
     async function fetchActiveAppointment() {
       try {
         let patientId = await AsyncStorage.getItem('@particle_patient_id');
-        
+
         // Simulación temporal de Particle: Si no hay ID, tomamos uno de Supabase
         if (!patientId) {
           const { data: profile } = await supabase.from('profiles').select('id').eq('role', 'paciente').limit(1).single();
@@ -125,90 +124,105 @@ export default function FichaActivaScreen({ route, navigation }: any) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{color: '#64748B', fontWeight: '500'}}>Buscando turnos activos...</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.textSecondary, fontWeight: '500' }}>Buscando turnos activos...</Text>
       </SafeAreaView>
     );
   }
 
   if (!appointment) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
-            <ArrowLeft size={20} color="#0F2B3D" />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+          <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.goBack()}>
+            <ArrowLeft size={20} color={theme.textPrimary} />
           </TouchableOpacity>
           <View>
             <Text style={styles.headerTitle}>Recepción Virtual</Text>
             <Text style={styles.headerSubtitle}>Bolivia Health ID</Text>
           </View>
         </View>
-        
+
         <View style={styles.emptyStateContainer}>
-          <View style={styles.emptyStateIconCircle}>
-            <Ticket size={48} color="#94A3B8" />
+          <View style={[styles.emptyStateCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <LinearGradient
+              colors={isDark ? ['#0D2A6E', '#1E40AF', '#3B82F6'] : ['#0F2B3D', '#1E40AF', '#2D7FF9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.emptyStateIconCircle}
+            >
+              <Ticket size={48} color="#FFFFFF" />
+            </LinearGradient>
+
+            <Text style={styles.emptyStateTitle}>No tienes turnos</Text>
+            <Text style={styles.emptyStateDesc}>
+              Descubre nuestra red de clínicas exclusivas. Agenda tu cita y disfruta de una atención médica rápida y preferencial.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.btnSolicitarEmpty}
+              activeOpacity={0.8}
+              onPress={() => navigation?.navigate('MainTabs', { screen: 'SolicitarFicha' })}
+            >
+              <LinearGradient
+                colors={['#2D7FF9', '#1E40AF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.btnSolicitarEmptyGradient}
+              >
+                <Text style={styles.btnSolicitarEmptyText}>Agendar Nueva Cita</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.emptyStateTitle}>No tienes turnos activos</Text>
-          <Text style={styles.emptyStateDesc}>
-            Agenda tu próxima cita médica en nuestra red de clínicas exclusivas. Disfruta de una atención preferencial y sin demoras.
-          </Text>
-          
-          <TouchableOpacity
-            style={styles.btnSolicitarEmpty}
-            activeOpacity={0.8}
-            onPress={() => navigation?.navigate('SolicitarFicha')}
-          >
-            <Text style={styles.btnSolicitarEmptyText}>Agendar Nueva Cita</Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 
       {/* ── HEADER ── */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
-          <ArrowLeft size={20} color="#0F2B3D" />
+      <View style={[styles.header, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+        <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.goBack()}>
+          <ArrowLeft size={20} color={theme.textPrimary} />
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitle}>Recepción Virtual</Text>
           <Text style={styles.headerSubtitle}>Bolivia Health ID</Text>
         </View>
-        <View style={styles.statusDot}>
+        <View style={[styles.statusDot, isDark && { backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.2)' }]}>
           <View style={styles.statusDotInner} />
           <Text style={styles.statusDotText}>En vivo</Text>
         </View>
       </View>
 
       {/* ── TARJETA DEL HOSPITAL ── */}
-      <View style={styles.hospitalCard}>
-        <View style={styles.hospitalIconBox}>
+      <View style={[styles.hospitalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.hospitalIconBox, isDark && { backgroundColor: 'rgba(45, 127, 249, 0.1)' }]}>
           <Building2 size={24} color="#2D7FF9" />
         </View>
         <View style={styles.hospitalInfo}>
           <Text style={styles.hospitalNombre}>{hospitalName}</Text>
           <View style={styles.hospitalMeta}>
-            <Stethoscope size={12} color="#64748B" />
-            <Text style={styles.hospitalMetaText}>
+            <Stethoscope size={12} color={theme.textSecondary} />
+            <Text style={[styles.hospitalMetaText, { color: theme.textSecondary }]}>
               {especialidadName}
             </Text>
-            <Text style={styles.hospitalMetaSeparator}>·</Text>
-            <MapPin size={12} color="#64748B" />
-            <Text style={styles.hospitalMetaText}>{TURNO_DEMO.consultorio}</Text>
+            <Text style={[styles.hospitalMetaSeparator, { color: theme.border }]}>·</Text>
+            <MapPin size={12} color={theme.textSecondary} />
+            <Text style={[styles.hospitalMetaText, { color: theme.textSecondary }]}>{TURNO_DEMO.consultorio}</Text>
           </View>
         </View>
       </View>
 
       {/* ── CÍRCULO PRINCIPAL DEL TURNO ── */}
       <View style={styles.turnoSection}>
-        <Text style={styles.turnoSectionLabel}>SU TURNO</Text>
+        <Text style={[styles.turnoSectionLabel, { color: theme.textSecondary }]}>SU TURNO</Text>
 
         <Animated.View style={[styles.turnoCircleOuter, { transform: [{ scale: pulseAnim }] }]}>
           <View style={styles.turnoCircleMid}>
-            <View style={styles.turnoCircleInner}>
+            <View style={[styles.turnoCircleInner, isDark && { backgroundColor: '#1E293B', shadowColor: '#000000' }]}>
               <Text style={styles.turnoNumero}>#{TURNO_DEMO.miTurno}</Text>
               <Text style={styles.turnoFecha}>
                 {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'short' })}
@@ -218,7 +232,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
         </Animated.View>
 
         {/* Barra de progreso */}
-        <View style={styles.progressBarContainer}>
+        <View style={[styles.progressBarContainer, { backgroundColor: theme.border }]}>
           <Animated.View
             style={[
               styles.progressBarFill,
@@ -231,41 +245,41 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             ]}
           />
         </View>
-        <Text style={styles.progressText}>{porcentajeProgreso}% completado · Faltan {faltanTurnos} turnos</Text>
+        <Text style={[styles.progressText, { color: theme.textSecondary }]}>{porcentajeProgreso}% completado · Faltan {faltanTurnos} turnos</Text>
       </View>
 
       {/* ── INFORMACIÓN DEL ESTADO ── */}
       <View style={styles.infoRow}>
 
         {/* Atendiendo ahora */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoCardHeader}>
             <View style={[styles.infoCardDot, { backgroundColor: '#14B8A6' }]} />
-            <Text style={styles.infoCardLabel}>ATENDIENDO AHORA</Text>
+            <Text style={[styles.infoCardLabel, { color: theme.textSecondary }]}>ATENDIENDO AHORA</Text>
           </View>
           <Text style={styles.infoCardValue}>Turno #{turnoActual}</Text>
-          <View style={styles.infoCardBadge}>
+          <View style={[styles.infoCardBadge, isDark && { backgroundColor: 'rgba(20, 184, 166, 0.1)', borderColor: 'rgba(20, 184, 166, 0.2)' }]}>
             <Text style={styles.infoCardBadgeText}>En curso</Text>
           </View>
         </View>
 
         {/* Tiempo de espera */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoCardHeader}>
             <Clock size={10} color="#2D7FF9" />
-            <Text style={styles.infoCardLabel}>ESPERA ESTIMADA</Text>
+            <Text style={[styles.infoCardLabel, { color: theme.textSecondary }]}>ESPERA ESTIMADA</Text>
           </View>
           <Text style={styles.infoCardValue}>~{TURNO_DEMO.tiempoEspera} min</Text>
           <View style={styles.infoCardQueue}>
-            <Users size={12} color="#64748B" />
-            <Text style={styles.infoCardQueueText}>{faltanTurnos} antes que tú</Text>
+            <Users size={12} color={theme.textSecondary} />
+            <Text style={[styles.infoCardQueueText, { color: theme.textSecondary }]}>{faltanTurnos} antes que tú</Text>
           </View>
         </View>
 
       </View>
 
       {/* ── BOTÓN QR DE ADMISIÓN ── */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
         <TouchableOpacity
           style={styles.btnQR}
           activeOpacity={0.85}
@@ -291,21 +305,20 @@ export default function FichaActivaScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7FC' },
+  container: { flex: 1 },
 
   // Header
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    borderBottomWidth: 1,
   },
   backButton: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#E2E8F0',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F2B3D' },
+  headerTitle: { fontSize: 17, fontWeight: '800' },
   headerSubtitle: { fontSize: 12, color: '#64748B', fontWeight: '500' },
   statusDot: {
     marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -320,9 +333,9 @@ const styles = StyleSheet.create({
   // Tarjeta hospital
   hospitalCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#FFFFFF', marginHorizontal: 20, marginTop: 16,
+    marginHorizontal: 20, marginTop: 16,
     borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#F1F5F9',
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
@@ -331,15 +344,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center',
   },
   hospitalInfo: { flex: 1 },
-  hospitalNombre: { fontSize: 15, fontWeight: '700', color: '#0F2B3D', marginBottom: 4 },
+  hospitalNombre: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
   hospitalMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  hospitalMetaText: { fontSize: 11, color: '#64748B', fontWeight: '500' },
-  hospitalMetaSeparator: { color: '#CBD5E1', fontSize: 11 },
+  hospitalMetaText: { fontSize: 11, fontWeight: '500' },
+  hospitalMetaSeparator: { fontSize: 11 },
 
   // Sección turno
   turnoSection: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 20 },
   turnoSectionLabel: {
-    fontSize: 11, fontWeight: '800', color: '#94A3B8',
+    fontSize: 11, fontWeight: '800',
     letterSpacing: 3, textTransform: 'uppercase', marginBottom: 24,
   },
   turnoCircleOuter: {
@@ -364,14 +377,14 @@ const styles = StyleSheet.create({
 
   // Progreso
   progressBarContainer: {
-    width: width - 80, height: 6, backgroundColor: '#E2E8F0',
+    width: width - 80, height: 6,
     borderRadius: 3, marginTop: 24, overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%', borderRadius: 3,
     backgroundColor: '#2D7FF9',
   },
-  progressText: { fontSize: 12, color: '#64748B', fontWeight: '500', marginTop: 10 },
+  progressText: { fontSize: 12, fontWeight: '500', marginTop: 10 },
 
   // Info cards
   infoRow: {
@@ -379,15 +392,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, marginBottom: 8,
   },
   infoCard: {
-    flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14,
-    borderWidth: 1, borderColor: '#F1F5F9',
+    flex: 1, borderRadius: 16, padding: 14,
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
   },
   infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
   infoCardDot: { width: 8, height: 8, borderRadius: 4 },
-  infoCardLabel: { fontSize: 9, fontWeight: '700', color: '#94A3B8', letterSpacing: 0.5 },
-  infoCardValue: { fontSize: 20, fontWeight: '800', color: '#0F2B3D', marginBottom: 4 },
+  infoCardLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  infoCardValue: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
   infoCardBadge: {
     alignSelf: 'flex-start', backgroundColor: '#F0FDF4',
     borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
@@ -395,48 +408,68 @@ const styles = StyleSheet.create({
   },
   infoCardBadgeText: { fontSize: 10, fontWeight: '700', color: '#16A34A' },
   infoCardQueue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  infoCardQueueText: { fontSize: 11, color: '#64748B', fontWeight: '500' },
+  infoCardQueueText: { fontSize: 11, fontWeight: '500' },
 
   // Bottom
   bottomBar: {
-    padding: 20, paddingBottom: 32, backgroundColor: '#FFFFFF',
-    borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 10,
+    padding: 20, paddingBottom: 32,
+    borderTopWidth: 1, gap: 10,
   },
   btnQR: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0F2B3D', borderRadius: 16, paddingVertical: 18,
-    shadowColor: '#0F2B3D', shadowOffset: { width: 0, height: 6 },
+    backgroundColor: '#2D7FF9', borderRadius: 16, paddingVertical: 18,
+    shadowColor: '#2D7FF9', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
   btnQRText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
   btnCancelar: { alignItems: 'center', paddingVertical: 6 },
-  btnCancelarText: { fontSize: 13, color: '#94A3B8', fontWeight: '600', textDecorationLine: 'underline' },
+  btnCancelarText: { fontSize: 13, color: '#EF4444', fontWeight: '600', textDecorationLine: 'underline' },
 
-  // Empty State
+  // Empty State Premium
   emptyStateContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+  },
+  emptyStateCard: {
+    width: '100%',
+    borderRadius: 28,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#2D7FF9',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    elevation: 10,
+    borderWidth: 1,
   },
   emptyStateIconCircle: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 24,
+    shadowColor: '#2D7FF9',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 8,
   },
   emptyStateTitle: {
-    fontSize: 22, fontWeight: '800', color: '#0F2B3D', marginBottom: 12, textAlign: 'center',
+    fontSize: 22, fontWeight: '800', marginBottom: 12, textAlign: 'center',
   },
   emptyStateDesc: {
     fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 32,
   },
   btnSolicitarEmpty: {
-    backgroundColor: '#2D7FF9', width: '100%', borderRadius: 16,
-    paddingVertical: 18, alignItems: 'center',
+    width: '100%',
     shadowColor: '#2D7FF9', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
+  btnSolicitarEmptyGradient: {
+    borderRadius: 16,
+    paddingVertical: 18, alignItems: 'center',
+  },
   btnSolicitarEmptyText: {
-    fontSize: 16, fontWeight: '700', color: '#FFFFFF',
+    fontSize: 16, fontWeight: '800', color: '#FFFFFF',
   },
 });
