@@ -181,7 +181,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       setProfile(profileData)
     } catch (err: any) {
-      console.error('Error sincronizando perfil:', err)
+      console.error('Error sincronizando perfil:', err.message || JSON.stringify(err) || err)
     } finally {
       setLoading(false)
     }

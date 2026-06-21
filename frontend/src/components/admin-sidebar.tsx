@@ -1,6 +1,6 @@
-import { 
-  Building2, 
-  UsersRound, 
+import {
+  Building2,
+  UsersRound,
   LayoutDashboard
 } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
