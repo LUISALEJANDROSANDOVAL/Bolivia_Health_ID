@@ -117,10 +117,10 @@ export default function LoginPage() {
           .eq('id', data.user.id)
           .single()
 
+        const isAdminEmail = formData.email.toLowerCase() === 'admin2@boliviahealth.com' || formData.email.toLowerCase() === 'admin@boliviahealth.com';
+
         if (profileError) {
-          // Fallback temporal: Si RLS bloquea la tabla profiles pero el usuario se autenticó correctamente con la contraseña
-          // y sabemos que su correo es el del administrador oficial, le damos acceso.
-          if (formData.email.toLowerCase() === 'admin2@boliviahealth.com' || formData.email.toLowerCase() === 'admin@boliviahealth.com') {
+          if (isAdminEmail) {
             toast.success('Bienvenido, Administrador (Modo Seguro)')
             router.push('/admin')
             setIsLoading(false)
@@ -129,7 +129,7 @@ export default function LoginPage() {
           throw new Error('No se pudo verificar el perfil (RLS o inexistente)')
         }
 
-        if (profile?.role === 'admin') {
+        if (profile?.role === 'admin' || isAdminEmail) {
           toast.success('Bienvenido, Administrador')
           router.push('/admin')
         } else {
