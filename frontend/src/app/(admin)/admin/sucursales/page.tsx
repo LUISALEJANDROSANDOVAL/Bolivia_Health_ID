@@ -49,7 +49,8 @@ export default function SucursalesPage() {
         await updateSucursal(session.access_token, editingId, formData)
         toast.success('Sucursal actualizada exitosamente')
       } else {
-        await createSucursal(session.access_token, formData)
+        const res = await createSucursal(session.access_token, formData)
+        if (res?.error) throw new Error(res.error)
         toast.success('Sucursal creada exitosamente')
       }
       setIsModalOpen(false)

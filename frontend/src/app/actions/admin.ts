@@ -31,10 +31,10 @@ export async function createSucursal(token: string, data: { name: string; addres
     .select()
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) return { error: error.message }
   
   revalidatePath('/admin/sucursales')
-  return sucursal
+  return { data: sucursal }
 }
 
 export async function updateSucursal(token: string, id: string, data: { name: string; address: string; coordinates: string }) {
