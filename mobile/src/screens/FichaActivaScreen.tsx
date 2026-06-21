@@ -15,6 +15,7 @@ import {
 } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../services/supabase';
+import { getActiveWallet, getPatientData } from '../services/patientService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../theme/Colors';
 
@@ -57,16 +58,9 @@ export default function FichaActivaScreen({ route, navigation }: any) {
   useEffect(() => {
     async function fetchActiveAppointment() {
       try {
-        let patientId = await AsyncStorage.getItem('@particle_patient_id');
-
-        // Simulación temporal de Particle: Si no hay ID, tomamos uno de Supabase
-        if (!patientId) {
-          const { data: profile } = await supabase.from('profiles').select('id').eq('role', 'paciente').limit(1).single();
-          if (profile) {
-            patientId = profile.id;
-            await AsyncStorage.setItem('@particle_patient_id', patientId as string);
-          }
-        }
+        const wallet = await getActiveWallet();
+        const patientData = await getPatientData(wallet);
+        const patientId = patientData.profile?.id;
 
         if (!patientId) {
           setIsLoading(false);

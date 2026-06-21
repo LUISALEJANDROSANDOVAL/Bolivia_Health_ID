@@ -20,7 +20,9 @@ ALTER TABLE public.medications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.access_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-
+ALTER TABLE public.sucursales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.doctor_sucursal ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.doctor_schedules ENABLE ROW LEVEL SECURITY;
 -- -----------------------------------------------------------------------------
 -- FUNCIÓN HELPER PARA MAPEAR SESIÓN WEB3 A PERFIL SUPABASE
 -- -----------------------------------------------------------------------------
@@ -389,8 +391,39 @@ CREATE INDEX IF NOT EXISTS idx_appointments_patient
 CREATE INDEX IF NOT EXISTS idx_appointments_doctor
   ON public.appointments (doctor_id);
 
+CREATE INDEX IF NOT EXISTS idx_appointments_collision
+  ON public.appointments (doctor_id, appointment_date);
+
 CREATE INDEX IF NOT EXISTS idx_access_permissions_patient_doctor
   ON public.access_permissions (patient_id, doctor_id);
+-- =============================================================================
+-- POLÍTICAS PARA SUCURSALES Y DOCTOR_SUCURSAL
+-- =============================================================================
+
+CREATE POLICY select_sucursales ON public.sucursales
+  FOR SELECT TO authenticated
+  USING (true);
+
+CREATE POLICY select_doctor_sucursal ON public.doctor_sucursal
+  FOR SELECT TO authenticated
+  USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_doctor_sucursal_doctor
+  ON public.doctor_sucursal (doctor_id);
+
+CREATE INDEX IF NOT EXISTS idx_doctor_sucursal_sucursal
+  ON public.doctor_sucursal (sucursal_id);
+
+CREATE POLICY select_doctor_schedules ON public.doctor_schedules
+  FOR SELECT TO authenticated
+  USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_doctor_schedules_doctor
+  ON public.doctor_schedules (doctor_id);
+
+CREATE INDEX IF NOT EXISTS idx_doctor_schedules_sucursal
+  ON public.doctor_schedules (sucursal_id);
+
 -- =============================================================================
 -- FIN DEL SCRIPT
 -- =============================================================================
