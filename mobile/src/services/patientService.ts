@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
 const CURRENT_WALLET_KEY = '@current_patient_wallet';
+const PATIENT_PROFILE_CACHE_KEY = '@patient_profile_cache';
 // Default patient: Luis Alejandro Sandoval Rodriguez
 export const DEFAULT_WALLET = '0x4e475c495f2b76624321480a7ecec6946168e865';
 
@@ -37,7 +38,7 @@ export async function getActiveWallet(): Promise<string> {
   try {
     const wallet = await AsyncStorage.getItem(CURRENT_WALLET_KEY);
     if (wallet) return wallet;
-    
+
     // Set default wallet if none is saved
     await AsyncStorage.setItem(CURRENT_WALLET_KEY, DEFAULT_WALLET);
     return DEFAULT_WALLET;
@@ -106,14 +107,15 @@ export async function loginPatient(walletAddress: string): Promise<boolean> {
 
 /**
  * Fetches the patient profile and vitals.
- * Bypasses RLS issues by ensuring they are authenticated first.
+ * Uses AsyncStorage as a cache: saves on success, reads on failure.
  */
 export async function getPatientData(walletAddress: string): Promise<PatientData> {
   const wallet = walletAddress.toLowerCase();
+  const cacheKey = `${PATIENT_PROFILE_CACHE_KEY}_${wallet}`;
 
   // Ensure authenticated session
   const { data: { session } } = await supabase.auth.getSession();
-  
+
   // If not authenticated or authenticated as a different wallet, perform login
   const expectedEmail = `${wallet}@boliviahealth.com`;
   if (!session || session.user?.email !== expectedEmail) {
@@ -129,6 +131,16 @@ export async function getPatientData(walletAddress: string): Promise<PatientData
     .single();
 
   if (profileError) {
+    // --- FALLBACK: use cached profile if available ---
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        console.warn(`[PatientService] Supabase error, using cached profile for ${wallet}:`, profileError.message);
+        return JSON.parse(cached) as PatientData;
+      }
+    } catch (cacheErr) {
+      console.warn('[PatientService] Cache read failed:', cacheErr);
+    }
     throw new Error(`Profile not found in database: ${profileError.message}`);
   }
 
@@ -137,23 +149,37 @@ export async function getPatientData(walletAddress: string): Promise<PatientData
     .from('patient_vitals')
     .select('*')
     .eq('patient_id', profile.id)
-    .maybeSingle(); // maybeSingle returns null instead of throwing when not found
+    .maybeSingle();
 
   if (vitalsError) {
-    console.warn(`Error querying patient vitals for ${profile.id}:`, vitalsError.message);
+    console.warn(`[PatientService] Error querying vitals for ${profile.id}:`, vitalsError.message);
   }
 
-  return {
+  const result: PatientData = {
     profile: profile as PatientProfile,
     vitals: vitals as PatientVitals | null,
   };
+
+  // --- Save successful result to cache ---
+  try {
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(result));
+  } catch (cacheErr) {
+    console.warn('[PatientService] Cache write failed:', cacheErr);
+  }
+
+  return result;
 }
 
 /**
- * Logs out the current patient.
+ * Logs out the current patient and clears all local cache.
  */
 export async function logoutPatient(): Promise<void> {
   try {
+    // Clear the profile cache for the current wallet before signing out
+    const wallet = await getActiveWallet();
+    if (wallet) {
+      await AsyncStorage.removeItem(`${PATIENT_PROFILE_CACHE_KEY}_${wallet.toLowerCase()}`);
+    }
     await supabase.auth.signOut();
     await AsyncStorage.removeItem(CURRENT_WALLET_KEY);
   } catch (error) {
