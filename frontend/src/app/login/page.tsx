@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
 import { useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import {
   Heart,
   Stethoscope,
@@ -20,8 +22,6 @@ import {
   ShieldCheck,
   Shield,
 } from 'lucide-react'
-import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase'
 import {
   Dialog,
   DialogContent,
@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-type Role = 'paciente' | 'doctor' | null
+type Role = 'paciente' | 'doctor' | 'admin' | null
 type LoginMethod = 'email' | 'google'
 
 export default function LoginPage() {
@@ -101,6 +101,37 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+
+    if (selectedRole === 'admin') {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        })
+        
+        if (error) throw error
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profile?.role === 'admin') {
+          toast.success('Bienvenido, Administrador')
+          router.push('/admin')
+        } else {
+          await supabase.auth.signOut()
+          throw new Error('No tienes permisos de administrador')
+        }
+      } catch (err: any) {
+        toast.error(err.message || 'Error de autenticación')
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
     await new Promise(resolve => setTimeout(resolve, 1200))
     
     if (selectedRole === 'doctor') {
@@ -156,7 +187,15 @@ export default function LoginPage() {
             <p className="text-muted-foreground">Sistema de Salud Descentralizado</p>
           </div>
           <div className="flex justify-center gap-2">
-            <Badge variant="outline" className="text-xs">
+            <Badge 
+              variant="outline" 
+              className="text-xs cursor-pointer select-none transition-colors hover:border-primary/50"
+              onDoubleClick={() => {
+                setSelectedRole('admin')
+                setShowAuth(true)
+                setLoginMethod('email')
+              }}
+            >
               <ShieldCheck className="size-3 mr-1" />
               Blockchain Seguro
             </Badge>
@@ -244,9 +283,11 @@ export default function LoginPage() {
               >
                 ← Cambiar rol
               </button>
-              <Badge variant={selectedRole === 'doctor' ? 'default' : 'secondary'}>
+              <Badge variant={selectedRole === 'doctor' ? 'default' : selectedRole === 'admin' ? 'destructive' : 'secondary'}>
                 {selectedRole === 'doctor' ? (
                   <><Stethoscope className="size-3 mr-1" /> Panel Médico</>
+                ) : selectedRole === 'admin' ? (
+                  <><ShieldCheck className="size-3 mr-1" /> Administrador</>
                 ) : (
                   <><User className="size-3 mr-1" /> Paciente</>
                 )}

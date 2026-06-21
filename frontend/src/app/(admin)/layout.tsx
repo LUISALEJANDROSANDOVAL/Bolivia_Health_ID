@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { AdminSidebar } from '@/components/admin-sidebar'
-import { Menu, Sun, Moon } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useTheme } from 'next-themes'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function AdminLayout({
   children,
@@ -12,12 +14,37 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    async function checkAdmin() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+
+      if (profile?.role !== 'admin') {
+        router.replace('/login')
+        return
+      }
+
+      setIsChecking(false)
+    }
+    
+    checkAdmin()
+  }, [router])
+
+  if (isChecking) {
+    return <div className="h-screen w-full flex items-center justify-center bg-background"><p className="animate-pulse">Verificando credenciales...</p></div>
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
@@ -37,15 +64,7 @@ export default function AdminLayout({
             <h1 className="text-xl font-semibold hidden sm:block">Panel de Administración</h1>
           </div>
           <div className="flex items-center gap-4">
-            {mounted && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              >
-                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </Button>
-            )}
+            <ThemeToggle />
           </div>
         </header>
 
@@ -58,4 +77,3 @@ export default function AdminLayout({
     </div>
   )
 }
-

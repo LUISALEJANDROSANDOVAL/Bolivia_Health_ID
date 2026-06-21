@@ -46,8 +46,8 @@ export default function HealthIDScreen({ navigation }: any) {
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), backgroundColor: theme.background }]}>
       {/* ── HEADER ── */}
       <View style={styles.headerRow}>
-        <TouchableOpacity 
-          style={[styles.iconButton, { backgroundColor: theme.surface, borderColor: theme.border }]} 
+        <TouchableOpacity
+          style={[styles.iconButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => navigation.goBack()}
         >
           <ArrowLeft size={22} color={theme.textPrimary} />
@@ -57,7 +57,7 @@ export default function HealthIDScreen({ navigation }: any) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
+
         {/* ── TARJETA DIGITAL (APPLE WALLET STYLE) ── */}
         <View style={[styles.cardWrapper, isDark && { shadowColor: '#000', shadowOpacity: 0.5, elevation: 15 }]}>
           <LinearGradient
@@ -83,14 +83,14 @@ export default function HealthIDScreen({ navigation }: any) {
               <View style={styles.cardInfo}>
                 <Text style={styles.cardLabel}>PACIENTE</Text>
                 <Text style={styles.cardName}>{PACIENTE_DEMO.nombre}</Text>
-                
+
                 <Text style={[styles.cardLabel, { marginTop: 15 }]}>CÉDULA DE IDENTIDAD</Text>
                 <Text style={styles.cardData}>{PACIENTE_DEMO.cedula}</Text>
 
                 <Text style={[styles.cardLabel, { marginTop: 15 }]}>SEGURO MÉDICO</Text>
                 <Text style={styles.cardData}>{PACIENTE_DEMO.seguro}</Text>
               </View>
-              
+
               <View style={styles.avatarContainer}>
                 <Image source={{ uri: PACIENTE_DEMO.foto }} style={styles.avatarImage} />
               </View>
@@ -114,12 +114,12 @@ export default function HealthIDScreen({ navigation }: any) {
         <View style={[styles.qrContainer, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
           <Text style={[styles.qrTitle, { color: theme.textPrimary }]}>Acceso Rápido para Emergencias</Text>
           <Text style={[styles.qrSubtitle, { color: theme.textSecondary }]}>Muestra este código al personal médico para que accedan a tus signos vitales y tipo de sangre.</Text>
-          
+
           <View style={[styles.qrBox, { backgroundColor: '#FFFFFF', borderColor: theme.border }]}>
             {/* El código QR siempre es blanco de fondo para que funcione */}
-            <Image 
-              source={{ uri: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_ValeriaRojas' }} 
-              style={styles.qrImage} 
+            <Image
+              source={{ uri: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_ValeriaRojas' }}
+              style={styles.qrImage}
             />
             <View style={styles.scanLine} />
           </View>
@@ -131,7 +131,7 @@ export default function HealthIDScreen({ navigation }: any) {
             <Activity size={20} color="#EF4444" />
             <Text style={[styles.alertTitle, { color: theme.textPrimary }]}>Alertas Médicas</Text>
           </View>
-          
+
           <View style={styles.pillsWrapper}>
             {ALERGIAS_DEMO.map((alergia, index) => (
               <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>

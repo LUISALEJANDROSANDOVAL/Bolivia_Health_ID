@@ -73,20 +73,9 @@ export default function DoctorAgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-<<<<<<< HEAD
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
-  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
-  const [stats, setStats] = useState({
-    total: 0,
-    patients: 0,
-    completed: 0,
-    upcoming: 0
-  })
-=======
   const [filterMode, setFilterMode] = useState<'all' | 'day'>('all')
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
->>>>>>> develop
 
   const fetchAgenda = useCallback(async () => {
     if (!doctorId) {
