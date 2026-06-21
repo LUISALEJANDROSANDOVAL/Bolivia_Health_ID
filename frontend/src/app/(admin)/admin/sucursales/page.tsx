@@ -166,7 +166,7 @@ export default function SucursalesPage() {
                   <MapPin className="mr-2 h-4 w-4 shrink-0 mt-0.5" />
                   <span>{sucursal.address}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" size="sm" className="w-full" onClick={() => openEdit(sucursal)}>
                     <Pencil className="mr-2 h-4 w-4" /> Editar
                   </Button>
