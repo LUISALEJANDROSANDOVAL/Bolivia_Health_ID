@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { supabase } from '@/lib/supabase'
@@ -26,9 +27,15 @@ export default function DoctoresPage() {
 
   // Form states
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('')
-  const [scheduleData, setScheduleData] = useState({
+  const [scheduleData, setScheduleData] = useState<{
+    sucursal_id: string;
+    days_of_week: number[];
+    start_time: string;
+    end_time: string;
+    slot_duration_minutes: string;
+  }>({
     sucursal_id: '',
-    day_of_week: '1',
+    days_of_week: [1],
     start_time: '08:00',
     end_time: '16:00',
     slot_duration_minutes: '30'
@@ -42,7 +49,7 @@ export default function DoctoresPage() {
     setIsLoading(true)
     
     const [docsRes, specRes, sucRes, schedRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('role', 'medico'),
+      supabase.rpc('get_medicos'),
       supabase.from('specialties').select('*').order('name'),
       supabase.from('sucursales').select('*').order('name'),
       supabase.from('doctor_schedules').select('*, sucursales(name)')
@@ -86,7 +93,7 @@ export default function DoctoresPage() {
       await assignSchedule(session.access_token, {
         doctor_id: selectedDoctor.id,
         sucursal_id: scheduleData.sucursal_id,
-        day_of_week: parseInt(scheduleData.day_of_week),
+        days_of_week: scheduleData.days_of_week,
         start_time: scheduleData.start_time,
         end_time: scheduleData.end_time,
         slot_duration_minutes: parseInt(scheduleData.slot_duration_minutes)
@@ -170,19 +177,19 @@ export default function DoctoresPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-auto pt-4 flex gap-2">
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => {
+                  <div className="mt-auto pt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" className="w-full truncate" onClick={() => {
                       setSelectedDoctor(doctor)
                       setSelectedSpecialty(doctor.specialty || '')
                       setSpecialtyModalOpen(true)
                     }}>
                       Especialidad
                     </Button>
-                    <Button variant="default" size="sm" className="w-full" onClick={() => {
+                    <Button variant="default" size="sm" className="w-full truncate" onClick={() => {
                       setSelectedDoctor(doctor)
                       setScheduleModalOpen(true)
                     }}>
-                      <Clock className="h-4 w-4 mr-2" />
+                      <Clock className="h-4 w-4 mr-2 shrink-0" />
                       Horario
                     </Button>
                   </div>
@@ -251,21 +258,38 @@ export default function DoctoresPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label>Día de la semana</Label>
-                <Select value={scheduleData.day_of_week} onValueChange={(v) => setScheduleData({...scheduleData, day_of_week: v})} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Día" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Lunes</SelectItem>
-                    <SelectItem value="2">Martes</SelectItem>
-                    <SelectItem value="3">Miércoles</SelectItem>
-                    <SelectItem value="4">Jueves</SelectItem>
-                    <SelectItem value="5">Viernes</SelectItem>
-                    <SelectItem value="6">Sábado</SelectItem>
-                    <SelectItem value="7">Domingo</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Días de la semana</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-1">
+                  {[
+                    { value: 1, label: 'Lunes' },
+                    { value: 2, label: 'Martes' },
+                    { value: 3, label: 'Miércoles' },
+                    { value: 4, label: 'Jueves' },
+                    { value: 5, label: 'Viernes' },
+                    { value: 6, label: 'Sábado' },
+                    { value: 7, label: 'Domingo' }
+                  ].map((day) => (
+                    <div key={day.value} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`day-${day.value}`}
+                        checked={scheduleData.days_of_week.includes(day.value)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setScheduleData({...scheduleData, days_of_week: [...scheduleData.days_of_week, day.value]})
+                          } else {
+                            setScheduleData({...scheduleData, days_of_week: scheduleData.days_of_week.filter(d => d !== day.value)})
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`day-${day.value}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {day.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

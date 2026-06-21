@@ -92,7 +92,7 @@ export async function assignSchedule(
   data: {
     doctor_id: string;
     sucursal_id: string;
-    day_of_week: number;
+    days_of_week: number[];
     start_time: string;
     end_time: string;
     slot_duration_minutes: number;
@@ -100,9 +100,18 @@ export async function assignSchedule(
 ) {
   const supabase = getAuthenticatedClient(token)
   
+  const insertData = data.days_of_week.map(day => ({
+    doctor_id: data.doctor_id,
+    sucursal_id: data.sucursal_id,
+    day_of_week: day,
+    start_time: data.start_time,
+    end_time: data.end_time,
+    slot_duration_minutes: data.slot_duration_minutes
+  }))
+
   const { error } = await supabase
     .from('doctor_schedules')
-    .insert([data])
+    .insert(insertData)
 
   if (error) throw new Error(error.message)
   
