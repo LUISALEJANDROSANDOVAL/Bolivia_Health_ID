@@ -9,9 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { supabase } from '@/lib/supabase'
-import { assignSpecialty, assignSchedule, removeSchedule } from '@/app/actions/admin'
+import { assignSpecialty, assignSchedule, removeSchedule, inviteDoctor } from '@/app/actions/admin'
 import { toast } from 'sonner'
-import { Stethoscope, CalendarClock, Clock, Trash2 } from 'lucide-react'
+import { Stethoscope, CalendarClock, Clock, Trash2, Plus } from 'lucide-react'
 
 export default function DoctoresPage() {
   const [doctores, setDoctores] = useState<any[]>([])
@@ -23,9 +23,11 @@ export default function DoctoresPage() {
   // Modals state
   const [specialtyModalOpen, setSpecialtyModalOpen] = useState(false)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null)
 
   // Form states
+  const [inviteData, setInviteData] = useState({ name: '', email: '' })
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('')
   const [scheduleData, setScheduleData] = useState<{
     sucursal_id: string;
@@ -61,6 +63,27 @@ export default function DoctoresPage() {
     if (schedRes.data) setSchedules(schedRes.data)
 
     setIsLoading(false)
+  }
+
+  // Invite Doctor
+  async function handleInviteDoctor(e: React.FormEvent) {
+    e.preventDefault()
+    if (!inviteData.name || !inviteData.email) return
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('No estás autenticado')
+
+      const res = await inviteDoctor(session.access_token, inviteData)
+      if (res?.error) throw new Error(res.error)
+
+      toast.success('Médico pre-registrado correctamente')
+      setInviteModalOpen(false)
+      setInviteData({ name: '', email: '' })
+      fetchData()
+    } catch (error: any) {
+      toast.error('Error al registrar médico: ' + error.message)
+    }
   }
 
   // Assign Specialty
@@ -127,9 +150,41 @@ export default function DoctoresPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Personal Médico</h1>
-        <p className="text-muted-foreground">Gestiona especialidades y horarios del equipo.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Personal Médico</h1>
+          <p className="text-muted-foreground">Gestiona especialidades y horarios del equipo.</p>
+        </div>
+        <Dialog open={inviteModalOpen} onOpenChange={setInviteModalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Registrar Médico
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleInviteDoctor}>
+              <DialogHeader>
+                <DialogTitle>Registrar Nuevo Médico</DialogTitle>
+                <DialogDescription>
+                  El médico podrá iniciar sesión automáticamente con este correo usando Particle Network.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label>Nombre Completo</Label>
+                  <Input value={inviteData.name} onChange={(e) => setInviteData({...inviteData, name: e.target.value})} required placeholder="Dr. Juan Pérez" />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Correo Electrónico</Label>
+                  <Input type="email" value={inviteData.email} onChange={(e) => setInviteData({...inviteData, email: e.target.value})} required placeholder="juan.perez@boliviahealth.com" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit">Guardar y Pre-registrar</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

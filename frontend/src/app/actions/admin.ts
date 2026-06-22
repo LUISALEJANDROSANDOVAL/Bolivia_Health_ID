@@ -132,3 +132,29 @@ export async function removeSchedule(token: string, scheduleId: string) {
   revalidatePath('/admin/doctores')
   return true
 }
+
+// ---------------------------
+// DOCTORES (REGISTRO)
+// ---------------------------
+
+export async function inviteDoctor(token: string, data: { name: string; email: string }) {
+  const supabase = getAuthenticatedClient(token)
+  
+  // Usamos un wallet temporal que luego será reemplazado cuando inicie sesión con Particle
+  const placeholderWallet = `pending_${Date.now()}_${Math.random().toString(36).substring(7)}`
+  
+  const { error } = await supabase
+    .from('profiles')
+    .insert([{
+      full_name: data.name,
+      email: data.email.toLowerCase(),
+      role: 'medico',
+      wallet_address: placeholderWallet
+    }])
+
+  if (error) return { error: error.message }
+  
+  revalidatePath('/admin/doctores')
+  return { success: true }
+}
+
