@@ -34,9 +34,10 @@ export default function FichaActivaScreen({ route, navigation }: any) {
   const hospital = route?.params?.hospital ?? { nombre: 'Clínica del Sur', tiempo: '~10 min' };
   const especialidad = route?.params?.especialidad ?? { nombre: 'Medicina General' };
 
-  const [turnoActual, setTurnoActual] = useState(TURNO_DEMO.turnoActual);
   const [appointment, setAppointment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [patientsAhead, setPatientsAhead] = useState(0);
+  const [isQRModalVisible, setIsQRModalVisible] = useState(false);
 
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
@@ -54,72 +55,136 @@ export default function FichaActivaScreen({ route, navigation }: any) {
     ).start();
   }, []);
 
+  const fetchPatientsAhead = async (appt: any) => {
+    if (!appt) return;
+    try {
+      const { count, error } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('doctor_id', appt.doctor_id)
+        .eq('appointment_date', appt.appointment_date)
+        .eq('status', 'scheduled')
+        .lt('created_at', appt.created_at);
+      
+      if (!error && count !== null) {
+        setPatientsAhead(count);
+      }
+    } catch (err) {
+      console.warn('Error counting patients ahead:', err);
+    }
+  };
+
+  async function fetchActiveAppointment() {
+    try {
+      const wallet = await getActiveWallet();
+      const patientData = await getPatientData(wallet);
+      const patientId = patientData.profile?.id;
+
+      if (!patientId) {
+        setIsLoading(false);
+        return;
+      }
+
+      let query = supabase
+        .from('appointments')
+        .select('*');
+
+      if (route?.params?.appointmentId) {
+        query = query.eq('id', route.params.appointmentId);
+      } else {
+        query = query.eq('patient_id', patientId)
+          .in('status', ['scheduled', 'in_progress', 'confirmed'])
+          .order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await query.limit(1).maybeSingle();
+
+      if (error) {
+        if (error.code !== 'PGRST116') { // PGRST116 is "No rows found"
+          console.error('Supabase error:', error.message);
+        }
+      } else if (data) {
+        setAppointment(data);
+        await fetchPatientsAhead(data);
+      }
+    } catch (err) {
+      console.error('Network/Storage error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   // Fetch Supabase
   useEffect(() => {
-    async function fetchActiveAppointment() {
-      try {
-        const wallet = await getActiveWallet();
-        const patientData = await getPatientData(wallet);
-        const patientId = patientData.profile?.id;
-
-        if (!patientId) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('patient_id', patientId)
-          .in('status', ['scheduled', 'in_progress'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (error) {
-          if (error.code !== 'PGRST116') { // PGRST116 is "No rows found", which is fine (Empty State)
-            console.error('Supabase error:', error.message);
-          }
-        } else if (data) {
-          setAppointment(data);
-        }
-      } catch (err) {
-        console.error('Network/Storage error:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
     const unsubscribe = navigation.addListener('focus', () => {
       setIsLoading(true);
-      setAppointment(null); // Reset before fetch to show loading if needed
+      setAppointment(null);
       fetchActiveAppointment();
     });
 
+    fetchActiveAppointment();
     return unsubscribe;
   }, [navigation]);
 
+  // Suscripción Realtime para la cita actual
+  useEffect(() => {
+    if (!appointment?.id) return;
+
+    const subscription = supabase
+      .channel(`appointment-live-${appointment.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'appointments', filter: `id=eq.${appointment.id}` },
+        (payload) => {
+          console.log('[Realtime] Cita actualizada:', payload.new);
+          setAppointment(payload.new);
+          fetchPatientsAhead(payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [appointment?.id]);
+
   // Animación de progreso visual
   useEffect(() => {
-    const progreso = turnoActual / TURNO_DEMO.miTurno;
+    if (!appointment) return;
+    // Si ya está en progreso o confirmada y no hay nadie adelante, progreso al 100%. De lo contrario proporcional.
+    const totalCola = patientsAhead + 1;
+    const progreso = appointment.status === 'in_progress' ? 1 : 1 - (patientsAhead / totalCola);
     Animated.timing(progressAnim, {
-      toValue: progreso,
+      toValue: progreso || 0.1,
       duration: 800,
       useNativeDriver: false,
     }).start();
-  }, [turnoActual]);
+  }, [patientsAhead, appointment]);
 
-  const faltanTurnos = TURNO_DEMO.miTurno - turnoActual;
-  const porcentajeProgreso = Math.round((turnoActual / TURNO_DEMO.miTurno) * 100);
-
-  // Variables dinámicas
-  const hospitalName = appointment?.location || hospital.nombre;
-  const especialidadName = appointment?.specialty || especialidad.nombre;
+  const handleCancelarCita = async () => {
+    if (!appointment?.id) return;
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', appointment.id);
+      
+      if (error) {
+        alert('Error al cancelar la cita: ' + error.message);
+      } else {
+        alert('Cita cancelada con éxito.');
+        setAppointment(null);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: theme.textSecondary, fontWeight: '500' }}>Buscando turnos activos...</Text>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.textSecondary, fontWeight: '500', marginTop: 12 }}>Buscando turnos activos...</Text>
       </SafeAreaView>
     );
   }
@@ -156,7 +221,7 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             <TouchableOpacity
               style={styles.btnSolicitarEmpty}
               activeOpacity={0.8}
-              onPress={() => navigation?.navigate('MainTabs', { screen: 'SolicitarFicha' })}
+              onPress={() => navigation?.navigate('MainTabs', { screen: 'Home' })}
             >
               <LinearGradient
                 colors={['#2D7FF9', '#1E40AF']}
@@ -172,6 +237,16 @@ export default function FichaActivaScreen({ route, navigation }: any) {
       </SafeAreaView>
     );
   }
+
+  const hospitalName = appointment?.location || hospital.nombre;
+  const especialidadName = appointment?.specialty || especialidad.nombre;
+  const appointmentTimeFormatted = appointment?.appointment_time ? appointment.appointment_time.slice(0, 5) : '00:00';
+
+  // Cálculos dinámicos
+  const totalCola = patientsAhead + 1;
+  const porcentajeProgreso = appointment.status === 'in_progress' ? 100 : Math.max(10, Math.round((1 - (patientsAhead / totalCola)) * 100));
+  const consultorioText = appointment.notes || 'Consultorio 3';
+  const tiempoEsperaEstimado = patientsAhead * 15; // Estimamos 15 minutos por paciente en espera
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -205,21 +280,21 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             </Text>
             <Text style={[styles.hospitalMetaSeparator, { color: theme.border }]}>·</Text>
             <MapPin size={12} color={theme.textSecondary} />
-            <Text style={[styles.hospitalMetaText, { color: theme.textSecondary }]}>{TURNO_DEMO.consultorio}</Text>
+            <Text style={[styles.hospitalMetaText, { color: theme.textSecondary }]}>{consultorioText}</Text>
           </View>
         </View>
       </View>
 
       {/* ── CÍRCULO PRINCIPAL DEL TURNO ── */}
       <View style={styles.turnoSection}>
-        <Text style={[styles.turnoSectionLabel, { color: theme.textSecondary }]}>SU TURNO</Text>
+        <Text style={[styles.turnoSectionLabel, { color: theme.textSecondary }]}>HORA DE CITA</Text>
 
         <Animated.View style={[styles.turnoCircleOuter, { transform: [{ scale: pulseAnim }] }]}>
           <View style={styles.turnoCircleMid}>
             <View style={[styles.turnoCircleInner, isDark && { backgroundColor: '#1E293B', shadowColor: '#000000' }]}>
-              <Text style={styles.turnoNumero}>#{TURNO_DEMO.miTurno}</Text>
+              <Text style={styles.turnoNumero}>{appointmentTimeFormatted}</Text>
               <Text style={styles.turnoFecha}>
-                {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'short' })}
+                {new Date(appointment.appointment_date).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'short' })}
               </Text>
             </View>
           </View>
@@ -239,7 +314,9 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             ]}
           />
         </View>
-        <Text style={[styles.progressText, { color: theme.textSecondary }]}>{porcentajeProgreso}% completado · Faltan {faltanTurnos} turnos</Text>
+        <Text style={[styles.progressText, { color: theme.textSecondary }]}>
+          {porcentajeProgreso}% completado · {appointment.status === 'in_progress' ? 'Tu turno ha llegado' : `Faltan ${patientsAhead} turnos`}
+        </Text>
       </View>
 
       {/* ── INFORMACIÓN DEL ESTADO ── */}
@@ -248,12 +325,16 @@ export default function FichaActivaScreen({ route, navigation }: any) {
         {/* Atendiendo ahora */}
         <View style={[styles.infoCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.infoCardHeader}>
-            <View style={[styles.infoCardDot, { backgroundColor: '#14B8A6' }]} />
-            <Text style={[styles.infoCardLabel, { color: theme.textSecondary }]}>ATENDIENDO AHORA</Text>
+            <View style={[styles.infoCardDot, { backgroundColor: appointment.status === 'in_progress' ? '#10B981' : '#F59E0B' }]} />
+            <Text style={[styles.infoCardLabel, { color: theme.textSecondary }]}>ESTADO ACTUAL</Text>
           </View>
-          <Text style={styles.infoCardValue}>Turno #{turnoActual}</Text>
+          <Text style={styles.infoCardValue}>
+            {appointment.status === 'in_progress' ? 'En Consulta' : 'En Espera'}
+          </Text>
           <View style={[styles.infoCardBadge, isDark && { backgroundColor: 'rgba(20, 184, 166, 0.1)', borderColor: 'rgba(20, 184, 166, 0.2)' }]}>
-            <Text style={styles.infoCardBadgeText}>En curso</Text>
+            <Text style={styles.infoCardBadgeText}>
+              {appointment.status === 'in_progress' ? 'Llamando...' : 'En Fila'}
+            </Text>
           </View>
         </View>
 
@@ -263,10 +344,14 @@ export default function FichaActivaScreen({ route, navigation }: any) {
             <Clock size={10} color="#2D7FF9" />
             <Text style={[styles.infoCardLabel, { color: theme.textSecondary }]}>ESPERA ESTIMADA</Text>
           </View>
-          <Text style={styles.infoCardValue}>~{TURNO_DEMO.tiempoEspera} min</Text>
+          <Text style={styles.infoCardValue}>
+            {appointment.status === 'in_progress' ? '0 min' : `~${tiempoEsperaEstimado} min`}
+          </Text>
           <View style={styles.infoCardQueue}>
             <Users size={12} color={theme.textSecondary} />
-            <Text style={[styles.infoCardQueueText, { color: theme.textSecondary }]}>{faltanTurnos} antes que tú</Text>
+            <Text style={[styles.infoCardQueueText, { color: theme.textSecondary }]}>
+              {appointment.status === 'in_progress' ? 'Es tu turno' : `${patientsAhead} antes que tú`}
+            </Text>
           </View>
         </View>
 
@@ -277,22 +362,55 @@ export default function FichaActivaScreen({ route, navigation }: any) {
         <TouchableOpacity
           style={styles.btnQR}
           activeOpacity={0.85}
-          onPress={() =>
-            navigation?.navigate('QRAdmision', {
-              turno: TURNO_DEMO.miTurno,
-              hospital: hospitalName,
-              especialidad: especialidadName,
-            })
-          }
+          onPress={() => setIsQRModalVisible(true)}
         >
           <QrCode size={22} color="#FFFFFF" />
           <Text style={styles.btnQRText}>  Código QR de Admisión</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.btnCancelar} activeOpacity={0.7}>
+        <TouchableOpacity 
+          style={styles.btnCancelar} 
+          activeOpacity={0.7}
+          onPress={handleCancelarCita}
+        >
           <Text style={styles.btnCancelarText}>Cancelar cita</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── MODAL QR ADMISIÓN (Glassmorphism / Overlay) ── */}
+      <Modal
+        visible={isQRModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsQRModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Código de Admisión</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+              Muestra este código QR en la recepción de la clínica para realizar tu admisión y registrar tu llegada.
+            </Text>
+
+            <View style={styles.modalQRBox}>
+              <Image
+                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${appointment.id}` }}
+                style={styles.modalQRImage}
+              />
+            </View>
+
+            <Text style={[styles.modalDetailsText, { color: theme.textSecondary }]}>
+              Cita para las {appointmentTimeFormatted} · {especialidadName}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.btnCerrarModal, { backgroundColor: theme.primary }]}
+              onPress={() => setIsQRModalVisible(false)}
+            >
+              <Text style={styles.btnCerrarModalText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -465,5 +583,67 @@ const styles = StyleSheet.create({
   },
   btnSolicitarEmptyText: {
     fontSize: 16, fontWeight: '800', color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  modalQRBox: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  modalQRImage: {
+    width: 200,
+    height: 200,
+  },
+  modalDetailsText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 24,
+  },
+  btnCerrarModal: {
+    width: '100%',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  btnCerrarModalText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

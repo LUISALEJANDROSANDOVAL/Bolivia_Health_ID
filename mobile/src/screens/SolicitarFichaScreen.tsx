@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, FlatList, useColorScheme } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, FlatList, useColorScheme, ActivityIndicator, Modal } from 'react-native';
 
 import {
   ArrowLeft,
@@ -9,96 +9,159 @@ import {
   MapPin,
   ChevronDown,
   GraduationCap,
-  MessageCircle
+  MessageCircle,
+  X
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/Colors';
+import { supabase } from '../services/supabase';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 45) / 2; // 2 columns with spacing
 
-// ── DATOS MOCK PREMIUM ────────────────────────────────────────────────────────
-const DOCTORES_MOCK = [
-  {
-    id: '1',
-    name: 'Dr. Jorge Ayala',
-    specialty: 'Ginecología',
-    university: 'UMSA',
-    languages: 'Esp, Inglés',
-    rm: '45892',
-    branch: 'Sede Sur',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop',
-    featured: true,
-  },
-  {
-    id: '2',
-    name: 'Dra. Camila Vargas',
-    specialty: 'Cardiología',
-    university: 'UAGRM',
-    languages: 'Español',
-    rm: '38194',
-    branch: 'Sede Central',
-    image: 'https://images.unsplash.com/photo-1594824436951-7f12bcceabc4?q=80&w=200&auto=format&fit=crop',
-    featured: false,
-  },
-  {
-    id: '3',
-    name: 'Dr. Roberto Flores',
-    specialty: 'Pediatría',
-    university: 'UMSS',
-    languages: 'Esp, Quechua',
-    rm: '29384',
-    branch: 'Sede Sur',
-    image: 'https://images.unsplash.com/photo-1537368910025-702800faa86b?q=80&w=200&auto=format&fit=crop',
-    featured: false,
-  },
-  {
-    id: '4',
-    name: 'Dra. Andrea Ríos',
-    specialty: 'Medicina General',
-    university: 'Univalle',
-    languages: 'Esp, Inglés',
-    rm: '50291',
-    branch: 'Sede Central',
-    image: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=200&auto=format&fit=crop',
-    featured: false,
-  },
-  {
-    id: '5',
-    name: 'Dr. Diego Mendoza',
-    specialty: 'Traumatología',
-    university: 'UMSA',
-    languages: 'Español',
-    rm: '41920',
-    branch: 'Sede Central',
-    image: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=200&auto=format&fit=crop',
-    featured: false,
-  },
-  {
-    id: '6',
-    name: 'Dra. Sofía Castro',
-    specialty: 'Neurología',
-    university: 'Católica',
-    languages: 'Esp, Inglés',
-    rm: '39482',
-    branch: 'Sede Sur',
-    image: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?q=80&w=200&auto=format&fit=crop',
-    featured: false,
-  },
-];
-
 export default function SolicitarFichaScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState('Todos');
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [filteredDoctors, setFilteredDoctors] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filtros seleccionados
+  const [selectedBranch, setSelectedBranch] = useState<any>(null);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+
+  // Modales
+  const [branchModalVisible, setBranchModalVisible] = useState(false);
+  const [specialtyModalVisible, setSpecialtyModalVisible] = useState(false);
 
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
-  const handleDoctorPress = (doctor: typeof DOCTORES_MOCK[0]) => {
+  // Cargar datos de Supabase
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        
+        // 1. Obtener perfiles de médicos con sus sucursales
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select(`
+            id,
+            full_name,
+            specialty,
+            license_number,
+            wallet_address,
+            preferences,
+            doctor_sucursal (
+              sucursal_id,
+              sucursales (
+                id,
+                name,
+                address
+              )
+            )
+          `)
+          .eq('role', 'medico');
+
+        if (profilesError) throw profilesError;
+
+        const mappedDoctors = (profilesData || []).map((doc: any) => {
+          const sucursalNames = doc.doctor_sucursal
+            ?.map((ds: any) => ds.sucursales?.name)
+            .filter(Boolean) || [];
+          const branchName = sucursalNames.join(', ') || 'Sede Central';
+          const branchId = doc.doctor_sucursal?.[0]?.sucursal_id || null;
+
+          const prefs = doc.preferences || {};
+          const image = prefs.image || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop';
+          const university = prefs.university || 'UMSA';
+          const languages = prefs.languages || 'Español';
+          const featured = prefs.featured || false;
+
+          return {
+            id: doc.id,
+            name: doc.full_name,
+            specialty: doc.specialty || 'Medicina General',
+            university,
+            languages,
+            rm: doc.license_number || 'S/N',
+            branch: branchName,
+            branchId,
+            image,
+            featured,
+          };
+        });
+
+        setDoctors(mappedDoctors);
+        setFilteredDoctors(mappedDoctors);
+
+        // Extraer especialidades únicas
+        const uniqueSpecs = Array.from(new Set(mappedDoctors.map((d: any) => d.specialty)));
+        setSpecialties(uniqueSpecs);
+
+        // 2. Obtener sucursales
+        const { data: sucursalesData, error: sucursalesError } = await supabase
+          .from('sucursales')
+          .select('id, name, address');
+
+        if (!sucursalesError && sucursalesData) {
+          setBranches(sucursalesData);
+        }
+
+      } catch (err) {
+        console.error('Error loading doctors directory:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  // Aplicar filtros cada vez que cambien o se pulse una píldora
+  useEffect(() => {
+    let result = [...doctors];
+
+    if (activeFilter === 'Recomendados') {
+      result = result.filter(d => d.featured);
+    } else if (activeFilter === 'Todos') {
+      setSelectedBranch(null);
+      setSelectedSpecialty(null);
+    }
+
+    if (selectedBranch) {
+      result = result.filter(d => d.branchId === selectedBranch.id);
+    }
+
+    if (selectedSpecialty) {
+      result = result.filter(d => d.specialty === selectedSpecialty);
+    }
+
+    setFilteredDoctors(result);
+  }, [activeFilter, selectedBranch, selectedSpecialty, doctors]);
+
+  const handleDoctorPress = (doctor: any) => {
     navigation.navigate('DoctorProfile', { doctor });
   };
 
-  const renderDoctorCard = ({ item }: { item: typeof DOCTORES_MOCK[0] }) => {
+  const handleFilterPillPress = (item: string) => {
+    if (item === 'Todos') {
+      setActiveFilter('Todos');
+      setSelectedBranch(null);
+      setSelectedSpecialty(null);
+    } else if (item === 'Recomendados') {
+      setActiveFilter('Recomendados');
+    } else if (item.startsWith('Sucursal')) {
+      setBranchModalVisible(true);
+    } else if (item.startsWith('Especialidad')) {
+      setSpecialtyModalVisible(true);
+    }
+  };
+
+  const renderDoctorCard = ({ item }: { item: any }) => {
     const isFeatured = item.featured;
     
     return (
@@ -173,46 +236,195 @@ export default function SolicitarFichaScreen({ navigation }: any) {
 
       {/* ── FILTROS (PILLS) ── */}
       <View style={styles.filtersContainer}>
-        <FlatList
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filtersScrollContent}
-          data={['Todos', 'Sucursal ▾', 'Especialidad ▾', 'Recomendados']}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => {
-            const isActive = activeFilter === item;
-            return (
-              <TouchableOpacity 
-                style={[
-                  styles.filterPill, 
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                  isActive && { backgroundColor: theme.primary, borderColor: theme.primary }
-                ]}
-                onPress={() => setActiveFilter(item)}
-              >
-                <Text style={[
-                  styles.filterPillText, 
-                  { color: theme.textSecondary },
-                  isActive && { color: '#FFFFFF' }
-                ]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
+        >
+          {/* Todos */}
+          <TouchableOpacity 
+            style={[
+              styles.filterPill, 
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              activeFilter === 'Todos' && { backgroundColor: theme.primary, borderColor: theme.primary }
+            ]}
+            onPress={() => handleFilterPillPress('Todos')}
+          >
+            <Text style={[
+              styles.filterPillText, 
+              { color: theme.textSecondary },
+              activeFilter === 'Todos' && { color: '#FFFFFF' }
+            ]}>
+              Todos
+            </Text>
+          </TouchableOpacity>
+
+          {/* Sucursal Pill */}
+          <TouchableOpacity 
+            style={[
+              styles.filterPill, 
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              selectedBranch && { backgroundColor: theme.primary, borderColor: theme.primary }
+            ]}
+            onPress={() => handleFilterPillPress('Sucursal')}
+          >
+            <Text style={[
+              styles.filterPillText, 
+              { color: theme.textSecondary },
+              selectedBranch && { color: '#FFFFFF' }
+            ]}>
+              {selectedBranch ? selectedBranch.name : 'Sucursal ▾'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Especialidad Pill */}
+          <TouchableOpacity 
+            style={[
+              styles.filterPill, 
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              selectedSpecialty && { backgroundColor: theme.primary, borderColor: theme.primary }
+            ]}
+            onPress={() => handleFilterPillPress('Especialidad')}
+          >
+            <Text style={[
+              styles.filterPillText, 
+              { color: theme.textSecondary },
+              selectedSpecialty && { color: '#FFFFFF' }
+            ]}>
+              {selectedSpecialty ? selectedSpecialty : 'Especialidad ▾'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Recomendados */}
+          <TouchableOpacity 
+            style={[
+              styles.filterPill, 
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              activeFilter === 'Recomendados' && { backgroundColor: theme.primary, borderColor: theme.primary }
+            ]}
+            onPress={() => handleFilterPillPress('Recomendados')}
+          >
+            <Text style={[
+              styles.filterPillText, 
+              { color: theme.textSecondary },
+              activeFilter === 'Recomendados' && { color: '#FFFFFF' }
+            ]}>
+              Recomendados
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* ── LISTA DE DOCTORES (GRID) ── */}
-      <FlatList
-        data={DOCTORES_MOCK}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        contentContainerStyle={styles.gridContent}
-        columnWrapperStyle={styles.gridRow}
-        showsVerticalScrollIndicator={false}
-        renderItem={renderDoctorCard}
-      />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      ) : filteredDoctors.length === 0 ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: theme.textSecondary, fontSize: 16, fontWeight: '600' }}>
+            No se encontraron médicos con estos filtros.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredDoctors}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          contentContainerStyle={styles.gridContent}
+          columnWrapperStyle={styles.gridRow}
+          showsVerticalScrollIndicator={false}
+          renderItem={renderDoctorCard}
+        />
+      )}
+
+      {/* ── MODAL SUCURSAL ── */}
+      <Modal
+        visible={branchModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setBranchModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Seleccionar Sucursal</Text>
+              <TouchableOpacity onPress={() => setBranchModalVisible(false)}>
+                <X size={24} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              <TouchableOpacity 
+                style={[styles.modalItem, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  setSelectedBranch(null);
+                  setBranchModalVisible(false);
+                }}
+              >
+                <Text style={{ color: theme.textPrimary, fontWeight: !selectedBranch ? '700' : '400' }}>Todas las sucursales</Text>
+              </TouchableOpacity>
+              {branches.map(branch => (
+                <TouchableOpacity 
+                  key={branch.id}
+                  style={[styles.modalItem, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setSelectedBranch(branch);
+                    setActiveFilter('Filtros');
+                    setBranchModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: theme.textPrimary, fontWeight: selectedBranch?.id === branch.id ? '700' : '400' }}>{branch.name}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{branch.address}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL ESPECIALIDAD ── */}
+      <Modal
+        visible={specialtyModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSpecialtyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Seleccionar Especialidad</Text>
+              <TouchableOpacity onPress={() => setSpecialtyModalVisible(false)}>
+                <X size={24} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              <TouchableOpacity 
+                style={[styles.modalItem, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  setSelectedSpecialty(null);
+                  setSpecialtyModalVisible(false);
+                }}
+              >
+                <Text style={{ color: theme.textPrimary, fontWeight: !selectedSpecialty ? '700' : '400' }}>Todas las especialidades</Text>
+              </TouchableOpacity>
+              {specialties.map(spec => (
+                <TouchableOpacity 
+                  key={spec}
+                  style={[styles.modalItem, { borderBottomColor: theme.border }]}
+                  onPress={() => {
+                    setSelectedSpecialty(spec);
+                    setActiveFilter('Filtros');
+                    setSpecialtyModalVisible(false);
+                  }}
+                >
+                  <Text style={{ color: theme.textPrimary, fontWeight: selectedSpecialty === spec ? '700' : '400' }}>{spec}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -370,5 +582,29 @@ const styles = StyleSheet.create({
   branchText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
   }
 });

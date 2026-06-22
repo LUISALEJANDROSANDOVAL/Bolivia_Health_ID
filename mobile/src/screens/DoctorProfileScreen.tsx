@@ -1,5 +1,5 @@
 import { Text } from '../components/CustomText';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, SafeAreaView, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
 
 import {
@@ -14,6 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../theme/Colors';
+import { supabase } from '../services/supabase';
+import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,8 +40,13 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
-  const [selectedDate, setSelectedDate] = useState('10'); // Default selected to match image vibe
-  const [selectedTime, setSelectedTime] = useState('10:30');
+  const [selectedDate, setSelectedDate] = useState('10'); // Default selected
+  const [selectedTime, setSelectedTime] = useState('');
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [sucursal, setSucursal] = useState<any>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
 
   // Fallback si no hay doctor (por error de navegación)
   if (!doctor) {
@@ -52,6 +59,115 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
       </View>
     );
   }
+
+  // Cargar sucursal del doctor
+  useEffect(() => {
+    async function loadDoctorBranch() {
+      try {
+        const { data, error } = await supabase
+          .from('doctor_sucursal')
+          .select('sucursal_id, sucursales(id, name, address)')
+          .eq('doctor_id', doctor.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          const rawSuc = data.sucursales;
+          const suc = Array.isArray(rawSuc) ? rawSuc[0] : rawSuc;
+          setSucursal(suc);
+          setSelectedBranchId(suc?.id || null);
+        }
+      } catch (err) {
+        console.error('Error loading doctor branch:', err);
+      }
+    }
+    loadDoctorBranch();
+  }, [doctor.id]);
+
+  // Cargar píldoras de turnos libres usando RPC de Supabase (get_available_slots)
+  const fetchSlots = async (dateStr: string) => {
+    if (!selectedBranchId) return;
+    try {
+      setIsLoadingSlots(true);
+      const { data, error } = await supabase.rpc('get_available_slots', {
+        p_doctor_id: doctor.id,
+        p_sucursal_id: selectedBranchId,
+        p_date: `2026-11-${dateStr}`
+      });
+
+      if (!error && data) {
+        const formatted = data.map((t: string) => t.slice(0, 5));
+        setAvailableSlots(formatted);
+        if (formatted.length > 0) {
+          setSelectedTime(formatted[0]);
+        } else {
+          setSelectedTime('');
+        }
+      } else {
+        setAvailableSlots([]);
+        setSelectedTime('');
+      }
+    } catch (err) {
+      console.error('Error fetching available slots:', err);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      fetchSlots(selectedDate);
+    }
+  }, [selectedBranchId, selectedDate]);
+
+  const handleBookAppointment = async () => {
+    if (!selectedTime) {
+      alert('Por favor selecciona un horario disponible.');
+      return;
+    }
+    try {
+      setIsBooking(true);
+      const wallet = await getActiveWallet();
+      const patientData = await getPatientData(wallet);
+      const patientId = patientData.profile?.id;
+
+      if (!patientId) {
+        alert('Error: No se pudo identificar al paciente.');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert([
+          {
+            patient_id: patientId,
+            doctor_id: doctor.id,
+            doctor_name: doctor.name,
+            specialty: doctor.specialty,
+            appointment_date: `2026-11-${selectedDate}`,
+            appointment_time: `${selectedTime}:00`,
+            location: sucursal?.name || doctor.branch,
+            status: 'scheduled',
+            type: 'presencial',
+            priority: 'normal'
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        alert('Error al reservar cita: ' + error.message);
+      } else {
+        alert('¡Cita reservada con éxito!');
+        navigation.navigate('MainTabs', { screen: 'MisCitas' });
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de conexión.');
+    } finally {
+      setIsBooking(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -159,24 +275,34 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
           </ScrollView>
 
           {/* Time Selector */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeCarousel}>
-            {TIMES_MOCK.map((time, index) => {
-              const isSelected = selectedTime === time;
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.timeItem,
-                    { backgroundColor: theme.surface },
-                    isSelected && [styles.timeItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
-                  ]}
-                  onPress={() => setSelectedTime(time)}
-                >
-                  <Text style={[styles.timeText, isSelected && [styles.timeTextActive, isDark && { color: '#F97316' }]]}>{time}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          {isLoadingSlots ? (
+            <View style={{ paddingVertical: 10, paddingLeft: 20 }}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : availableSlots.length === 0 ? (
+            <View style={{ paddingVertical: 10, paddingLeft: 20 }}>
+              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No hay turnos disponibles para este día.</Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeCarousel}>
+              {availableSlots.map((time, index) => {
+                const isSelected = selectedTime === time;
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.timeItem,
+                      { backgroundColor: theme.surface },
+                      isSelected && [styles.timeItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
+                    ]}
+                    onPress={() => setSelectedTime(time)}
+                  >
+                    <Text style={[styles.timeText, isSelected && [styles.timeTextActive, isDark && { color: '#F97316' }]]}>{time}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {/* Spacer for bottom button */}
           <View style={{ height: 100 }} />
@@ -186,12 +312,15 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
       {/* ── BOTTOM FIXED BUTTON ── */}
       <View style={[styles.bottomButtonContainer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity 
-          style={styles.bookButton}
-          onPress={() => {
-            navigation.navigate('MainTabs', { screen: 'MisCitas' });
-          }}
+          style={[styles.bookButton, isBooking && { opacity: 0.7 }]}
+          disabled={isBooking}
+          onPress={handleBookAppointment}
         >
-          <Text style={styles.bookButtonText}>Confirmar Cita</Text>
+          {isBooking ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.bookButtonText}>Confirmar Cita</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>

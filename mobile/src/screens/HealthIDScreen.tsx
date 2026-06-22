@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, Platform, ActivityIndicator } from 'react-native';
 
 import {
   ArrowLeft,
@@ -13,33 +13,40 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
 import { Colors } from '../theme/Colors';
+import { getActiveWallet, getPatientData, PatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
-
-// ── DATOS DE DEMO (MOCK DATA) ────────────────────────────────────────────────
-const PACIENTE_DEMO = {
-  nombre: 'Valeria Rojas',
-  cedula: '8472910 LP',
-  grupoSanguineo: 'O+',
-  seguro: 'Alianza Seguros',
-  walletId: '0x8d2a...b8e1a4',
-  foto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200&auto=format&fit=crop',
-};
-
-const ALERGIAS_DEMO = ['Penicilina', 'Ibuprofeno'];
-const CONDICIONES_DEMO = ['Asma Leve'];
 
 export default function HealthIDScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [patientData, setPatientData] = useState<PatientData | null>(null);
 
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const wallet = await getActiveWallet();
+        const data = await getPatientData(wallet);
+        setPatientData(data);
+      } catch (error) {
+        console.error('Error loading patient data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const handleCopyWallet = async () => {
-    await Clipboard.setStringAsync(PACIENTE_DEMO.walletId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (patientData?.profile.wallet_address) {
+      await Clipboard.setStringAsync(patientData.profile.wallet_address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
@@ -56,7 +63,17 @@ export default function HealthIDScreen({ navigation }: any) {
         <View style={{ width: 44 }} /> {/* Spacer */}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#2D7FF9" />
+          <Text style={{ marginTop: 10, color: theme.textSecondary }}>Cargando Identidad...</Text>
+        </View>
+      ) : !patientData ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ color: theme.textSecondary, textAlign: 'center' }}>No se pudo cargar la información del paciente.</Text>
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* ── TARJETA DIGITAL (APPLE WALLET STYLE) ── */}
         <View style={[styles.cardWrapper, isDark && { shadowColor: '#000', shadowOpacity: 0.5, elevation: 15 }]}>
@@ -74,7 +91,7 @@ export default function HealthIDScreen({ navigation }: any) {
               </View>
               <View style={styles.bloodTypeBadge}>
                 <Droplets size={14} color="#EF4444" fill="#EF4444" />
-                <Text style={styles.bloodTypeText}>{PACIENTE_DEMO.grupoSanguineo}</Text>
+                <Text style={styles.bloodTypeText}>{patientData.vitals?.blood_type || 'N/D'}</Text>
               </View>
             </View>
 
@@ -82,17 +99,17 @@ export default function HealthIDScreen({ navigation }: any) {
             <View style={styles.cardBody}>
               <View style={styles.cardInfo}>
                 <Text style={styles.cardLabel}>PACIENTE</Text>
-                <Text style={styles.cardName}>{PACIENTE_DEMO.nombre}</Text>
+                <Text style={styles.cardName}>{patientData.profile.full_name}</Text>
 
                 <Text style={[styles.cardLabel, { marginTop: 15 }]}>CÉDULA DE IDENTIDAD</Text>
-                <Text style={styles.cardData}>{PACIENTE_DEMO.cedula}</Text>
+                <Text style={styles.cardData}>{patientData.profile.cedula_identidad || 'N/D'}</Text>
 
                 <Text style={[styles.cardLabel, { marginTop: 15 }]}>SEGURO MÉDICO</Text>
-                <Text style={styles.cardData}>{PACIENTE_DEMO.seguro}</Text>
+                <Text style={styles.cardData}>Sin Seguro Registrado</Text>
               </View>
 
               <View style={styles.avatarContainer}>
-                <Image source={{ uri: PACIENTE_DEMO.foto }} style={styles.avatarImage} />
+                <Image source={{ uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200&auto=format&fit=crop' }} style={styles.avatarImage} />
               </View>
             </View>
 
@@ -100,7 +117,9 @@ export default function HealthIDScreen({ navigation }: any) {
             <View style={styles.cardFooter}>
               <View>
                 <Text style={styles.walletLabel}>Blockchain Wallet ID</Text>
-                <Text style={styles.walletIdText}>{PACIENTE_DEMO.walletId}</Text>
+                <Text style={styles.walletIdText}>
+                  {patientData.profile.wallet_address.substring(0, 6)}...{patientData.profile.wallet_address.substring(patientData.profile.wallet_address.length - 4)}
+                </Text>
               </View>
               <TouchableOpacity style={styles.copyButton} onPress={handleCopyWallet}>
                 <Copy size={16} color="#FFFFFF" />
@@ -118,7 +137,7 @@ export default function HealthIDScreen({ navigation }: any) {
           <View style={[styles.qrBox, { backgroundColor: '#FFFFFF', borderColor: theme.border }]}>
             {/* El código QR siempre es blanco de fondo para que funcione */}
             <Image
-              source={{ uri: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_ValeriaRojas' }}
+              source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_${patientData.profile.wallet_address}` }}
               style={styles.qrImage}
             />
             <View style={styles.scanLine} />
@@ -133,21 +152,27 @@ export default function HealthIDScreen({ navigation }: any) {
           </View>
 
           <View style={styles.pillsWrapper}>
-            {ALERGIAS_DEMO.map((alergia, index) => (
-              <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-                <Text style={[styles.pillDangerText, isDark && { color: '#FCA5A5' }]}>Alergia: {alergia}</Text>
+            {patientData.vitals?.allergies ? (
+              patientData.vitals.allergies.split(',').map((alergia, index) => (
+                <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                  <Text style={[styles.pillDangerText, isDark && { color: '#FCA5A5' }]}>Alergia: {alergia.trim()}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No hay alergias registradas.</Text>
+            )}
+            
+            {patientData.vitals?.blood_pressure && (
+              <View style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
+                <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>Presión: {patientData.vitals.blood_pressure}</Text>
               </View>
-            ))}
-            {CONDICIONES_DEMO.map((condicion, index) => (
-              <View key={index} style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
-                <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>{condicion}</Text>
-              </View>
-            ))}
+            )}
           </View>
         </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      )}
     </View>
   );
 }

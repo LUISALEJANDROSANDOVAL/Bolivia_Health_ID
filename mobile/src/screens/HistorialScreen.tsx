@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated, TextInput, useColorScheme, Platform } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated, TextInput, useColorScheme, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -18,6 +18,8 @@ import {
   ClipboardList
 } from 'lucide-react-native';
 import { Colors } from '../theme/Colors';
+import { supabase } from '../services/supabase';
+import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
 
@@ -75,6 +77,8 @@ const REGISTROS_DEMO = [
 const CATEGORIAS = ['Todos', 'Laboratorio', 'Recetas', 'Imágenes'];
 
 export default function HistorialScreen({ navigation }: any) {
+  const [records, setRecords] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [categoriaActiva, setCategoriaActiva] = useState('Todos');
   const [busqueda, setBusqueda] = useState('');
   
@@ -83,13 +87,13 @@ export default function HistorialScreen({ navigation }: any) {
 
   // Animación Fade-In Up
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current; // Matches PermisosScreen (30 instead of 50)
+  const slideAnim = useRef(new Animated.Value(30)).current; // Matches PermisosScreen
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 500, // Matches PermisosScreen
+        duration: 500,
         useNativeDriver: true,
       }),
       Animated.spring(slideAnim, {
@@ -101,13 +105,113 @@ export default function HistorialScreen({ navigation }: any) {
     ]).start();
   }, []);
 
-  // Filtrado simple para la demo
-  const registrosFiltrados = REGISTROS_DEMO.filter((reg) => {
+  const mapRecordToDemo = (dbItem: any) => {
+    let colorBorde = '#2D7FF9';
+    let colorFondo = '#EFF6FF';
+    let colorFondoDark = 'rgba(45, 127, 249, 0.1)';
+    let icono = <Activity size={20} color="#2D7FF9" />;
+    let accionIcono = <Eye size={16} color="#2D7FF9" />;
+    let accionTexto = 'Ver Documento Original';
+
+    // Mapear categorías del esquema RNF/Catálogo
+    if (dbItem.category === 'Laboratorio') {
+      colorBorde = '#14B8A6';
+      colorFondo = '#F0FDF9';
+      colorFondoDark = 'rgba(20, 184, 166, 0.1)';
+      icono = <FileText size={20} color="#14B8A6" />;
+      accionIcono = <Eye size={16} color="#14B8A6" />;
+      accionTexto = 'Ver Documento Original';
+    } else if (dbItem.category === 'Recetas') {
+      colorBorde = '#F97316';
+      colorFondo = '#FFF7ED';
+      colorFondoDark = 'rgba(249, 115, 22, 0.1)';
+      icono = <Pill size={20} color="#F97316" />;
+      accionIcono = <Download size={16} color="#F97316" />;
+      accionTexto = 'Descargar Receta';
+    }
+
+    const doctorName = dbItem.doctor?.full_name || 'Médico General';
+    const dateFormatted = dbItem.created_at ? new Date(dbItem.created_at).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Reciente';
+
+    return {
+      id: dbItem.id,
+      categoria: dbItem.category,
+      titulo: dbItem.title,
+      medico: doctorName,
+      fecha: dateFormatted,
+      lugar: dbItem.category === 'Recetas' ? '' : 'Clínica del Sur',
+      estado: 'Resultados Finales',
+      dosis: dbItem.dosage || null,
+      duracion: dbItem.frequency || null,
+      hash: dbItem.tx_hash ? dbItem.tx_hash.slice(0, 6) + '...' + dbItem.tx_hash.slice(-4) : 'Sin firma',
+      icono,
+      colorFondo,
+      colorFondoDark,
+      colorBorde,
+      accionIcono,
+      accionTexto,
+      file_url: dbItem.file_url,
+    };
+  };
+
+  async function fetchHistory() {
+    try {
+      setIsLoading(true);
+      const wallet = await getActiveWallet();
+      const patientData = await getPatientData(wallet);
+      const patientId = patientData.profile?.id;
+
+      if (!patientId) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Consulta segura a health_records con JOIN de doctor
+      const { data, error } = await supabase
+        .from('health_records')
+        .select(`
+          *,
+          doctor:profiles!health_records_doctor_id_fkey(full_name)
+        `)
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching health records:', error.message);
+      } else if (data) {
+        const mapped = data.map(mapRecordToDemo);
+        setRecords(mapped);
+      }
+    } catch (err) {
+      console.error('Error loading history:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchHistory();
+    });
+    fetchHistory();
+    return unsubscribe;
+  }, [navigation]);
+
+  const registrosFiltrados = records.filter((reg) => {
     const coincideCategoria = categoriaActiva === 'Todos' || reg.categoria === categoriaActiva;
     const coincideBusqueda = reg.titulo.toLowerCase().includes(busqueda.toLowerCase()) || 
                              reg.medico.toLowerCase().includes(busqueda.toLowerCase());
     return coincideCategoria && coincideBusqueda;
   });
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.textSecondary, fontWeight: '500', marginTop: 12 }}>Cargando historial clínico...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
