@@ -64,6 +64,7 @@ export default function PatientAgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [filterMode, setFilterMode] = useState<'all' | 'day'>('all')
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [stats, setStats] = useState({
@@ -166,10 +167,17 @@ export default function PatientAgendaPage() {
     fetchAgenda()
   }, [fetchAgenda])
 
-  const filteredAppointments = appointments.filter(apt => 
-    apt.doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    apt.reason.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredAppointments = appointments.filter(apt => {
+    const matchesSearch = 
+      apt.doctorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      apt.reason.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    if (filterMode === 'day') {
+      const selectedDateStr = format(currentDate, 'yyyy-MM-dd')
+      return matchesSearch && apt.date === selectedDateStr
+    }
+    return matchesSearch
+  })
 
   // Generar días para el selector de calendario pequeño
   const weekStart = startOfWeek(currentDate, { locale: es })
@@ -247,6 +255,26 @@ export default function PatientAgendaPage() {
               />
             </div>
 
+            {/* Date Filtering Alert Banner */}
+            {filterMode === 'day' && (
+              <div className="flex items-center justify-between p-4 rounded-3xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 animate-in fade-in duration-300">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="size-4" />
+                  <span className="text-sm font-black uppercase tracking-tight">
+                    Filtrado por fecha: <span className="text-foreground dark:text-white capitalize">{format(currentDate, "eeee, d 'de' MMMM", { locale: es })}</span>
+                  </span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setFilterMode('all')}
+                  className="h-8 px-4 rounded-xl hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold uppercase tracking-widest text-[9px] cursor-pointer"
+                >
+                  Ver todas las citas
+                </Button>
+              </div>
+            )}
+
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 animate-pulse">
                 <Loader2 className="size-12 text-cyan-500 animate-spin mb-4" />
@@ -261,7 +289,7 @@ export default function PatientAgendaPage() {
                  </div>
                  <h3 className="text-xl font-black text-foreground">No tienes citas agendadas</h3>
                  <p className="text-sm text-foreground/40 font-bold uppercase tracking-widest mt-2">
-                   Usa el formulario superior para agendar una
+                   {filterMode === 'day' ? 'Prueba seleccionando otro día o limpiando el filtro' : 'Usa el formulario superior para agendar una'}
                  </p>
               </div>
             ) : (
@@ -368,7 +396,10 @@ export default function PatientAgendaPage() {
                       variant="ghost" 
                       size="icon" 
                       className="size-7 rounded-full hover:bg-white/10 text-white"
-                      onClick={() => setCurrentDate(addDays(currentDate, -1))}
+                      onClick={() => {
+                        setCurrentDate(addDays(currentDate, -1))
+                        setFilterMode('day')
+                      }}
                     >
                       <ChevronLeft className="size-3" />
                     </Button>
@@ -376,7 +407,10 @@ export default function PatientAgendaPage() {
                       variant="ghost" 
                       size="icon" 
                       className="size-7 rounded-full hover:bg-white/10 text-white"
-                      onClick={() => setCurrentDate(addDays(currentDate, 1))}
+                      onClick={() => {
+                        setCurrentDate(addDays(currentDate, 1))
+                        setFilterMode('day')
+                      }}
                     >
                       <ChevronRight className="size-3" />
                     </Button>
@@ -390,9 +424,12 @@ export default function PatientAgendaPage() {
                       return (
                         <button
                           key={i}
-                          onClick={() => setCurrentDate(day)}
+                          onClick={() => {
+                            setCurrentDate(day)
+                            setFilterMode('day')
+                          }}
                           className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
-                            isSelected 
+                            isSelected && filterMode === 'day'
                               ? 'bg-gradient-electric text-azul-profundo scale-105 shadow-lg shadow-cyan-500/20' 
                               : 'hover:bg-white/5 text-white/40 hover:text-white'
                           }`}
@@ -407,8 +444,14 @@ export default function PatientAgendaPage() {
                       )
                     })}
                   </div>
-                  <Button className="w-full mt-2 bg-white/10 hover:bg-white/20 text-white border-none h-10 rounded-xl font-black uppercase tracking-widest text-[8px]">
-                    Ver Mes Completo
+                  <Button 
+                    onClick={() => {
+                      setCurrentDate(new Date())
+                      setFilterMode('all')
+                    }}
+                    className="w-full mt-2 bg-white/10 hover:bg-white/20 text-white border-none h-10 rounded-xl font-black uppercase tracking-widest text-[8px]"
+                  >
+                    Mostrar todas las citas
                   </Button>
                 </div>
               </div>

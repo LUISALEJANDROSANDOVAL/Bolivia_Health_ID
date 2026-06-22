@@ -124,6 +124,8 @@ CREATE TABLE public.patient_vitals (
   height text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  heart_rate text,
+  temperature text,
   CONSTRAINT patient_vitals_pkey PRIMARY KEY (id),
   CONSTRAINT patient_vitals_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id)
 );
@@ -142,6 +144,11 @@ CREATE TABLE public.profiles (
   specialty text,
   preferences jsonb DEFAULT '{}'::jsonb,
   password_hash text,
+  birth_date date,
+  gender text CHECK (gender = ANY (ARRAY['M'::text, 'F'::text, 'Otro'::text])),
+  identity_verified boolean DEFAULT false,
+  license_verified boolean DEFAULT false,
+  approval_status text DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
   CONSTRAINT profiles_pkey PRIMARY KEY (id)
 );
 
@@ -233,3 +240,35 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.fn_final_verification()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.role = 'medico' THEN
+    IF NEW.identity_verified IS DISTINCT FROM true THEN
+      NEW.identity_verified := false;
+    END IF;
+    IF NEW.license_verified IS DISTINCT FROM true THEN
+      NEW.license_verified := false;
+    END IF;
+
+    IF NEW.identity_verified AND NEW.license_verified THEN
+      NEW.approval_status := 'approved';
+    ELSE
+      NEW.approval_status := 'pending';
+    END IF;
+  ELSE
+    NEW.identity_verified := false;
+    NEW.license_verified := false;
+    NEW.approval_status := 'pending';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_0_final_validation ON public.profiles;
+
+CREATE TRIGGER tr_0_final_validation
+BEFORE INSERT OR UPDATE ON public.profiles
+FOR EACH ROW EXECUTE FUNCTION public.fn_final_verification();
