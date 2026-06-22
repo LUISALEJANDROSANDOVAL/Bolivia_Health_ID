@@ -7,7 +7,8 @@ import {
   StyleSheet, 
   Dimensions, 
   Animated,
-  useColorScheme
+  useColorScheme,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +23,8 @@ import {
   UserCircle,
 } from 'lucide-react-native';
 import { Colors } from '../theme/Colors';
+import { supabase } from '../services/supabase';
+import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,6 +45,11 @@ const CATEGORIAS_DATOS = [
 ];
 
 export default function PermisosScreen({ navigation }: any) {
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [activePermissions, setActivePermissions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const [duracionSeleccionada, setDuracionSeleccionada] = useState('Solo hoy');
   const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState<string[]>([
     'historial',
@@ -54,6 +62,63 @@ export default function PermisosScreen({ navigation }: any) {
   // Animaciones Premium
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  async function loadPermissions() {
+    try {
+      setIsLoading(true);
+      const wallet = await getActiveWallet();
+      const patientData = await getPatientData(wallet);
+      const patientId = patientData.profile?.id;
+
+      if (!patientId) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Query latest pending request
+      const { data: pending, error: pendingErr } = await supabase
+        .from('access_permissions')
+        .select(`
+          id,
+          status,
+          doctor_id,
+          doctor:profiles!access_permissions_doctor_id_fkey(full_name, specialty)
+        `)
+        .eq('patient_id', patientId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!pendingErr && pending) {
+        setPendingRequest(pending);
+      } else {
+        setPendingRequest(null);
+      }
+
+      // Query active permissions
+      const { data: activeList, error: activeErr } = await supabase
+        .from('access_permissions')
+        .select(`
+          id,
+          status,
+          doctor_id,
+          doctor:profiles!access_permissions_doctor_id_fkey(full_name, specialty)
+        `)
+        .eq('patient_id', patientId)
+        .eq('status', 'active');
+
+      if (!activeErr && activeList) {
+        setActivePermissions(activeList);
+      } else {
+        setActivePermissions([]);
+      }
+    } catch (err) {
+      console.error('Error loading permissions:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     Animated.parallel([
@@ -69,7 +134,13 @@ export default function PermisosScreen({ navigation }: any) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadPermissions();
+    });
+    loadPermissions();
+    return unsubscribe;
+  }, [navigation]);
 
   const toggleCategoria = (id: string) => {
     if (categoriasSeleccionadas.includes(id)) {
@@ -79,10 +150,76 @@ export default function PermisosScreen({ navigation }: any) {
     }
   };
 
-  const handleAutorizar = () => {
-    alert('Acceso autorizado y registrado de forma segura.');
-    navigation?.goBack();
+  const handleAutorizar = async () => {
+    if (!pendingRequest) return;
+    try {
+      setIsProcessing(true);
+      let expiresAt: Date | null = new Date();
+      if (duracionSeleccionada === 'Solo hoy') {
+        expiresAt.setHours(23, 59, 59, 999);
+      } else if (duracionSeleccionada === '24 horas') {
+        expiresAt.setDate(expiresAt.getDate() + 1);
+      } else if (duracionSeleccionada === '7 días') {
+        expiresAt.setDate(expiresAt.getDate() + 7);
+      } else {
+        expiresAt = null; // Persistente
+      }
+
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({
+          status: 'active',
+          expires_at: expiresAt ? expiresAt.toISOString() : null
+        })
+        .eq('id', pendingRequest.id);
+
+      if (error) {
+        alert('Error al autorizar: ' + error.message);
+      } else {
+        alert('Acceso autorizado con éxito.');
+        loadPermissions();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de conexión.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
+  const handleRevoke = async (permissionId: string) => {
+    try {
+      setIsProcessing(true);
+      const { error } = await supabase
+        .from('access_permissions')
+        .update({
+          status: 'revoked',
+          expires_at: new Date().toISOString()
+        })
+        .eq('id', permissionId);
+
+      if (error) {
+        alert('Error al revocar acceso: ' + error.message);
+      } else {
+        alert('Acceso revocado con éxito.');
+        loadPermissions();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de conexión.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={{ color: theme.textSecondary, fontWeight: '500', marginTop: 12 }}>Cargando centro de privacidad...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -108,116 +245,164 @@ export default function PermisosScreen({ navigation }: any) {
       >
         {/* ── TÍTULO DE LA PANTALLA ── */}
         <View style={styles.titleSection}>
-          <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Compartir Mis Datos</Text>
+          <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Privacidad y Accesos</Text>
           <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
-            Estás a punto de otorgar acceso temporal a tu información médica verificada. Tú tienes el control total.
+            Gestiona de forma segura qué profesionales de la salud tienen autorización para auditar tu historial clínico.
           </Text>
         </View>
 
-        {/* ── BANNER DE SEGURIDAD ── */}
-        <View style={[styles.securityBanner, isDark && { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)' }]}>
-          <Lock size={14} color="#8B5CF6" />
-          <Text style={[styles.securityBannerText, isDark && { color: '#C4B5FD' }]}>
-            Acceso protegido con seguridad avanzada
-          </Text>
-        </View>
-
-        {/* ── SECCIÓN 1: ¿CON QUIÉN COMPARTES? ── */}
-        <Text style={styles.sectionTitle}>¿CON QUIÉN COMPARTES?</Text>
-        <View style={[styles.doctorCard, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#000' }]}>
-          <View style={[styles.doctorAvatarContainer, { backgroundColor: isDark ? theme.background : '#F8FAFC', borderColor: theme.border }]}>
-            <UserCircle size={48} color={theme.textSecondary} strokeWidth={1} />
-          </View>
-          <View style={styles.doctorInfo}>
-            <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{DOCTOR_DEMO.nombre}</Text>
-            <Text style={[styles.doctorSpecialty, isDark && { color: '#60A5FA' }]}>{DOCTOR_DEMO.especialidad}</Text>
-            <View style={styles.doctorHospitalRow}>
-              <MapPin size={12} color={theme.textSecondary} />
-              <Text style={[styles.doctorHospitalText, { color: theme.textSecondary }]}>{DOCTOR_DEMO.hospital}</Text>
+        {/* ── SECCIÓN 1: SOLICITUD PENDIENTE ── */}
+        {pendingRequest ? (
+          <View>
+            <View style={[styles.securityBanner, isDark && { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)' }]}>
+              <Lock size={14} color="#8B5CF6" />
+              <Text style={[styles.securityBannerText, isDark && { color: '#C4B5FD' }]}>
+                Solicitud de acceso clínico pendiente
+              </Text>
             </View>
-          </View>
-        </View>
 
-        {/* ── SECCIÓN 2: TIEMPO DE ACCESO ── */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>DURACIÓN DEL ACCESO</Text>
-          <Clock size={14} color={theme.textSecondary} />
-        </View>
-        <View style={styles.duracionGrid}>
-          {DURACIONES.map((duracion) => {
-            const isSelected = duracionSeleccionada === duracion;
-            return (
-              <TouchableOpacity
-                key={duracion}
-                style={[
-                  styles.duracionBtn,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                  isSelected && [styles.duracionBtnActivo, { backgroundColor: theme.primary, borderColor: theme.primary }]
-                ]}
-                onPress={() => setDuracionSeleccionada(duracion)}
-                activeOpacity={0.8}
-              >
-                <Text style={[
-                  styles.duracionBtnText,
-                  { color: theme.textSecondary },
-                  isSelected && styles.duracionBtnTextActivo
-                ]}>
-                  {duracion}
+            <Text style={styles.sectionTitle}>¿CON QUIÉN COMPARTIRÁS?</Text>
+            <View style={[styles.doctorCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[styles.doctorAvatarContainer, { backgroundColor: isDark ? theme.background : '#F8FAFC', borderColor: theme.border }]}>
+                <UserCircle size={48} color={theme.textSecondary} strokeWidth={1} />
+              </View>
+              <View style={styles.doctorInfo}>
+                <Text style={[styles.doctorName, { color: theme.textPrimary }]}>
+                  {pendingRequest.doctor?.full_name || 'Dr. Médico General'}
                 </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                <Text style={[styles.doctorSpecialty, isDark && { color: '#60A5FA' }]}>
+                  {pendingRequest.doctor?.specialty || 'General'}
+                </Text>
+                <View style={styles.doctorHospitalRow}>
+                  <MapPin size={12} color={theme.textSecondary} />
+                  <Text style={[styles.doctorHospitalText, { color: theme.textSecondary }]}>Clínica del Sur</Text>
+                </View>
+              </View>
+            </View>
 
-        {/* ── SECCIÓN 3: ¿QUÉ INFORMACIÓN COMPARTIR? ── */}
-        <Text style={styles.sectionTitle}>¿QUÉ DATOS DESEAS COMPARTIR?</Text>
-        <View style={[styles.categoriasContainer, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#000' }]}>
-          {CATEGORIAS_DATOS.map((cat, index) => {
-            const isSelected = categoriasSeleccionadas.includes(cat.id);
-            return (
+            {/* SECCIÓN 2: TIEMPO DE ACCESO */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>DURACIÓN DEL ACCESO</Text>
+              <Clock size={14} color={theme.textSecondary} />
+            </View>
+            <View style={styles.duracionGrid}>
+              {DURACIONES.map((duracion) => {
+                const isSelected = duracionSeleccionada === duracion;
+                return (
+                  <TouchableOpacity
+                    key={duracion}
+                    style={[
+                      styles.duracionBtn,
+                      { backgroundColor: theme.surface, borderColor: theme.border },
+                      isSelected && [styles.duracionBtnActivo, { backgroundColor: theme.primary, borderColor: theme.primary }]
+                    ]}
+                    onPress={() => setDuracionSeleccionada(duracion)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      styles.duracionBtnText,
+                      { color: theme.textSecondary },
+                      isSelected && styles.duracionBtnTextActivo
+                    ]}>
+                      {duracion}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* SECCIÓN 3: QUÉ INFORMACIÓN COMPARTIR */}
+            <Text style={styles.sectionTitle}>¿QUÉ DATOS DESEAS COMPARTIR?</Text>
+            <View style={[styles.categoriasContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {CATEGORIAS_DATOS.map((cat, index) => {
+                const isSelected = categoriasSeleccionadas.includes(cat.id);
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.categoriaRow,
+                      index !== CATEGORIAS_DATOS.length - 1 && [styles.categoriaBorderBottom, { borderBottomColor: theme.border }],
+                    ]}
+                    onPress={() => toggleCategoria(cat.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.categoriaLeft}>
+                      <Text style={[
+                        styles.categoriaLabel,
+                        { color: theme.textSecondary },
+                        isSelected && [styles.categoriaLabelActivo, { color: theme.textPrimary }]
+                      ]}>
+                        {cat.label}
+                      </Text>
+                    </View>
+                    <View style={styles.checkboxContainer}>
+                      {isSelected ? (
+                        <CheckSquare size={24} color={theme.primary} fill={isDark ? theme.primary : '#EFF6FF'} />
+                      ) : (
+                        <Square size={24} color={theme.border} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.btnPrimary, { backgroundColor: theme.primary, shadowColor: theme.primary }, isProcessing && { opacity: 0.7 }]} 
+              onPress={handleAutorizar} 
+              disabled={isProcessing}
+              activeOpacity={0.85}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Lock size={18} color="#FFFFFF" />
+                  <Text style={styles.btnPrimaryText}> Autorizar Acceso Seguro</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={[styles.securityBanner, { backgroundColor: 'rgba(20, 184, 166, 0.08)', borderColor: 'rgba(20, 184, 166, 0.2)' }]}>
+            <ShieldCheck size={14} color="#10B981" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
+              No tienes solicitudes de acceso pendientes
+            </Text>
+          </View>
+        )}
+
+        {/* ── SECCIÓN 4: ACCESOS ACTIVOS (REVOCACIONES) ── */}
+        <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Médicos Autorizados Actualmente</Text>
+        {activePermissions.length === 0 ? (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <Text style={{ color: theme.textSecondary, fontSize: 13, textAlign: 'center' }}>
+              Ningún médico tiene acceso activo a tus expedientes.
+            </Text>
+          </View>
+        ) : (
+          activePermissions.map((perm) => (
+            <View key={perm.id} style={[styles.doctorCard, { backgroundColor: theme.surface, borderColor: theme.border, marginBottom: 16 }]}>
+              <View style={styles.doctorInfo}>
+                <Text style={[styles.doctorName, { color: theme.textPrimary }]}>
+                  {perm.doctor?.full_name || 'Dr. Médico'}
+                </Text>
+                <Text style={[styles.doctorSpecialty, { color: theme.primary }]}>
+                  {perm.doctor?.specialty || 'General'}
+                </Text>
+              </View>
               <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoriaRow,
-                  index !== CATEGORIAS_DATOS.length - 1 && [styles.categoriaBorderBottom, { borderBottomColor: theme.border }],
-                ]}
-                onPress={() => toggleCategoria(cat.id)}
-                activeOpacity={0.7}
+                style={{ backgroundColor: '#EF4444', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+                onPress={() => handleRevoke(perm.id)}
+                disabled={isProcessing}
               >
-                <View style={styles.categoriaLeft}>
-                  <Text style={[
-                    styles.categoriaLabel,
-                    { color: theme.textSecondary },
-                    isSelected && [styles.categoriaLabelActivo, { color: theme.textPrimary }]
-                  ]}>
-                    {cat.label}
-                  </Text>
-                </View>
-                <View style={styles.checkboxContainer}>
-                  {isSelected ? (
-                    <CheckSquare size={24} color={theme.primary} fill={isDark ? theme.primary : '#EFF6FF'} />
-                  ) : (
-                    <Square size={24} color={theme.border} />
-                  )}
-                </View>
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Revocar</Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
+            </View>
+          ))
+        )}
 
-        <View style={{ height: 20 }} />
-
-        {/* ── BOTONES DE ACCIÓN ── */}
-        <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={handleAutorizar} activeOpacity={0.85}>
-          <Lock size={18} color="#FFFFFF" />
-          <Text style={styles.btnPrimaryText}> Autorizar Acceso Seguro</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation?.goBack()} activeOpacity={0.7}>
-          <Text style={[styles.btnSecondaryText, { color: theme.textSecondary }]}>Cancelar</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 60 }} />
+        <View style={{ height: 40 }} />
       </Animated.ScrollView>
     </SafeAreaView>
   );

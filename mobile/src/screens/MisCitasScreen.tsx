@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, ActivityIndicator } from 'react-native';
 
 import {
   ArrowLeft,
@@ -11,42 +11,10 @@ import {
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/Colors';
+import { supabase } from '../services/supabase';
+import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
-
-// ── DATOS MOCK ───────────────────────────────────────────────────────────────
-const UPCOMING_APPOINTMENTS = [
-  {
-    id: '1',
-    type: 'Consulta General',
-    doctorName: 'Dr. Jorge Ayala',
-    specialty: 'Medicina General',
-    date: '15 Nov 2026, 10:30',
-    status: 'Faltan 2 días',
-    image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop',
-  },
-];
-
-const COMPLETED_APPOINTMENTS = [
-  {
-    id: '2',
-    type: 'Cardiología',
-    doctorName: 'Dra. Camila Vargas',
-    specialty: 'Cardióloga',
-    date: '02 Nov 2026, 14:00',
-    status: 'Completada',
-    image: 'https://images.unsplash.com/photo-1594824436998-dd40e4f20f01?q=80&w=200&auto=format&fit=crop',
-  },
-  {
-    id: '3',
-    type: 'Odontología',
-    doctorName: 'Dr. Roberto Siles',
-    specialty: 'Odontólogo',
-    date: '15 Oct 2026, 09:15',
-    status: 'Completada',
-    image: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?q=80&w=200&auto=format&fit=crop',
-  },
-];
 
 export default function MisCitasScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -54,9 +22,78 @@ export default function MisCitasScreen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
+  const [upcoming, setUpcoming] = useState<any[]>([]);
+  const [completed, setCompleted] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
   // Estados para expandir/colapsar las secciones
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
   const [completedExpanded, setCompletedExpanded] = useState(true);
+
+  const loadAppointments = async () => {
+    try {
+      setLoading(true);
+      const wallet = await getActiveWallet();
+      const patientData = await getPatientData(wallet);
+      const patientId = patientData.profile?.id;
+
+      if (!patientId) {
+        setLoading(false);
+        return;
+      }
+
+      // Query appointments
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
+
+      if (!error && data) {
+        const mapped = data.map((apt: any) => {
+          const dateStr = apt.appointment_date;
+          const timeStr = apt.appointment_time ? apt.appointment_time.slice(0, 5) : '00:00';
+          const fullDate = `${dateStr}, ${timeStr}`;
+
+          let statusText = 'Programada';
+          if (apt.status === 'confirmed') statusText = 'Confirmada';
+          else if (apt.status === 'completed') statusText = 'Completada';
+          else if (apt.status === 'cancelled') statusText = 'Cancelada';
+          else if (apt.status === 'in_progress') statusText = 'En Consulta';
+
+          return {
+            id: apt.id,
+            type: apt.type === 'virtual' ? 'Consulta Virtual' : 'Consulta Presencial',
+            doctorName: apt.doctor_name || 'Médico General',
+            specialty: apt.specialty || 'General',
+            date: fullDate,
+            status: statusText,
+            statusRaw: apt.status,
+            image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop',
+          };
+        });
+
+        const up = mapped.filter((a: any) => ['scheduled', 'confirmed', 'in_progress'].includes(a.statusRaw));
+        const comp = mapped.filter((a: any) => ['completed', 'cancelled'].includes(a.statusRaw));
+
+        setUpcoming(up);
+        setCompleted(comp);
+      }
+    } catch (err) {
+      console.error('Error loading appointments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadAppointments();
+    });
+    loadAppointments();
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), backgroundColor: theme.background }]}>
@@ -83,105 +120,124 @@ export default function MisCitasScreen({ navigation }: any) {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* ── PRÓXIMAS CITAS (UPCOMING) ── */}
-        <View style={styles.sectionContainer}>
-          <TouchableOpacity 
-            style={styles.sectionHeader}
-            onPress={() => setUpcomingExpanded(!upcomingExpanded)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.statusDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={styles.sectionTitle}>Próximas ({UPCOMING_APPOINTMENTS.length})</Text>
-            </View>
-            <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
-              <ChevronDown 
-                size={16} 
-                color={theme.textSecondary} 
-                style={{ transform: [{ rotate: upcomingExpanded ? '0deg' : '-90deg' }] }}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {upcomingExpanded && UPCOMING_APPOINTMENTS.map((apt) => (
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          {/* ── PRÓXIMAS CITAS (UPCOMING) ── */}
+          <View style={styles.sectionContainer}>
             <TouchableOpacity 
-              key={apt.id} 
-              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}
-              onPress={() => {
-                navigation.navigate('FichaActiva', {
-                  hospital: { nombre: 'Clínica Sede Central', ciudad: 'La Paz' },
-                  especialidad: { nombre: apt.specialty }
-                });
-              }}
+              style={styles.sectionHeader}
+              onPress={() => setUpcomingExpanded(!upcomingExpanded)}
+              activeOpacity={0.7}
             >
-              <View style={styles.cardTopRow}>
-                <Text style={styles.cardTypeTitle}>{apt.type}</Text>
-                <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(59, 130, 246, 0.15)' } : styles.pillUpcoming]}>
-                  <Text style={[styles.pillTextUpcoming, isDark && { color: '#60A5FA' }]}>{apt.status}</Text>
-                </View>
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.statusDot, { backgroundColor: '#EA580C' }]} />
+                <Text style={styles.sectionTitle}>Próximas ({upcoming.length})</Text>
               </View>
-
-              <View style={styles.cardBottomRow}>
-                <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
-                <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName}>{apt.doctorName}</Text>
-                  <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
-                </View>
-                <View style={styles.dateContainer}>
-                  <Text style={styles.dateText}>{apt.date}</Text>
-                </View>
+              <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
+                <ChevronDown 
+                  size={16} 
+                  color={theme.textSecondary} 
+                  style={{ transform: [{ rotate: upcomingExpanded ? '0deg' : '-90deg' }] }}
+                />
               </View>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ── CITAS COMPLETADAS ── */}
-        <View style={[styles.sectionContainer, { marginTop: 10 }]}>
-          <TouchableOpacity 
-            style={styles.sectionHeader}
-            onPress={() => setCompletedExpanded(!completedExpanded)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.sectionTitle}>Completadas ({COMPLETED_APPOINTMENTS.length})</Text>
-            </View>
-            <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
-              <ChevronDown 
-                size={16} 
-                color={theme.textSecondary} 
-                style={{ transform: [{ rotate: completedExpanded ? '0deg' : '-90deg' }] }}
-              />
-            </View>
-          </TouchableOpacity>
-
-          {completedExpanded && COMPLETED_APPOINTMENTS.map((apt) => (
-            <View key={apt.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}>
-              <View style={styles.cardTopRow}>
-                <Text style={styles.cardTypeTitle}>{apt.type}</Text>
-                <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : styles.pillCompleted]}>
-                  <Text style={[styles.pillTextCompleted, isDark && { color: '#34D399' }]}>{apt.status}</Text>
+  
+            {upcomingExpanded && upcoming.length === 0 && (
+              <View style={{ padding: 15, alignItems: 'center' }}>
+                <Text style={{ color: theme.textSecondary }}>No tienes citas próximas programadas.</Text>
+              </View>
+            )}
+  
+            {upcomingExpanded && upcoming.map((apt) => (
+              <TouchableOpacity 
+                key={apt.id} 
+                style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}
+                onPress={() => {
+                  navigation.navigate('FichaActiva', {
+                    appointmentId: apt.id,
+                    hospital: { nombre: 'Clínica Sede Central', ciudad: 'La Paz' },
+                    especialidad: { nombre: apt.specialty }
+                  });
+                }}
+              >
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.cardTypeTitle}>{apt.type}</Text>
+                  <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(59, 130, 246, 0.15)' } : styles.pillUpcoming]}>
+                    <Text style={[styles.pillTextUpcoming, isDark && { color: '#60A5FA' }]}>{apt.status}</Text>
+                  </View>
+                </View>
+  
+                <View style={styles.cardBottomRow}>
+                  <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
+                  <View style={styles.doctorInfo}>
+                    <Text style={styles.doctorName}>{apt.doctorName}</Text>
+                    <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
+                  </View>
+                  <View style={styles.dateContainer}>
+                    <Text style={styles.dateText}>{apt.date}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+  
+          {/* ── CITAS COMPLETADAS ── */}
+          <View style={[styles.sectionContainer, { marginTop: 10 }]}>
+            <TouchableOpacity 
+              style={styles.sectionHeader}
+              onPress={() => setCompletedExpanded(!completedExpanded)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sectionHeaderLeft}>
+                <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                <Text style={styles.sectionTitle}>Completadas ({completed.length})</Text>
+              </View>
+              <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
+                <ChevronDown 
+                  size={16} 
+                  color={theme.textSecondary} 
+                  style={{ transform: [{ rotate: completedExpanded ? '0deg' : '-90deg' }] }}
+                />
+              </View>
+            </TouchableOpacity>
+  
+            {completedExpanded && completed.length === 0 && (
+              <View style={{ padding: 15, alignItems: 'center' }}>
+                <Text style={{ color: theme.textSecondary }}>No tienes citas archivadas.</Text>
+              </View>
+            )}
+  
+            {completedExpanded && completed.map((apt) => (
+              <View key={apt.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}>
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.cardTypeTitle}>{apt.type}</Text>
+                  <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : styles.pillCompleted]}>
+                    <Text style={[styles.pillTextCompleted, isDark && { color: '#34D399' }]}>{apt.status}</Text>
+                  </View>
+                </View>
+  
+                <View style={styles.cardBottomRow}>
+                  <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
+                  <View style={styles.doctorInfo}>
+                    <Text style={styles.doctorName}>{apt.doctorName}</Text>
+                    <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
+                  </View>
+                  <View style={styles.dateContainer}>
+                    <Text style={styles.dateText}>{apt.date}</Text>
+                  </View>
                 </View>
               </View>
-
-              <View style={styles.cardBottomRow}>
-                <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
-                <View style={styles.doctorInfo}>
-                  <Text style={styles.doctorName}>{apt.doctorName}</Text>
-                  <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
-                </View>
-                <View style={styles.dateContainer}>
-                  <Text style={styles.dateText}>{apt.date}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+            ))}
+          </View>
+          
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      )}
     </View>
   );
 }
