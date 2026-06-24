@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme } from 'react-native';
 
 import {
   ArrowLeft,
@@ -8,11 +8,14 @@ import {
   Calendar,
   User,
   ChevronDown,
+  Ghost,
+  Clock,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/Colors';
 import { supabase } from '../services/supabase';
 import { getActiveWallet, getPatientData } from '../services/patientService';
+import { Skeleton } from '../components/Skeleton';
 
 const { width } = Dimensions.get('window');
 
@@ -121,8 +124,12 @@ export default function MisCitasScreen({ navigation }: any) {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={theme.primary} />
+        <View style={{ flex: 1, padding: 20 }}>
+          <Skeleton width="40%" height={24} borderRadius={12} style={{ marginBottom: 16 }} />
+          <Skeleton width="100%" height={120} borderRadius={20} style={{ marginBottom: 12 }} />
+          <Skeleton width="100%" height={120} borderRadius={20} style={{ marginBottom: 32 }} />
+          <Skeleton width="40%" height={24} borderRadius={12} style={{ marginBottom: 16 }} />
+          <Skeleton width="100%" height={120} borderRadius={20} />
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -148,8 +155,10 @@ export default function MisCitasScreen({ navigation }: any) {
             </TouchableOpacity>
   
             {upcomingExpanded && upcoming.length === 0 && (
-              <View style={{ padding: 15, alignItems: 'center' }}>
-                <Text style={{ color: theme.textSecondary }}>No tienes citas próximas programadas.</Text>
+              <View style={{ padding: 30, alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 20, marginVertical: 10 }}>
+                <Ghost color={theme.textSecondary} size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
+                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '700' }}>Sin citas próximas</Text>
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 4, fontSize: 13 }}>No tienes citas programadas por el momento.</Text>
               </View>
             )}
   
@@ -207,8 +216,10 @@ export default function MisCitasScreen({ navigation }: any) {
             </TouchableOpacity>
   
             {completedExpanded && completed.length === 0 && (
-              <View style={{ padding: 15, alignItems: 'center' }}>
-                <Text style={{ color: theme.textSecondary }}>No tienes citas archivadas.</Text>
+              <View style={{ padding: 30, alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 20, marginVertical: 10 }}>
+                <Clock color={theme.textSecondary} size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
+                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '700' }}>Sin historial</Text>
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 4, fontSize: 13 }}>No tienes citas archivadas.</Text>
               </View>
             )}
   

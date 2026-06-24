@@ -7,6 +7,7 @@ import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { getActiveWallet, getPatientData, PatientProfile } from '../services/patientService';
 import { supabase } from '../services/supabase';
 import { Colors } from '../theme/Colors';
+import { Skeleton } from '../components/Skeleton';
 import {
   Stethoscope,
   Pill,
@@ -24,7 +25,8 @@ import {
   Home,
   FileText,
   MessageSquare,
-  Calendar
+  Calendar,
+  Settings
 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -52,6 +54,7 @@ export default function HomeScreen({ navigation }: any) {
           .select('*')
           .eq('patient_id', patientData.profile.id)
           .in('status', ['scheduled', 'confirmed', 'in_progress'])
+          .gte('appointment_date', new Date().toISOString().split('T')[0])
           .order('appointment_date', { ascending: true })
           .order('appointment_time', { ascending: true })
           .limit(1);
@@ -120,9 +123,26 @@ export default function HomeScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={[styles.loadingCenter, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>Sincronizando datos...</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.gradientHeaderContainer, { backgroundColor: theme.primary, borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}>
+          <SafeAreaView style={styles.safeArea}>
+            <View style={styles.headerRow}>
+              <View>
+                <Skeleton width={120} height={20} borderRadius={10} style={{ marginBottom: 8 }} />
+                <Skeleton width={200} height={32} borderRadius={10} />
+              </View>
+              <Skeleton width={50} height={50} borderRadius={25} />
+            </View>
+          </SafeAreaView>
+        </View>
+        <View style={[styles.bottomSheet, { backgroundColor: theme.surface }]}>
+          <View style={{ padding: 24, marginTop: 40 }}>
+             <Skeleton width="100%" height={150} borderRadius={20} style={{ marginBottom: 24 }} />
+             <Skeleton width="60%" height={24} borderRadius={10} style={{ marginBottom: 16 }} />
+             <Skeleton width="100%" height={100} borderRadius={20} style={{ marginBottom: 12 }} />
+             <Skeleton width="100%" height={100} borderRadius={20} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -154,9 +174,14 @@ export default function HomeScreen({ navigation }: any) {
                 style={styles.avatarImage} 
               />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bellButton}>
-              <Bell size={20} color="#0F2B3D" strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={styles.headerRightButtons}>
+              <TouchableOpacity style={styles.iconButton}>
+                <Bell size={20} color="#0F2B3D" strokeWidth={2} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton} onPress={() => navigation?.navigate('Configuracion')}>
+                <Settings size={20} color="#0F2B3D" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Welcome Text & Urgent Care Button */}
@@ -239,14 +264,14 @@ export default function HomeScreen({ navigation }: any) {
               <View style={styles.doctorInfoRow}>
                 <View style={[styles.doctorAvatarContainer, { backgroundColor: theme.background }]}>
                   <Image 
-                    source={require('../../assets/doctor_hero_female_cropped.png')} 
+                    source={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop' }} 
                     style={styles.cardDoctorImage} 
                   />
                   <View style={styles.onlineIndicator} />
                 </View>
                 <View style={styles.doctorDetails}>
-                  <Text style={styles.doctorName}>{activeAppointment.doctor_name || 'Dr. Prem Tiwari'}</Text>
-                  <Text style={styles.doctorSpecialty}>{activeAppointment.specialty || 'Orthopedic'}</Text>
+                  <Text style={styles.doctorName}>{activeAppointment.doctor_name || 'Médico Asignado'}</Text>
+                  <Text style={styles.doctorSpecialty}>{activeAppointment.specialty || 'Consulta Médica'}</Text>
                 </View>
               </View>
             </View>
@@ -360,7 +385,12 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  bellButton: {
+  headerRightButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
     width: 44,
     height: 44,
     borderRadius: 22,

@@ -23,56 +23,6 @@ import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
 
-// ── DATOS DE DEMO (MOCK DATA) ────────────────────────────────────────────────
-const REGISTROS_DEMO = [
-  {
-    id: 1,
-    categoria: 'Laboratorio',
-    titulo: 'Panel Metabólico Completo',
-    medico: 'Dra. Ana Silva',
-    fecha: '24 Oct 2023',
-    lugar: 'Clínica Foianini',
-    estado: 'Resultados Finales',
-    hash: '0x8f...3e9c',
-    icono: <FileText size={20} color="#14B8A6" />,
-    colorFondo: '#F0FDF9',
-    colorFondoDark: 'rgba(20, 184, 166, 0.1)',
-    colorBorde: '#14B8A6',
-    accionIcono: <Eye size={16} color="#14B8A6" />,
-    accionTexto: 'Ver Documento Original',
-  },
-  {
-    id: 2,
-    categoria: 'Receta',
-    titulo: 'Amoxicilina 500mg',
-    medico: 'Dr. Carlos Mendez',
-    fecha: '12 Sep 2023',
-    dosis: '1 cap / 8 hrs',
-    duracion: '7 Días',
-    hash: '0xb4...9e11',
-    icono: <Pill size={20} color="#F97316" />,
-    colorFondo: '#FFF7ED',
-    colorFondoDark: 'rgba(249, 115, 22, 0.1)',
-    colorBorde: '#F97316',
-    accionIcono: <Download size={16} color="#F97316" />,
-    accionTexto: 'Descargar Receta',
-  },
-  {
-    id: 3,
-    categoria: 'Imágenes',
-    titulo: 'Rayos X de Tórax PA/LAT',
-    medico: 'Clínica del Sur',
-    fecha: '05 Ago 2023',
-    estado: 'Imagen Disponible',
-    hash: '0xc7...2d4f',
-    icono: <Activity size={20} color="#2D7FF9" />,
-    colorFondo: '#EFF6FF',
-    colorFondoDark: 'rgba(45, 127, 249, 0.1)',
-    colorBorde: '#2D7FF9',
-    accionIcono: <Eye size={16} color="#2D7FF9" />,
-    accionTexto: 'Ver Imagen Original',
-  },
-];
 
 const CATEGORIAS = ['Todos', 'Laboratorio', 'Recetas', 'Imágenes'];
 
@@ -305,7 +255,7 @@ export default function HistorialScreen({ navigation }: any) {
 
               {/* Detalles específicos según el tipo */}
               <View style={[styles.detailsBox, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
-                {item.lugar && (
+                {item.lugar ? (
                   <>
                     <View style={styles.detailCol}>
                       <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>CENTRO MÉDICO</Text>
@@ -318,8 +268,8 @@ export default function HistorialScreen({ navigation }: any) {
                       </View>
                     </View>
                   </>
-                )}
-                {item.dosis && (
+                ) : null}
+                {item.dosis ? (
                   <>
                     <View style={styles.detailCol}>
                       <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>DOSIS</Text>
@@ -330,7 +280,7 @@ export default function HistorialScreen({ navigation }: any) {
                       <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.duracion}</Text>
                     </View>
                   </>
-                )}
+                ) : null}
               </View>
 
               {/* Sello de Blockchain */}

@@ -10,6 +10,8 @@ import {
   useColorScheme,
   ActivityIndicator
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -27,13 +29,6 @@ import { supabase } from '../services/supabase';
 import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width, height } = Dimensions.get('window');
-
-// ── DATOS MOCK DEL DOCTOR ──────────────────────────────────────────────────
-const DOCTOR_DEMO = {
-  nombre: 'Dr. Jose Mamani',
-  especialidad: 'Cardiología',
-  hospital: 'Clínica del Sur',
-};
 
 const DURACIONES = ['Solo hoy', '24 horas', '7 días', 'Persistente'];
 
@@ -174,14 +169,26 @@ export default function PermisosScreen({ navigation }: any) {
         .eq('id', pendingRequest.id);
 
       if (error) {
-        alert('Error al autorizar: ' + error.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: error.message
+        });
       } else {
-        alert('Acceso autorizado con éxito.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Toast.show({
+          type: 'success',
+          text1: 'Autorizado',
+          text2: 'El médico ahora tiene acceso a tu historial.'
+        });
         loadPermissions();
       }
     } catch (err) {
-      console.error(err);
-      alert('Error de conexión.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Error de conexión.'
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -199,14 +206,26 @@ export default function PermisosScreen({ navigation }: any) {
         .eq('id', permissionId);
 
       if (error) {
-        alert('Error al revocar acceso: ' + error.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: error.message
+        });
       } else {
-        alert('Acceso revocado con éxito.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Toast.show({
+          type: 'info',
+          text1: 'Revocado',
+          text2: 'Se ha quitado el acceso a tu historial.'
+        });
         loadPermissions();
       }
     } catch (err) {
-      console.error(err);
-      alert('Error de conexión.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Error de conexión.'
+      });
     } finally {
       setIsProcessing(false);
     }

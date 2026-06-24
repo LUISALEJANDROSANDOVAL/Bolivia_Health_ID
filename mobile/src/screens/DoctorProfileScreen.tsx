@@ -1,6 +1,8 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, SafeAreaView, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import Toast from 'react-native-toast-message';
 
 import {
   ArrowLeft,
@@ -19,28 +21,43 @@ import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width, height } = Dimensions.get('window');
 
-const DATES_MOCK = [
-  { id: '1', day: '07', dayName: 'Lun' },
-  { id: '2', day: '08', dayName: 'Mar' },
-  { id: '3', day: '09', dayName: 'Mie' },
-  { id: '4', day: '10', dayName: 'Jue' },
-  { id: '5', day: '11', dayName: 'Vie' },
-  { id: '6', day: '12', dayName: 'Sab' },
-  { id: '7', day: '13', dayName: 'Dom' },
-];
+const generateNext7Days = () => {
+  const days = [];
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+  const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  
+  const today = new Date(); // Or specify a fixed current date if needed, but new Date() is dynamic
+  // Note: the system is in 2026-06-23
+  
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+    const yearStr = d.getFullYear();
+    const fullDate = `${yearStr}-${monthStr}-${dayStr}`;
+    
+    days.push({
+      id: String(i),
+      day: dayStr,
+      dayName: dayNames[d.getDay()],
+      fullDate,
+      monthName: monthNames[d.getMonth()]
+    });
+  }
+  return days;
+};
 
-const TIMES_MOCK = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00'
-];
+const DATES_DYNAMIC = generateNext7Days();
 
 export default function DoctorProfileScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { doctor } = route.params || {};
+  const { doctor, preselectedBranchId } = route.params || {};
 
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
-  const [selectedDate, setSelectedDate] = useState('10'); // Default selected
+  const [selectedDate, setSelectedDate] = useState(DATES_DYNAMIC[0].fullDate); 
   const [selectedTime, setSelectedTime] = useState('');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [sucursal, setSucursal] = useState<any>(null);
@@ -64,12 +81,16 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
   useEffect(() => {
     async function loadDoctorBranch() {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('doctor_sucursal')
           .select('sucursal_id, sucursales(id, name, address)')
-          .eq('doctor_id', doctor.id)
-          .limit(1)
-          .maybeSingle();
+          .eq('doctor_id', doctor.id);
+
+        if (preselectedBranchId) {
+          query = query.eq('sucursal_id', preselectedBranchId);
+        }
+
+        const { data, error } = await query.limit(1).maybeSingle();
 
         if (!error && data) {
           const rawSuc = data.sucursales;
@@ -92,11 +113,14 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
       const { data, error } = await supabase.rpc('get_available_slots', {
         p_doctor_id: doctor.id,
         p_sucursal_id: selectedBranchId,
-        p_date: `2026-11-${dateStr}`
+        p_date: dateStr
       });
 
       if (!error && data) {
-        const formatted = data.map((t: string) => t.slice(0, 5));
+        const formatted = data.map((t: any) => {
+          const timeStr = typeof t === 'string' ? t : t.start_time;
+          return timeStr ? timeStr.slice(0, 5) : '';
+        }).filter(Boolean);
         setAvailableSlots(formatted);
         if (formatted.length > 0) {
           setSelectedTime(formatted[0]);
@@ -122,7 +146,12 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
 
   const handleBookAppointment = async () => {
     if (!selectedTime) {
-      alert('Por favor selecciona un horario disponible.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Toast.show({
+        type: 'error',
+        text1: 'Atención',
+        text2: 'Por favor selecciona un horario disponible.'
+      });
       return;
     }
     try {
@@ -131,8 +160,12 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
       const patientData = await getPatientData(wallet);
       const patientId = patientData.profile?.id;
 
-      if (!patientId) {
-        alert('Error: No se pudo identificar al paciente.');
+      if (!patientData.profile?.id) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'No se pudo identificar al paciente.'
+        });
         return;
       }
 
@@ -144,7 +177,7 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
             doctor_id: doctor.id,
             doctor_name: doctor.name,
             specialty: doctor.specialty,
-            appointment_date: `2026-11-${selectedDate}`,
+            appointment_date: selectedDate,
             appointment_time: `${selectedTime}:00`,
             location: sucursal?.name || doctor.branch,
             status: 'scheduled',
@@ -156,14 +189,26 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
         .single();
 
       if (error) {
-        alert('Error al reservar cita: ' + error.message);
+        Toast.show({
+          type: 'error',
+          text1: 'Error al reservar',
+          text2: error.message
+        });
       } else {
-        alert('¡Cita reservada con éxito!');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Toast.show({
+          type: 'success',
+          text1: '¡Cita Reservada!',
+          text2: 'Tu cita ha sido guardada con éxito.'
+        });
         navigation.navigate('MainTabs', { screen: 'MisCitas' });
       }
     } catch (err) {
-      console.error(err);
-      alert('Error de conexión.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Error de conexión.'
+      });
     } finally {
       setIsBooking(false);
     }
@@ -251,12 +296,12 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
           {/* Date Selector */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Selecciona fecha y hora</Text>
-            <Text style={[styles.monthText, { color: theme.textSecondary }]}>Nov ▾</Text>
+            <Text style={[styles.monthText, { color: theme.textSecondary }]}>{DATES_DYNAMIC.find(d => d.fullDate === selectedDate)?.monthName} ▾</Text>
           </View>
           
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateCarousel}>
-            {DATES_MOCK.map((item) => {
-              const isSelected = selectedDate === item.day;
+            {DATES_DYNAMIC.map((item) => {
+              const isSelected = selectedDate === item.fullDate;
               return (
                 <TouchableOpacity
                   key={item.id}
@@ -265,7 +310,7 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
                     { backgroundColor: theme.surface },
                     isSelected && [styles.dateItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
                   ]}
-                  onPress={() => setSelectedDate(item.day)}
+                  onPress={() => setSelectedDate(item.fullDate)}
                 >
                   <Text style={[styles.dateDayText, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.day}</Text>
                   <Text style={[styles.dateDayNameText, { color: theme.textSecondary }, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.dayName}</Text>

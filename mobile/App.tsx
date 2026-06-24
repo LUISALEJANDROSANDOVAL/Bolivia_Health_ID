@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import Toast from 'react-native-toast-message';
 import {
   useFonts,
   Inter_100Thin,
@@ -45,6 +46,7 @@ export default function App() {
     <>
       <StatusBar style="dark" />
       <AppNavigator />
+      <Toast />
     </>
   );
 }

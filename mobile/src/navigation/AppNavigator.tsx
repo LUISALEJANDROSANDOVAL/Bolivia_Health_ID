@@ -2,12 +2,13 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, FileText, Calendar, User, Activity } from 'lucide-react-native';
+import { Home, Calendar, User } from 'lucide-react-native';
 import { useColorScheme } from 'react-native';
 import { Colors } from '../theme/Colors';
 
 // ── SCREENS ──────────────────────────────────────────────────────────────────
 import LoginScreen from '../screens/LoginScreen';
+import SplashScreen from '../screens/SplashScreen';
 import HomeScreen from '../screens/HomeScreen';
 import SolicitarFichaScreen from '../screens/SolicitarFichaScreen';
 import DoctorProfileScreen from '../screens/DoctorProfileScreen';
@@ -16,9 +17,11 @@ import FichaActivaScreen from '../screens/FichaActivaScreen';
 import HealthIDScreen from '../screens/HealthIDScreen';
 import HistorialScreen from '../screens/HistorialScreen';
 import PermisosScreen from '../screens/PermisosScreen';
+import ConfiguracionScreen from '../screens/ConfiguracionScreen';
 
 // ── TIPOS ────────────────────────────────────────────────────────────────────
 export type RootStackParamList = {
+  Splash: undefined;
   Login: undefined;
   MainTabs: undefined; // El contenedor de las pestañas
   SolicitarFicha: undefined;
@@ -31,6 +34,7 @@ export type RootStackParamList = {
   };
   Permisos: undefined;
   Historial: undefined;
+  Configuracion: undefined;
 };
 
 export type TabParamList = {
@@ -109,7 +113,7 @@ export default function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Login"
+        initialRouteName="Splash"
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
@@ -117,7 +121,8 @@ export default function AppNavigator() {
         }}
       >
         {/* Pantalla Inicial (Autenticación) */}
-        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Splash" component={SplashScreen} options={{ animation: 'fade' }} />
+        <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
 
         {/* Las 4 pantallas principales con su barra inferior global */}
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
@@ -132,6 +137,7 @@ export default function AppNavigator() {
         <Stack.Screen name="FichaActiva" component={FichaActivaScreen} />
         <Stack.Screen name="Permisos" component={PermisosScreen} />
         <Stack.Screen name="Historial" component={HistorialScreen} />
+        <Stack.Screen name="Configuracion" component={ConfiguracionScreen} options={{ animation: 'slide_from_right' }} />
         
       </Stack.Navigator>
     </NavigationContainer>

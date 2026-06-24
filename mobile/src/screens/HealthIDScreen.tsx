@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, Platform, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme, Platform, ActivityIndicator, Animated, Easing } from 'react-native';
 
 import {
   ArrowLeft,
@@ -26,6 +26,8 @@ export default function HealthIDScreen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
+  const scanLineAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -39,6 +41,24 @@ export default function HealthIDScreen({ navigation }: any) {
       }
     };
     loadData();
+
+    // Iniciar animación del láser
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanLineAnim, {
+          toValue: 180, // Altura interior de la caja QR
+          duration: 2500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scanLineAnim, {
+          toValue: 0,
+          duration: 2500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   }, []);
 
   const handleCopyWallet = async () => {
@@ -86,8 +106,7 @@ export default function HealthIDScreen({ navigation }: any) {
             {/* Header Tarjeta */}
             <View style={styles.cardHeader}>
               <View style={styles.logoContainer}>
-                <Shield size={20} color="#FFFFFF" />
-                <Text style={styles.logoText}>Bolivia Health ID</Text>
+                <Image source={require('../../assets/IconoBolivia.png')} style={{ width: 100, height: 30, resizeMode: 'contain' }} />
               </View>
               <View style={styles.bloodTypeBadge}>
                 <Droplets size={14} color="#EF4444" fill="#EF4444" />
@@ -135,12 +154,11 @@ export default function HealthIDScreen({ navigation }: any) {
           <Text style={[styles.qrSubtitle, { color: theme.textSecondary }]}>Muestra este código al personal médico para que accedan a tus signos vitales y tipo de sangre.</Text>
 
           <View style={[styles.qrBox, { backgroundColor: '#FFFFFF', borderColor: theme.border }]}>
-            {/* El código QR siempre es blanco de fondo para que funcione */}
             <Image
               source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_${patientData.profile.wallet_address}` }}
               style={styles.qrImage}
             />
-            <View style={styles.scanLine} />
+            <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanLineAnim }] }]} />
           </View>
         </View>
 
@@ -162,11 +180,11 @@ export default function HealthIDScreen({ navigation }: any) {
               <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No hay alergias registradas.</Text>
             )}
             
-            {patientData.vitals?.blood_pressure && (
+            {patientData.vitals?.blood_pressure ? (
               <View style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
                 <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>Presión: {patientData.vitals.blood_pressure}</Text>
               </View>
-            )}
+            ) : null}
           </View>
         </View>
 
@@ -375,11 +393,11 @@ const styles = StyleSheet.create({
   },
   scanLine: {
     position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: '#2D7FF9',
+    top: 10, // Inicia con el padding de 10
+    left: 10, // Respeta el padding
+    right: 10,
+    height: 3,
+    backgroundColor: 'rgba(45, 127, 249, 0.8)',
     shadowColor: '#2D7FF9',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,

@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, SafeAreaView, useColorScheme } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Image, ActivityIndicator, SafeAreaView, useColorScheme } from 'react-native';
 
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Shield, Fingerprint, Wallet, Mail } from 'lucide-react-native';
@@ -75,8 +75,7 @@ export default function LoginScreen({ navigation }: any) {
         
         {/* ── LOGO SUPERIOR ── */}
         <View style={styles.logoSection}>
-          <Shield size={64} color="#2D7FF9" strokeWidth={2} />
-          <Text style={styles.logoText}>Bolivia Health ID</Text>
+          <Image source={require('../../assets/IconoBolivia.png')} style={{ width: 140, height: 140, resizeMode: 'contain' }} />
         </View>
 
         {/* ── TEXTOS DE BIENVENIDA ── */}
