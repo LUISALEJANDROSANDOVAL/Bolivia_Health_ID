@@ -182,6 +182,61 @@ export default function PatientView360() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
+  // List expansion states
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [showAllStudies, setShowAllStudies] = useState(false)
+  const [showAllMedications, setShowAllMedications] = useState(false)
+
+  // Derivar states
+  const [isDerivarModalOpen, setIsDerivarModalOpen] = useState(false)
+  const [specialties, setSpecialties] = useState<any[]>([])
+  const [sucursales, setSucursales] = useState<any[]>([])
+  const [selectedSpecialty, setSelectedSpecialty] = useState('')
+  const [selectedSucursal, setSelectedSucursal] = useState('')
+  const [isDerivando, setIsDerivando] = useState(false)
+
+  useEffect(() => {
+    if (isDerivarModalOpen && specialties.length === 0) {
+      // Load both specialties and sucursales
+      Promise.all([
+        supabase.from('specialties').select('id, name'),
+        supabase.from('sucursales').select('id, name')
+      ]).then(([resSpecialties, resSucursales]) => {
+        if (resSpecialties.data) {
+          setSpecialties(resSpecialties.data)
+          if (resSpecialties.data.length > 0) setSelectedSpecialty(resSpecialties.data[0].name)
+        }
+        if (resSucursales.data) {
+          setSucursales(resSucursales.data)
+          if (resSucursales.data.length > 0) setSelectedSucursal(resSucursales.data[0].id)
+        }
+      })
+    }
+  }, [isDerivarModalOpen, specialties.length])
+
+  const handleDerivar = async () => {
+    if (!selectedSpecialty || !selectedSucursal) return
+    setIsDerivando(true)
+    try {
+      const { error } = await supabase.from('access_permissions').insert({
+        patient_id: patientId,
+        doctor_id: null,
+        specialty: selectedSpecialty,
+        sucursal_id: selectedSucursal,
+        status: 'active', // Automático
+        requested_by: doctorId
+      })
+      if (error) throw error
+      toast.success('Se ha derivado a la especialidad exitosamente. Los médicos de esta especialidad ya tienen acceso.')
+      setIsDerivarModalOpen(false)
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al derivar a especialidad')
+    } finally {
+      setIsDerivando(false)
+    }
+  }
+
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -744,7 +799,18 @@ export default function PatientView360() {
               <p className="text-muted-foreground">
                 {age} años • {profile.gender === 'M' ? 'Masculino' : profile.gender === 'F' ? 'Femenino' : profile.gender || 'N/A'}
               </p>
-              <p className="mt-2 font-mono text-sm text-foreground">CI: {profile.cedula_identidad}</p>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="font-mono text-sm text-foreground">CI: {profile.cedula_identidad}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs border-cyan-500/50 text-cyan-600 hover:bg-cyan-500/10"
+                  onClick={() => setIsDerivarModalOpen(true)}
+                >
+                  <Share2 className="size-3 mr-1.5" />
+                  Derivar a Especialidad
+                </Button>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-foreground">{vitals?.blood_type || 'N/A'}</div>
@@ -993,7 +1059,8 @@ export default function PatientView360() {
                 <CardContent>
                   <div className="space-y-3">
                     {medications.length > 0 ? (
-                      medications.map((med) => (
+                      <div className={`space-y-3 ${showAllMedications ? 'max-h-[300px] overflow-y-auto pr-2' : ''}`}>
+                      {(showAllMedications ? medications : medications.slice(0, 4)).map((med) => (
                         <div key={med.id} className="flex items-center justify-between text-sm p-2 bg-foreground/5 rounded-lg">
                           <div>
                             <span className="text-foreground font-semibold block">{med.name}</span>
@@ -1001,9 +1068,32 @@ export default function PatientView360() {
                           </div>
                           <Badge variant="secondary">{med.dosage}</Badge>
                         </div>
-                      ))
+                      ))}
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">No hay medicamentos activos.</p>
+                    )}
+                    {!showAllMedications && medications.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllMedications(true)}
+                          className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                        >
+                          Mostrar todos ({medications.length - 4} más)
+                        </Button>
+                      </div>
+                    )}
+                    {showAllMedications && medications.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllMedications(false)}
+                          className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                        >
+                          Mostrar menos
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -1071,7 +1161,8 @@ export default function PatientView360() {
               <CardContent className="p-6">
                 {verifiedRecords.length > 0 ? (
                   <div className="space-y-4">
-                    {verifiedRecords.map((record: any) => {
+                    <div className={`space-y-4 ${showAllHistory ? 'max-h-[600px] overflow-y-auto pr-2' : ''}`}>
+                    {(showAllHistory ? verifiedRecords : verifiedRecords.slice(0, 4)).map((record: any) => {
                       const cfg = categoryConfig[record.category] ?? categoryConfig.default
                       const TypeIcon = cfg.icon
                       const scfg = statusConfig[record.status_detail || record.status] ?? statusConfig.default
@@ -1247,6 +1338,29 @@ export default function PatientView360() {
                         </div>
                       )
                     })}
+                    </div>
+                    {!showAllHistory && verifiedRecords.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllHistory(true)}
+                          className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                        >
+                          Mostrar todos los datos ({verifiedRecords.length - 4} más)
+                        </Button>
+                      </div>
+                    )}
+                    {showAllHistory && verifiedRecords.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllHistory(false)}
+                          className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                        >
+                          Mostrar menos
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-16 flex flex-col items-center">
@@ -1410,7 +1524,8 @@ export default function PatientView360() {
                   <h4 className="font-semibold text-foreground border-b border-border/30 pb-2">Documentos Guardados</h4>
                   {studies.length > 0 ? (
                     <div className="space-y-4">
-                      {studies.map((study) => {
+                      <div className={`space-y-4 ${showAllStudies ? 'max-h-[600px] overflow-y-auto pr-2' : ''}`}>
+                      {(showAllStudies ? studies : studies.slice(0, 4)).map((study) => {
                         let studyType: 'laboratorio' | 'imagen' | 'radiologia' | 'genetico' | 'otro' = 'otro'
                         const cat = (study.category || '').toLowerCase()
                         if (cat === 'laboratorio' || cat === 'estudios') studyType = 'laboratorio'
@@ -1524,6 +1639,29 @@ export default function PatientView360() {
                           </div>
                         )
                       })}
+                      </div>
+                      {!showAllStudies && studies.length > 4 && (
+                        <div className="pt-2 flex justify-center">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => setShowAllStudies(true)}
+                            className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                          >
+                            Mostrar todos los datos ({studies.length - 4} más)
+                          </Button>
+                        </div>
+                      )}
+                      {showAllStudies && studies.length > 4 && (
+                        <div className="pt-2 flex justify-center">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => setShowAllStudies(false)}
+                            className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                          >
+                            Mostrar menos
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
@@ -1701,6 +1839,54 @@ export default function PatientView360() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Derivación */}
+      <Dialog open={isDerivarModalOpen} onOpenChange={setIsDerivarModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Derivar a Especialidad</DialogTitle>
+            <DialogDescription>
+              Selecciona la especialidad y sucursal a la que deseas derivar al paciente. Los médicos de esta especialidad en dicha sucursal tendrán acceso automático al historial.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Especialidad</label>
+              <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una especialidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {specialties.map(sp => (
+                    <SelectItem key={sp.id} value={sp.name}>{sp.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Sucursal</label>
+              <Select value={selectedSucursal} onValueChange={setSelectedSucursal}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una sucursal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sucursales.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsDerivarModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleDerivar} disabled={isDerivando || !selectedSpecialty || !selectedSucursal} className="bg-cyan-500 hover:bg-cyan-600 text-white">
+              {isDerivando ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Derivar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </DoctorLayout>
   )
 }
