@@ -58,6 +58,7 @@ import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
 import { toast } from 'sonner'
+import { generateSingleDiagnosisPDF } from '@/lib/pdf-helper'
 import {
   Select,
   SelectContent,
@@ -248,6 +249,9 @@ export default function PatientView360() {
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null)
   const [detailMeds, setDetailMeds] = useState<any[]>([])
   const [loadingMedsForDetail, setLoadingMedsForDetail] = useState(false)
+
+  // File Viewer state
+  const [fileViewerUrl, setFileViewerUrl] = useState<string | null>(null)
 
   const parseDescription = (descStr: string) => {
     if (!descStr) return {}
@@ -825,7 +829,7 @@ export default function PatientView360() {
                 <Alert key={idx} className="border-destructive bg-destructive/5">
                   <AlertCircle className="size-4 text-destructive" />
                   <AlertDescription className="text-destructive font-semibold">
-                    ⚠️ ALERGIA: {allergy}
+                    ALERGIA: {allergy}
                   </AlertDescription>
                 </Alert>
               ))}
@@ -1152,8 +1156,9 @@ export default function PatientView360() {
                     <Lock className="size-5 text-azul-electrico" />
                     Historial Clínico
                   </CardTitle>
-                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold">
-                    🔒 Inmutable · Blockchain
+                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold gap-1 flex items-center">
+                    <ShieldCheck className="size-3" />
+                    Inmutable · Blockchain
                   </Badge>
                 </div>
                 <CardDescription>Línea de tiempo clínica del paciente — registros verificados en cadena</CardDescription>
@@ -1191,7 +1196,22 @@ export default function PatientView360() {
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 min-w-0">
+                            <div 
+                              className="flex-1 min-w-0"
+                              onClick={() => {
+                                const cat = (record.category || '').toLowerCase()
+                                if (cat === 'laboratorio' || cat === 'imágenes' || cat === 'imagen' || cat === 'radiología' || cat === 'radiologia' || cat === 'genético' || cat === 'genetico' || cat === 'estudios') {
+                                  if (record.fileUrl) {
+                                    setFileViewerUrl(record.fileUrl)
+                                  } else {
+                                    handleViewDetail(record)
+                                  }
+                                } else {
+                                  // Diagnósticos, Consultas, Recetas, etc.
+                                  handleViewDetail(record)
+                                }
+                              }}
+                            >
                               <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
@@ -1274,39 +1294,53 @@ export default function PatientView360() {
                                     <span>Dr(a). {record.doctor.full_name}{record.doctor.specialty ? ` · ${record.doctor.specialty}` : ''}</span>
                                   </div>
                                 )}
-                                {fileUrl && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5 ml-auto"
-                                    onClick={async (e) => {
-                                      e.stopPropagation()
-                                      try {
-                                        const res = await fetch(fileUrl)
-                                        const blob = await res.blob()
-                                        const contentType = res.headers.get('content-type')
-                                        let extension = '.pdf'
-                                        if (contentType?.includes('image/png')) extension = '.png'
-                                        else if (contentType?.includes('image/jpeg')) extension = '.jpg'
-                                        else if (contentType?.includes('image/webp')) extension = '.webp'
+                                  <div className="flex gap-2 ml-auto">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 gap-1.5"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (record.fileUrl) {
+                                          setFileViewerUrl(record.fileUrl)
+                                        }
+                                      }}
+                                    >
+                                      <Eye className="size-3" />
+                                      Ver
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5"
+                                      onClick={async (e) => {
+                                        e.stopPropagation()
+                                        try {
+                                          const res = await fetch(fileUrl)
+                                          const blob = await res.blob()
+                                          const contentType = res.headers.get('content-type')
+                                          let extension = '.pdf'
+                                          if (contentType?.includes('image/png')) extension = '.png'
+                                          else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                                          else if (contentType?.includes('image/webp')) extension = '.webp'
 
-                                        const url = window.URL.createObjectURL(blob)
-                                        const a = document.createElement('a')
-                                        a.href = url
-                                        a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
-                                        document.body.appendChild(a)
-                                        a.click()
-                                        window.URL.revokeObjectURL(url)
-                                        document.body.removeChild(a)
-                                      } catch (err) {
-                                        window.open(fileUrl, '_blank')
-                                      }
-                                    }}
-                                  >
-                                    <Download className="size-3" />
-                                    Descargar
-                                  </Button>
-                                )}
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
+                                        } catch (err) {
+                                          window.open(fileUrl, '_blank')
+                                        }
+                                      }}
+                                    >
+                                      <Download className="size-3" />
+                                      Descargar
+                                    </Button>
+                                  </div>
                                 {/* IPFS & Tx Links */}
                                 {record.ipfsHash && (
                                   <a
@@ -1573,7 +1607,7 @@ export default function PatientView360() {
                                       variant="ghost"
                                       size="sm"
                                       className="text-foreground/40 hover:text-cyan-500 hover:bg-foreground/5 text-xs font-black uppercase tracking-widest"
-                                      onClick={() => window.open(fileUrl, '_blank')}
+                                      onClick={() => setFileViewerUrl(fileUrl)}
                                     >
                                       <Eye className="size-4 mr-1.5" />
                                       Ver
@@ -1678,6 +1712,7 @@ export default function PatientView360() {
       </div>
 
       {/* Modal de Detalle de Diagnóstico */}
+      {/* Selected Record Dialog */}
       <Dialog open={selectedRecord !== null} onOpenChange={(open) => { if (!open) setSelectedRecord(null) }}>
         <DialogContent 
           showCloseButton={false}
@@ -1699,6 +1734,48 @@ export default function PatientView360() {
                       <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
                         Diagnóstico Registrado
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const parsed = parseDescription(item.description)
+                          const blob = await generateSingleDiagnosisPDF({
+                            title: item.title,
+                            date: new Date(item.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+                            patientName: profile?.full_name || 'Paciente del Sistema',
+                            patientCi: profile?.cedula_identidad || 'N/A',
+                            doctorName: item.doctor?.full_name || '',
+                            doctorLicense: '', 
+                            doctorSpecialty: item.doctor?.specialty,
+                            soap: {
+                              reason: parsed.reason,
+                              anamnesis: parsed.anamnesis,
+                              physicalExam: parsed.physicalExam,
+                              observations: parsed.observations
+                            },
+                            medications: detailMeds.map(m => ({
+                              name: m.name,
+                              dosage: m.dosage,
+                              frequency: m.frequency,
+                              duration: m.end_date ? `Hasta: ${m.end_date}` : 'N/A'
+                            })),
+                            ipfsHash: item.ipfsHash,
+                            txHash: item.txHash
+                          })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `diagnostico_${item.title.replace(/\s+/g, '_')}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md gap-1.5 h-8 px-3 font-bold rounded-lg"
+                      >
+                        <Download className="size-3.5" />
+                        <span>PDF</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1887,6 +1964,31 @@ export default function PatientView360() {
         </DialogContent>
       </Dialog>
 
+      {/* File Viewer Dialog */}
+      <Dialog open={fileViewerUrl !== null} onOpenChange={(open) => { if (!open) setFileViewerUrl(null) }}>
+        <DialogContent className="w-full sm:max-w-5xl max-h-[90vh] rounded-2xl bg-black/95 backdrop-blur-xl border-border/50 shadow-2xl p-0 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+            <h3 className="text-white font-bold text-sm tracking-widest uppercase">Visor de Archivos</h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setFileViewerUrl(null)}
+              className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="flex-1 w-full h-full p-0 overflow-hidden relative bg-black/50 flex items-center justify-center">
+            {fileViewerUrl && (
+              <iframe
+                src={fileViewerUrl}
+                className="w-full h-full border-0 rounded-b-2xl bg-white"
+                title="Visor de Documento"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DoctorLayout>
   )
 }

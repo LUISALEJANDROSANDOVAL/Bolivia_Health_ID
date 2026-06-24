@@ -13,7 +13,6 @@ import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import {
-  Heart,
   Stethoscope,
   User,
   Mail,
@@ -21,6 +20,7 @@ import {
   Smartphone,
   ShieldCheck,
   Shield,
+  Globe,
 } from 'lucide-react'
 import {
   Dialog,
@@ -194,9 +194,8 @@ export default function LoginPage() {
           </div>
 
           <div className="flex justify-center">
-            <div className="rounded-2xl bg-primary/10 p-4">
-              <Heart className="size-10 text-primary" />
-            </div>
+            <img src="/logo.png" alt="Bolivia Health ID Logo" className="h-20 w-auto object-contain dark:hidden" />
+            <img src="/logo-dark.png" alt="Bolivia Health ID Logo" className="h-20 w-auto object-contain hidden dark:block" />
           </div>
           <div>
             <h1 className="text-3xl font-bold text-foreground">Bolivia Health ID</h1>
@@ -215,8 +214,9 @@ export default function LoginPage() {
               <ShieldCheck className="size-3 mr-1" />
               Blockchain Seguro
             </Badge>
-            <Badge variant="outline" className="text-xs">
-              🌐 Red Avalanche
+            <Badge variant="outline" className="text-xs gap-1 flex items-center">
+              <Globe className="size-3 text-primary" />
+              Red Avalanche
             </Badge>
           </div>
         </div>

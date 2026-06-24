@@ -6,6 +6,7 @@ import { useWallet } from '@/contexts/wallet-context'
 import { WelcomeBannerBase } from '@/components/ui/welcome-banner-base'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
+import { generatePatientHistoryPDF } from '@/lib/pdf-helper'
 
 export function WelcomeBanner() {
   const { isConnected, isDbConnected, walletAddress, userName, connect } = useWallet()
@@ -42,7 +43,7 @@ export function WelcomeBanner() {
       // 1. Get profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, cedula_identidad')
         .eq('wallet_address', walletAddress.toLowerCase())
         .single()
 
@@ -54,19 +55,63 @@ export function WelcomeBanner() {
         .select('*')
         .eq('patient_id', profile.id)
         .not('doctor_id', 'is', null)
+        .order('created_at', { ascending: false })
 
-      // 3. Create and download file
-      const report = {
-        patient: profile.full_name,
-        date: new Date().toLocaleDateString(),
-        records: history || []
+      // Fetch doctor profiles
+      const doctorIds = [...new Set((history || []).map(r => r.doctor_id).filter(Boolean))]
+      let doctorMap: Record<string, any> = {}
+      if (doctorIds.length > 0) {
+        const { data: doctors } = await supabase
+          .from('profiles_public')
+          .select('id, full_name, specialty')
+          .in('id', doctorIds)
+        if (doctors) {
+          doctorMap = Object.fromEntries(doctors.map(d => [d.id, d]))
+        }
       }
 
-      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+      // Fetch patient medications
+      const { data: medications } = await supabase
+        .from('medications')
+        .select('*')
+        .eq('patient_id', profile.id)
+
+      // Format records
+      const formattedRecords = (history || []).map((r: any) => {
+        const ipfsMatch = (r.description || '').match(/IPFS:\s*([a-zA-Z0-9]+)/)
+        const txMatch = (r.description || '').match(/Tx:\s*(0x[a-fA-F0-9]+)/)
+        const docInfo = doctorMap[r.doctor_id]
+        
+        // Filter medications
+        const dateStr = r.date_recorded || (r.created_at ? r.created_at.split('T')[0] : '')
+        const itemMeds = (medications || []).filter((m: any) => {
+          if (r.diagnosis_id) return m.diagnosis_id === r.diagnosis_id
+          return m.start_date === dateStr
+        })
+
+        return {
+          title: r.title,
+          date: new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+          category: r.category || 'consulta',
+          doctor: docInfo?.full_name || 'Médico del Sistema',
+          doctorSpecialty: docInfo?.specialty,
+          description: r.description || '',
+          medications: itemMeds,
+          ipfsHash: ipfsMatch ? ipfsMatch[1] : null,
+          txHash: txMatch ? txMatch[1] : null
+        }
+      })
+
+      const blob = await generatePatientHistoryPDF({
+        patientName: profile.full_name || 'Paciente',
+        patientCi: profile.cedula_identidad || 'N/A',
+        records: formattedRecords
+      })
+
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `historial_medico_${walletAddress.slice(0, 6)}.json`
+      a.download = `historial_clinico_${profile.full_name ? profile.full_name.replace(/\s+/g, '_') : 'paciente'}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -74,7 +119,7 @@ export function WelcomeBanner() {
 
       toast({
         title: 'Descarga completada',
-        description: 'Tu historial médico ha sido exportado correctamente.',
+        description: 'Tu historial clínico ha sido exportado en PDF correctamente.',
       })
     } catch (error) {
       console.error('Error downloading history:', error)

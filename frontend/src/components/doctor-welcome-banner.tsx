@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Shield, TrendingUp, Zap, Wallet, ShieldAlert, Key, ZapOff } from 'lucide-react'
+import { Shield, TrendingUp, Zap, Wallet, ShieldAlert, Key, ZapOff, FileText } from 'lucide-react'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { WelcomeBannerBase } from '@/components/ui/welcome-banner-base'
 import { useWallet } from '@/contexts/wallet-context'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/hooks/use-toast'
+import { generateDoctorActivityPDF } from '@/lib/pdf-helper'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +21,8 @@ export function DoctorWelcomeBanner() {
   const [showActivationModal, setShowActivationModal] = useState(false)
   const [activating, setActivating] = useState(false)
   const [profileData, setProfileData] = useState<any>(null)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     if (walletAddress) {
@@ -58,6 +62,87 @@ export function DoctorWelcomeBanner() {
     }
   }
 
+  const handleDownloadDoctorActivity = async () => {
+    if (!walletAddress || !isDoctorAuthenticated) return
+
+    setDownloadingPdf(true)
+    try {
+      const { data: docProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .single()
+
+      if (!docProfile) throw new Error('No se pudo encontrar tu perfil de médico')
+
+      const { data: records, error } = await supabase
+        .from('medical_background')
+        .select('*')
+        .eq('doctor_id', docProfile.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      const tempRecords = records || []
+      const patientIds = [...new Set(tempRecords.map((r: any) => r.patient_id).filter(Boolean))]
+      
+      let patientMap: Record<string, any> = {}
+      if (patientIds.length > 0) {
+        const { data: patients } = await supabase
+          .from('profiles_public')
+          .select('id, full_name, cedula_identidad')
+          .in('id', patientIds)
+        if (patients) {
+          patientMap = Object.fromEntries(patients.map(p => [p.id, p]))
+        }
+      }
+
+      const enrichedRecords = tempRecords.map((r: any) => {
+        const ipfsMatch = (r.description || '').match(/IPFS:\s*([a-zA-Z0-9]+)/)
+        const txMatch = (r.description || '').match(/Tx:\s*(0x[a-fA-F0-9]+)/)
+        const pat = patientMap[r.patient_id]
+        return {
+          title: r.title,
+          date: new Date(r.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          patientName: pat?.full_name || 'Paciente',
+          patientCi: pat?.cedula_identidad || 'N/A',
+          txHash: txMatch ? txMatch[1] : null,
+          ipfsHash: ipfsMatch ? ipfsMatch[1] : null
+        }
+      })
+
+      const blob = await generateDoctorActivityPDF({
+        doctorName: doctorName || 'Doctor',
+        doctorLicense: doctorLicense || 'N/A',
+        doctorWallet: walletAddress,
+        records: enrichedRecords
+      })
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reporte_firmas_medicas_${doctorName ? doctorName.replace(/\s+/g, '_') : 'doctor'}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: 'Reporte generado',
+        description: 'El historial de tus firmas médicas ha sido descargado en PDF.',
+      })
+    } catch (err: any) {
+      console.error(err)
+      toast({
+        title: 'Error de reporte',
+        description: err.message || 'No se pudo generar el reporte PDF.',
+        variant: 'destructive'
+      })
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <>
       <WelcomeBannerBase
@@ -82,11 +167,11 @@ export function DoctorWelcomeBanner() {
         subtitle={isDoctorAuthenticated ? `Licencia: ${doctorLicense}` : isConnected ? `Wallet: ${walletAddress?.slice(0,6)}...${walletAddress?.slice(-4)}` : "Verificando identidad digital..."}
         stats={[
           { 
-            label: 'Firma Silenciosa', 
-            value: sessionActive ? 'Activa' : 'Inactiva', 
-            icon: Zap,
-            onClick: !sessionActive ? () => setShowActivationModal(true) : undefined,
-            buttonText: !sessionActive ? 'Activar' : undefined
+            label: 'Historial de Firmas', 
+            value: downloadingPdf ? '...' : 'PDF', 
+            icon: FileText,
+            onClick: handleDownloadDoctorActivity,
+            buttonText: downloadingPdf ? 'Generando...' : 'Descargar Historial'
           },
           { label: 'Seguridad', value: isConnected ? `${securityScore}%` : '0%', icon: Shield }
         ]}

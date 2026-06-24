@@ -49,6 +49,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       panelTagline="Sistema Descentralizado"
       footerTitle="Protección Activa"
       footerSubtitle={userName || 'Registros Seguros'}
+      homeHref="/dashboard"
     />
   )
 }
