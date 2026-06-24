@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { DoctorLayout } from '@/components/doctor-layout'
 import { Card, CardContent } from '@/components/ui/card'
@@ -67,10 +67,7 @@ export default function DoctorSettingsPage() {
     }
   ])
 
-  const profileRef = useRef<DoctorProfileSettingsRef>(null)
   const [activeTab, setActiveTab] = useState('perfil')
-  const [isSaving, setIsSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [copied, setCopied] = useState(false)
 
 
@@ -130,25 +127,7 @@ export default function DoctorSettingsPage() {
     }
   }
 
-  const handleSaveAll = async () => {
-    setIsSaving(true)
-    try {
-      if (profileRef.current) {
-        await profileRef.current.save()
-      }
-      setLastSaved(new Date())
-      toast.success('Configuración guardada', {
-        description: 'Todos los cambios han sido guardados correctamente.'
-      })
-      fetchRealStats() // Refrescar stats después de guardar
-    } catch {
-      toast.error('Error al guardar', {
-        description: 'Hubo un problema al guardar los cambios.'
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
+
 
   return (
     <DoctorLayout>
@@ -278,7 +257,7 @@ export default function DoctorSettingsPage() {
           </div>
 
           <TabsContent value="perfil">
-            <DoctorProfileSettings ref={profileRef} />
+            <DoctorProfileSettings />
           </TabsContent>
 
           <TabsContent value="seguridad">
@@ -307,32 +286,7 @@ export default function DoctorSettingsPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Barra de acciones inferior */}
-        <div className="sticky bottom-6 flex items-center justify-end gap-3 z-20">
-          {lastSaved && (
-            <div className="flex items-center gap-2 text-xs text-gris-grafito bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
-              <RefreshCw className="size-3 text-emerald-500" />
-              Última sincronización: {lastSaved.toLocaleTimeString()}
-            </div>
-          )}
-          <Button
-            onClick={handleSaveAll}
-            disabled={isSaving}
-            className="btn-premium shadow-lg"
-          >
-            {isSaving ? (
-              <>
-                <RefreshCw className="size-4 mr-2 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Save className="size-4 mr-2" />
-                Guardar todos los cambios
-              </>
-            )}
-          </Button>
-        </div>
+
 
       </div>
     </DoctorLayout>

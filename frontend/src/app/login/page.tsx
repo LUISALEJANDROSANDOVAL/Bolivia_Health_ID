@@ -111,6 +111,8 @@ export default function LoginPage() {
         
         if (error) throw error
 
+        localStorage.setItem('lastSessionPassword', formData.password)
+
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('role')
@@ -145,6 +147,8 @@ export default function LoginPage() {
     }
 
     await new Promise(resolve => setTimeout(resolve, 1200))
+    
+    localStorage.setItem('lastSessionPassword', formData.password)
     
     if (selectedRole === 'doctor') {
       router.push('/doctor')
