@@ -27,19 +27,41 @@ export default function DoctorDashboard() {
       if (!doctorId) return
       
       try {
-        // 1. Contar solicitudes pendientes
+        // Obtener perfil del doctor (especialidad) y sus sucursales
+        const { data: doctorProfile } = await supabase
+          .from('profiles')
+          .select('specialty')
+          .eq('id', doctorId)
+          .single()
+        
+        const specialty = doctorProfile?.specialty
+
+        const { data: doctorSucursales } = await supabase
+          .from('doctor_sucursal')
+          .select('sucursal_id')
+          .eq('doctor_id', doctorId)
+
+        const sucursalIds = doctorSucursales?.map((ds: any) => ds.sucursal_id) || []
+
+        // 1. Contar solicitudes pendientes (creadas por él o destinadas a él)
         const { count: pendingCount } = await supabase
           .from('access_permissions')
           .select('*', { count: 'exact', head: true })
-          .eq('doctor_id', doctorId)
+          .or(`doctor_id.eq.${doctorId},requested_by.eq.${doctorId}`)
           .eq('status', 'pending')
 
-        // 2. Contar accesos activos
-        const { count: activeCount } = await supabase
+        // 2. Contar accesos activos (personales o por especialidad+sucursal)
+        const { data: activePermissions } = await supabase
           .from('access_permissions')
-          .select('*', { count: 'exact', head: true })
-          .eq('doctor_id', doctorId)
+          .select('doctor_id, specialty, sucursal_id')
           .eq('status', 'active')
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+
+        const activeCount = (activePermissions || []).filter((p: any) => {
+          if (p.doctor_id === doctorId) return true
+          if (p.specialty === specialty && sucursalIds.includes(p.sucursal_id)) return true
+          return false
+        }).length
 
         // 3. Contar recetas firmadas (registros médicos hechos por este doctor)
         const { count: recordCount } = await supabase
@@ -58,7 +80,7 @@ export default function DoctorDashboard() {
         setDashboardStats({
           todayPatients: todayCount || 0,
           pendingRequests: pendingCount || 0,
-          activeAccess: activeCount || 0,
+          activeAccess: activeCount,
           prescriptionsSigned: recordCount || 0
         })
       } catch (err) {

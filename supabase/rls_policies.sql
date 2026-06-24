@@ -35,6 +35,34 @@ RETURNS uuid AS $$
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
 
+-- -----------------------------------------------------------------------------
+-- FUNCIÓN HELPER PARA COMPROBAR PERMISOS DE ACCESO ACTIVOS
+-- -----------------------------------------------------------------------------
+-- Esta función verifica de forma centralizada si el médico autenticado posee
+-- acceso activo (directo o por especialidad/sucursal) a la información del paciente.
+CREATE OR REPLACE FUNCTION public.has_active_permission(p_patient_id uuid)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.access_permissions ap
+    WHERE ap.patient_id = p_patient_id
+      AND ap.status = 'active'
+      AND (ap.expires_at IS NULL OR ap.expires_at > now())
+      AND (
+        ap.doctor_id = public.get_profile_id()
+        OR (
+          ap.specialty = (SELECT specialty FROM public.profiles WHERE id = public.get_profile_id())
+          AND EXISTS (
+            SELECT 1 FROM public.doctor_sucursal ds
+            WHERE ds.doctor_id = public.get_profile_id()
+              AND ds.sucursal_id = ap.sucursal_id
+          )
+        )
+      )
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+
+
 -- =============================================================================
 -- 1. POLÍTICAS PARA LA TABLA: PROFILES
 -- =============================================================================
@@ -76,17 +104,32 @@ GRANT SELECT ON public.profiles_public TO authenticated;
 -- 2. POLÍTICAS PARA LA TABLA: ACCESS_PERMISSIONS
 -- =============================================================================
 
--- Permitir a pacientes y doctores ver permisos en los que participan directamente
+-- Permitir a pacientes y doctores ver permisos en los que participan directamente (o por especialidad)
 CREATE POLICY select_involved_permissions ON public.access_permissions
   FOR SELECT TO authenticated
-  USING (public.get_profile_id() = patient_id OR public.get_profile_id() = doctor_id);
+  USING (
+    public.get_profile_id() = patient_id 
+    OR public.get_profile_id() = doctor_id 
+    OR public.get_profile_id() = requested_by
+    OR (
+      status = 'active'
+      AND (expires_at IS NULL OR expires_at > now())
+      AND specialty = (SELECT specialty FROM public.profiles WHERE id = public.get_profile_id())
+      AND EXISTS (
+        SELECT 1 FROM public.doctor_sucursal ds
+        WHERE ds.doctor_id = public.get_profile_id()
+          AND ds.sucursal_id = access_permissions.sucursal_id
+      )
+    )
+  );
 
--- El INSERT fuerza status='pending'. Solo el paciente puede cambiar a 'active'.
-CREATE POLICY insert_doctor_permission_request ON public.access_permissions
+-- El INSERT fuerza status='pending'. Médicos pueden solicitar para sí mismos o especialidades.
+CREATE POLICY insert_permission_request ON public.access_permissions
   FOR INSERT TO authenticated
   WITH CHECK (
-    public.get_profile_id() = doctor_id
+    (SELECT role FROM public.profiles WHERE id = public.get_profile_id()) = 'medico'
     AND status = 'pending'
+    AND public.get_profile_id() = requested_by
   );
 
 -- Permitir a pacientes aprobar, revocar o modificar el estado de sus permisos
@@ -101,6 +144,7 @@ CREATE POLICY delete_patient_permission ON public.access_permissions
   USING (public.get_profile_id() = patient_id);
 
 
+
 -- =============================================================================
 -- 3. POLÍTICAS PARA LA TABLA: PATIENT_VITALS
 -- =============================================================================
@@ -110,45 +154,24 @@ CREATE POLICY select_own_vitals ON public.patient_vitals
   FOR SELECT TO authenticated
   USING (public.get_profile_id() = patient_id);
 
--- Permitir a médicos con permiso activo y no expirado ver los signos vitales
+-- Permitir a médicos con permiso activo ver los signos vitales
 CREATE POLICY select_permitted_vitals ON public.patient_vitals
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = patient_vitals.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
-  );
+  USING (public.has_active_permission(patient_id));
 
 -- Permitir al paciente o a médicos con permiso activo registrar signos vitales
 CREATE POLICY insert_permitted_vitals ON public.patient_vitals
   FOR INSERT TO authenticated
   WITH CHECK (
     public.get_profile_id() = patient_id
-    OR EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = patient_vitals.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
+    OR public.has_active_permission(patient_id)
   );
 
--- Permitir a médicos con permiso activo y no expirado actualizar signos vitales
+-- Permitir a médicos con permiso activo actualizar signos vitales
 CREATE POLICY update_permitted_vitals ON public.patient_vitals
   FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = patient_vitals.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
-  );
+  USING (public.has_active_permission(patient_id));
+
 
 
 -- =============================================================================
@@ -163,15 +186,7 @@ CREATE POLICY select_own_medical_background ON public.medical_background
 -- Permitir a médicos con permiso activo ver el historial del paciente
 CREATE POLICY select_permitted_medical_background ON public.medical_background
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = medical_background.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
-  );
+  USING (public.has_active_permission(patient_id));
 
 -- Permitir a médicos ver las consultas que ellos mismos crearon/emitieron
 CREATE POLICY select_own_created_medical_background ON public.medical_background
@@ -183,14 +198,9 @@ CREATE POLICY insert_permitted_medical_background ON public.medical_background
   FOR INSERT TO authenticated
   WITH CHECK (
     public.get_profile_id() = doctor_id
-    AND EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = medical_background.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
+    AND public.has_active_permission(patient_id)
   );
+
 
 
 -- =============================================================================
@@ -205,15 +215,7 @@ CREATE POLICY select_own_health_records ON public.health_records
 -- Permitir a médicos con permiso activo ver archivos de salud del paciente
 CREATE POLICY select_permitted_health_records ON public.health_records
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = health_records.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
-  );
+  USING (public.has_active_permission(patient_id));
 
 -- Se fuerza doctor_id = public.get_profile_id() (o el paciente sube por sí mismo)
 CREATE POLICY insert_permitted_health_records ON public.health_records
@@ -222,15 +224,10 @@ CREATE POLICY insert_permitted_health_records ON public.health_records
     (public.get_profile_id() = doctor_id OR public.get_profile_id() = patient_id)
     AND (
       public.get_profile_id() = patient_id -- Paciente siempre puede subir a su cuenta
-      OR EXISTS (
-        SELECT 1 FROM public.access_permissions ap
-        WHERE ap.patient_id = health_records.patient_id
-          AND ap.doctor_id = public.get_profile_id()
-          AND ap.status = 'active'
-          AND (ap.expires_at IS NULL OR ap.expires_at > now())
-      )
+      OR public.has_active_permission(patient_id)
     )
   );
+
 
 
 -- =============================================================================
@@ -245,15 +242,7 @@ CREATE POLICY select_own_medications ON public.medications
 -- Permitir a médicos con permiso activo ver el tratamiento farmacológico del paciente
 CREATE POLICY select_permitted_medications ON public.medications
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = medications.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
-  );
+  USING (public.has_active_permission(patient_id));
 
 -- Permitir a médicos ver las recetas/medicamentos que ellos mismos crearon/emitieron
 CREATE POLICY select_own_created_medications ON public.medications
@@ -265,14 +254,9 @@ CREATE POLICY insert_permitted_medications ON public.medications
   FOR INSERT TO authenticated
   WITH CHECK (
     public.get_profile_id() = doctor_id
-    AND EXISTS (
-      SELECT 1 FROM public.access_permissions ap
-      WHERE ap.patient_id = medications.patient_id
-        AND ap.doctor_id = public.get_profile_id()
-        AND ap.status = 'active'
-        AND (ap.expires_at IS NULL OR ap.expires_at > now())
-    )
+    AND public.has_active_permission(patient_id)
   );
+
 
 
 -- =============================================================================
@@ -291,14 +275,18 @@ CREATE POLICY insert_appointment ON public.appointments
     public.get_profile_id() = patient_id
     OR (
       public.get_profile_id() = doctor_id
-      AND EXISTS (
-        SELECT 1 FROM public.access_permissions ap
-        WHERE ap.patient_id = appointments.patient_id
-          AND ap.doctor_id = public.get_profile_id()
-          AND ap.status IN ('active', 'pending')
+      AND (
+        public.has_active_permission(patient_id)
+        OR EXISTS (
+          SELECT 1 FROM public.access_permissions ap
+          WHERE ap.patient_id = appointments.patient_id
+            AND ap.status = 'pending'
+            AND (ap.doctor_id = public.get_profile_id() OR ap.requested_by = public.get_profile_id())
+        )
       )
     )
   );
+
 
 -- Permitir modificar estados o detalles de citas a ambas partes involucradas
 CREATE POLICY update_involved_appointment ON public.appointments

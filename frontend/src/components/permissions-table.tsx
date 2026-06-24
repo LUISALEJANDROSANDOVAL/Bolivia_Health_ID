@@ -54,7 +54,8 @@ import { sendNotification } from '@/lib/notifications'
 
 interface Permission {
   id: string
-  doctorId: string
+  doctorId: string | null
+  requestedBy: string | null
   hospitalName: string
   accessDate: string
   expirationDate: string
@@ -144,21 +145,35 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
               created_at,
               expires_at,
               doctor_id,
-              profiles!doctor_id (full_name)
+              specialty,
+              sucursal_id,
+              requested_by,
+              profiles!doctor_id (full_name),
+              sucursales (name)
             `)
             .eq('patient_id', profile.id)
             .order('created_at', { ascending: false })
           
-          const mapped: Permission[] = (data || []).map((p: any) => ({
-            id: p.id,
-            doctorId: p.doctor_id, // Keep doctor ID
-            hospitalName: p.profiles?.full_name || 'Médico Autorizado',
-            accessDate: new Date(p.created_at).toLocaleDateString(),
-            expirationDate: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Permanente',
-            status: p.status as any,
-            accessType: 'Acceso Universal',
-            description: 'Acceso a historial, recetas y registros médicos'
-          }))
+          const mapped: Permission[] = (data || []).map((p: any) => {
+            const isSpecialty = !p.doctor_id && p.specialty
+            return {
+              id: p.id,
+              doctorId: p.doctor_id,
+              requestedBy: p.requested_by,
+              hospitalName: isSpecialty
+                ? `Especialidad: ${p.specialty}`
+                : (p.profiles?.full_name || 'Médico Autorizado'),
+              accessDate: new Date(p.created_at).toLocaleDateString(),
+              expirationDate: p.expires_at ? new Date(p.expires_at).toLocaleDateString() : 'Permanente',
+              status: p.status as any,
+              accessType: isSpecialty
+                ? `Acceso Departamental (${p.sucursales?.name || 'Sede'})`
+                : 'Acceso Personal',
+              description: isSpecialty
+                ? `Acceso concedido a todos los médicos de la especialidad ${p.specialty} en la sede ${p.sucursales?.name || ''}`
+                : 'Acceso a historial, recetas y registros médicos por un médico específico'
+            }
+          })
           
           setPermissions(mapped)
         }
@@ -180,6 +195,9 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
   }
 
   const handleViewDoctor = async (permission: Permission) => {
+    const targetId = permission.doctorId || permission.requestedBy
+    if (!targetId) return
+
     setSelectedPermission(permission)
     setViewDoctorOpen(true)
     setLoadingDoctor(true)
@@ -187,7 +205,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', permission.doctorId)
+        .eq('id', targetId)
         .single()
       
       if (!error) {
@@ -196,6 +214,7 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
     } catch (err) {
       console.error('Error fetching doctor details:', err)
     } finally {
+      setViewDoctorOpen(true)
       setLoadingDoctor(false)
     }
   }
@@ -265,18 +284,21 @@ export function PermissionsTable({ refreshTrigger }: PermissionsTableProps) {
           description: `Se ha aprobado el acceso para ${permissionToApprove.hospitalName}.` 
         })
         
-        // Notificar al doctor (con try/catch para no bloquear)
-        try {
-          await sendNotification({
-            recipientId: permissionToApprove.doctorId,
-            senderId: profile?.id,
-            title: 'Solicitud Aprobada',
-            message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado su solicitud de acceso.`,
-            type: 'approval',
-            link: '/doctor/authorizations'
-          })
-        } catch (notifyErr) {
-          console.warn('No se pudo notificar al doctor:', notifyErr)
+        // Notificar al médico que originó la solicitud
+        const recipientId = permissionToApprove.doctorId || permissionToApprove.requestedBy
+        if (recipientId) {
+          try {
+            await sendNotification({
+              recipientId,
+              senderId: profile?.id,
+              title: 'Solicitud Aprobada',
+              message: `El paciente ${profile?.full_name || 'Anónimo'} ha aprobado la solicitud de acceso para ${permissionToApprove.hospitalName}.`,
+              type: 'approval',
+              link: '/doctor/authorizations'
+            })
+          } catch (notifyErr) {
+            console.warn('No se pudo notificar al doctor:', notifyErr)
+          }
         }
       }
     } catch (err: any) {

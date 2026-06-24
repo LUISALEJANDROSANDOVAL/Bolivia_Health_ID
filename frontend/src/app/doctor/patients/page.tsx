@@ -28,22 +28,45 @@ export default function DoctorPatientsPage() {
     if (!doctorId) return
     setLoading(true)
     try {
-      // 1. Obtener los permisos activos para este doctor (y no expirados)
+      // 1. Obtener perfil del doctor (especialidad) y sus sucursales
+      const { data: doctorProfile } = await supabase
+        .from('profiles')
+        .select('specialty')
+        .eq('id', doctorId)
+        .single()
+      
+      const specialty = doctorProfile?.specialty
+
+      const { data: doctorSucursales } = await supabase
+        .from('doctor_sucursal')
+        .select('sucursal_id')
+        .eq('doctor_id', doctorId)
+
+      const sucursalIds = doctorSucursales?.map((ds: any) => ds.sucursal_id) || []
+
+      // 2. Obtener los permisos activos a los que tiene acceso
       const { data: permissionsData, error: permError } = await supabase
         .from('access_permissions')
-        .select('id, patient_id, created_at, status')
-        .eq('doctor_id', doctorId)
+        .select('id, patient_id, created_at, status, doctor_id, specialty, sucursal_id')
         .eq('status', 'active')
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
 
       if (permError) throw permError
-      if (!permissionsData || permissionsData.length === 0) {
+      
+      // Filtrar para conservar solo los que el doctor puede leer activamente
+      const validPermissions = (permissionsData || []).filter((p: any) => {
+        if (p.doctor_id === doctorId) return true
+        if (p.specialty === specialty && sucursalIds.includes(p.sucursal_id)) return true
+        return false
+      })
+
+      if (validPermissions.length === 0) {
         setPatients([])
         return
       }
 
-      // 2. Obtener los perfiles de los pacientes directamente por sus IDs
-      const patientIds = permissionsData.map((p: any) => p.patient_id).filter(Boolean)
+      // 3. Obtener los perfiles de los pacientes directamente por sus IDs
+      const patientIds = validPermissions.map((p: any) => p.patient_id).filter(Boolean)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, cedula_identidad, wallet_address')

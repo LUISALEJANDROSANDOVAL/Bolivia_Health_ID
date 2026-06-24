@@ -42,6 +42,7 @@ export default function DoctorLoginPage() {
     e.preventDefault()
     setIsLoading(true)
     await new Promise(resolve => setTimeout(resolve, 1500))
+    localStorage.setItem('lastSessionPassword', formData.password)
     // Nota: El login por email es tradicional, pero el dashboard
     // ahora depende de la wallet. Redirigimos de todos modos.
     router.push('/doctor')

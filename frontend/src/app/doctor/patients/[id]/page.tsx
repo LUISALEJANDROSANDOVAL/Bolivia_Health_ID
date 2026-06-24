@@ -270,16 +270,37 @@ export default function PatientView360() {
         return
       }
 
-      // 2. Verificar si el doctor tiene autorización activa
-      const { data: permission, error: permErr } = await supabase
-        .from('access_permissions')
-        .select('status')
-        .eq('patient_id', patientId)
-        .eq('doctor_id', doctorId)
-        .eq('status', 'active')
-        .maybeSingle()
+      // Obtener perfil del doctor (especialidad) y sus sucursales
+      const { data: doctorProfile } = await supabase
+        .from('profiles')
+        .select('specialty')
+        .eq('id', doctorId)
+        .single()
+      
+      const specialty = doctorProfile?.specialty
 
-      if (permErr || !permission) {
+      const { data: doctorSucursales } = await supabase
+        .from('doctor_sucursal')
+        .select('sucursal_id')
+        .eq('doctor_id', doctorId)
+
+      const sucursalIds = doctorSucursales?.map((ds: any) => ds.sucursal_id) || []
+
+      // 2. Verificar si hay un permiso activo válido (directo o por especialidad+sucursal)
+      const { data: permissions, error: permErr } = await supabase
+        .from('access_permissions')
+        .select('doctor_id, specialty, sucursal_id')
+        .eq('patient_id', patientId)
+        .eq('status', 'active')
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+
+      const hasPerm = !permErr && permissions && permissions.some((p: any) => {
+        if (p.doctor_id === doctorId) return true
+        if (p.specialty === specialty && sucursalIds.includes(p.sucursal_id)) return true
+        return false
+      })
+
+      if (!hasPerm) {
         setHasPermission(false)
         setIsLoading(false)
         return

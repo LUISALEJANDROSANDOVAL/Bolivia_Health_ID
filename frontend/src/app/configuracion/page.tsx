@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/dashboard-layout'
 import { 
   User, 
@@ -56,11 +56,8 @@ export default function ConfiguracionPage() {
   const { isConnected, walletAddress } = useWallet()
   const { profile, updateProfile, loading: profileLoading } = useProfile(walletAddress)
   const { stats: storageStats, loading: storageLoading } = useStorageStats(walletAddress)
-  const profileRef = useRef<ProfileSettingsRef>(null)
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState('perfil')
-  const [isSaving, setIsSaving] = useState(false)
-  const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [medicalCount, setMedicalCount] = useState(0)
   const { toast } = useToast()
 
@@ -170,27 +167,7 @@ export default function ConfiguracionPage() {
     }
   }
 
-  const handleSaveAll = async () => {
-    setIsSaving(true)
-    try {
-      if (profileRef.current) {
-        await profileRef.current.save()
-      }
-      setLastSaved(new Date())
-      toast({
-        title: 'Configuración guardada',
-        description: 'Todos los cambios han sido sincronizados con Supabase.',
-      })
-    } catch (err: any) {
-      toast({
-        title: 'Error al guardar',
-        description: err?.message || 'Hubo un problema al guardar los cambios.',
-        variant: 'destructive'
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
+
 
   return (
     <DashboardLayout>
@@ -320,7 +297,6 @@ export default function ConfiguracionPage() {
 
           <TabsContent value="perfil">
             <ProfileSettings 
-              ref={profileRef} 
               profile={profile}
               updateProfile={updateProfile}
               loading={profileLoading}
@@ -353,32 +329,7 @@ export default function ConfiguracionPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Barra de acciones */}
-        <div className="sticky bottom-6 flex items-center justify-end gap-3">
-          {lastSaved && (
-            <div className="flex items-center gap-2 text-xs text-gris-grafito bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full shadow-sm">
-              <RefreshCw className="size-3 text-emerald-500" />
-              Última sincronización: {lastSaved.toLocaleTimeString()}
-            </div>
-          )}
-          <Button
-            onClick={handleSaveAll}
-            disabled={isSaving}
-            className="btn-premium shadow-lg"
-          >
-            {isSaving ? (
-              <>
-                <RefreshCw className="size-4 mr-2 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Save className="size-4 mr-2" />
-                Guardar todos los cambios
-              </>
-            )}
-          </Button>
-        </div>
+
 
       </div>
     </DashboardLayout>
