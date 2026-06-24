@@ -58,23 +58,33 @@ export default function DoctorAuthorizationsPage() {
           created_at,
           expires_at,
           patient_id,
-          patient:profiles!patient_id (full_name, wallet_address)
+          doctor_id,
+          specialty,
+          sucursal_id,
+          requested_by,
+          patient:profiles!patient_id (full_name, wallet_address),
+          sucursales (name)
         `)
-        .eq('doctor_id', doctorId)
+        .or(`doctor_id.eq.${doctorId},requested_by.eq.${doctorId}`)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
       if (data) {
-        const mapped = data.map((p: any) => ({
-          id: p.id,
-          patientId: p.patient_id,
-          patient: p.patient,
-          type: 'Acceso Digital Seguro',
-          status: p.status,
-          created_at: p.created_at,
-          expires_at: p.expires_at
-        })) as Authorization[]
+        const mapped = data.map((p: any) => {
+          const isSpecialty = !p.doctor_id && p.specialty
+          return {
+            id: p.id,
+            patientId: p.patient_id,
+            patient: p.patient,
+            type: isSpecialty 
+              ? `Especialidad: ${p.specialty} (${p.sucursales?.name || 'Sede'})`
+              : 'Acceso Digital Seguro',
+            status: p.status,
+            created_at: p.created_at,
+            expires_at: p.expires_at
+          }
+        }) as Authorization[]
         setAuthorizations(mapped)
         
         // Calcular estadísticas
@@ -101,7 +111,7 @@ export default function DoctorAuthorizationsPage() {
 
     if (!doctorId) return
 
-    // Suscribirse a cambios en tiempo real
+    // Suscribirse a cambios en tiempo real sin filtro estricto de doctor_id para incluir solicitados por especialidad
     const channel = supabase
       .channel('schema-db-changes')
       .on(
@@ -109,8 +119,7 @@ export default function DoctorAuthorizationsPage() {
         {
           event: '*',
           schema: 'public',
-          table: 'access_permissions',
-          filter: `doctor_id=eq.${doctorId}`
+          table: 'access_permissions'
         },
         () => {
           fetchAuthorizations()

@@ -1,60 +1,42 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.access_permissions (
+CREATE TABLE public.profiles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  patient_id uuid NOT NULL,
-  doctor_id uuid NOT NULL,
-  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'active'::text, 'expired'::text, 'revoked'::text])),
-  expires_at timestamp with time zone,
+  wallet_address text NOT NULL UNIQUE,
+  full_name text NOT NULL,
+  cedula_identidad text UNIQUE,
+  email text UNIQUE,
+  phone text,
+  address text,
+  occupation text,
+  role text DEFAULT 'paciente'::text CHECK (role = ANY (ARRAY['paciente'::text, 'medico'::text, 'admin'::text])),
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT access_permissions_pkey PRIMARY KEY (id),
-  CONSTRAINT access_permissions_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
-  CONSTRAINT access_permissions_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.appointments (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  patient_id uuid,
-  doctor_id uuid,
-  doctor_name text,
+  license_number text,
   specialty text,
-  appointment_date date,
-  appointment_time time without time zone,
-  location text,
-  type text CHECK (type = ANY (ARRAY['presencial'::text, 'virtual'::text])),
-  status text DEFAULT 'scheduled'::text CHECK (status = ANY (ARRAY['scheduled'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text, 'in_progress'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  end_time time without time zone,
-  priority text DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['normal'::text, 'high'::text])),
-  reason text,
-  notes text,
-  CONSTRAINT appointments_pkey PRIMARY KEY (id),
-  CONSTRAINT appointments_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
-  CONSTRAINT appointments_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id)
+  preferences jsonb DEFAULT '{}'::jsonb,
+  password_hash text,
+  birth_date date,
+  gender text CHECK (gender = ANY (ARRAY['M'::text, 'F'::text, 'Otro'::text])),
+  identity_verified boolean DEFAULT false,
+  license_verified boolean DEFAULT false,
+  approval_status text DEFAULT 'pending'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id)
 );
-CREATE TABLE public.diagnosis_catalog (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  code text NOT NULL UNIQUE,
-  description text NOT NULL,
-  category text,
-  is_chronic boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT diagnosis_catalog_pkey PRIMARY KEY (id)
-);
-CREATE TABLE public.health_records (
+CREATE TABLE public.patient_vitals (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   patient_id uuid,
-  title text NOT NULL,
-  category text CHECK (category = ANY (ARRAY['Laboratorio'::text, 'Imágenes'::text, 'Recetas'::text, 'Otros'::text])),
-  file_size text,
-  file_url text NOT NULL,
-  file_type text,
+  blood_type text,
+  allergies text,
+  blood_pressure text,
+  weight text,
+  height text,
   created_at timestamp with time zone DEFAULT now(),
-  tx_hash text CHECK (tx_hash IS NULL OR tx_hash ~ '^0x[0-9a-fA-F]{64}$'::text),
-  doctor_id uuid,
-  CONSTRAINT health_records_pkey PRIMARY KEY (id),
-  CONSTRAINT health_records_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
-  CONSTRAINT health_records_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id)
+  updated_at timestamp with time zone DEFAULT now(),
+  heart_rate text,
+  temperature text,
+  CONSTRAINT patient_vitals_pkey PRIMARY KEY (id),
+  CONSTRAINT patient_vitals_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.medical_background (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -71,6 +53,21 @@ CREATE TABLE public.medical_background (
   CONSTRAINT medical_background_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
   CONSTRAINT medical_background_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
   CONSTRAINT medical_background_diagnosis_fkey FOREIGN KEY (diagnosis_id) REFERENCES public.diagnosis_catalog(id)
+);
+CREATE TABLE public.health_records (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid,
+  title text NOT NULL,
+  category text CHECK (category = ANY (ARRAY['Laboratorio'::text, 'Imágenes'::text, 'Recetas'::text, 'Otros'::text])),
+  file_size text,
+  file_url text NOT NULL,
+  file_type text,
+  created_at timestamp with time zone DEFAULT now(),
+  tx_hash text CHECK (tx_hash IS NULL OR tx_hash ~ '^0x[0-9a-fA-F]{64}$'::text),
+  doctor_id uuid,
+  CONSTRAINT health_records_pkey PRIMARY KEY (id),
+  CONSTRAINT health_records_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
+  CONSTRAINT health_records_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.medications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -91,6 +88,27 @@ CREATE TABLE public.medications (
   CONSTRAINT medications_medicine_id_fkey FOREIGN KEY (medicine_id) REFERENCES public.medicine_catalog(id),
   CONSTRAINT medications_diagnosis_fkey FOREIGN KEY (diagnosis_id) REFERENCES public.diagnosis_catalog(id)
 );
+CREATE TABLE public.access_permissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid NOT NULL,
+  doctor_id uuid,
+  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'active'::text, 'expired'::text, 'revoked'::text])),
+  expires_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  specialty text,
+  sucursal_id uuid,
+  requested_by uuid,
+  CONSTRAINT access_permissions_pkey PRIMARY KEY (id),
+  CONSTRAINT access_permissions_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id),
+  CONSTRAINT access_permissions_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
+  CONSTRAINT access_permissions_specialty_fkey FOREIGN KEY (specialty) REFERENCES public.specialties(name),
+  CONSTRAINT access_permissions_sucursal_id_fkey FOREIGN KEY (sucursal_id) REFERENCES public.sucursales(id),
+  CONSTRAINT access_permissions_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.profiles(id),
+  CONSTRAINT check_permission_type CHECK (
+    (doctor_id IS NOT NULL AND specialty IS NULL AND sucursal_id IS NULL) OR
+    (doctor_id IS NULL AND specialty IS NOT NULL AND sucursal_id IS NOT NULL)
+  )
+);
 CREATE TABLE public.medicine_catalog (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   generic_name text NOT NULL,
@@ -99,6 +117,15 @@ CREATE TABLE public.medicine_catalog (
   item_number text,
   concentration text,
   CONSTRAINT medicine_catalog_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.diagnosis_catalog (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  code text NOT NULL UNIQUE,
+  description text NOT NULL,
+  category text,
+  is_chronic boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT diagnosis_catalog_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -114,37 +141,69 @@ CREATE TABLE public.notifications (
   CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
   CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id)
 );
-CREATE TABLE public.patient_vitals (
+CREATE TABLE public.appointments (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   patient_id uuid,
-  blood_type text,
-  allergies text,
-  blood_pressure text,
-  weight text,
-  height text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT patient_vitals_pkey PRIMARY KEY (id),
-  CONSTRAINT patient_vitals_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.profiles (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  wallet_address text NOT NULL UNIQUE,
-  full_name text NOT NULL,
-  cedula_identidad text UNIQUE,
-  email text,
-  phone text,
-  address text,
-  occupation text,
-  role text DEFAULT 'paciente'::text CHECK (role = ANY (ARRAY['paciente'::text, 'medico'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  license_number text,
+  doctor_id uuid,
+  doctor_name text,
   specialty text,
-  preferences jsonb DEFAULT '{}'::jsonb,
-  password_hash text,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id)
+  appointment_date date,
+  appointment_time time without time zone,
+  location text,
+  type text CHECK (type = ANY (ARRAY['presencial'::text, 'virtual'::text])),
+  status text DEFAULT 'scheduled'::text CHECK (status = ANY (ARRAY['scheduled'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text, 'in_progress'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  end_time time without time zone,
+  priority text DEFAULT 'normal'::text CHECK (priority = ANY (ARRAY['normal'::text, 'high'::text])),
+  reason text,
+  notes text,
+  CONSTRAINT appointments_pkey PRIMARY KEY (id),
+  CONSTRAINT appointments_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
+  CONSTRAINT appointments_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.profiles(id)
 );
-
+CREATE TABLE public.mock_segip_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cedula_identidad text NOT NULL UNIQUE,
+  nombres text NOT NULL,
+  apellidos text NOT NULL,
+  fecha_nacimiento date,
+  estado text DEFAULT 'Vigente'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT mock_segip_data_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.identity_validations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  cedula_identidad text NOT NULL,
+  segip_status text NOT NULL DEFAULT 'pending'::text CHECK (segip_status = ANY (ARRAY['pending'::text, 'verified'::text, 'mismatch'::text, 'manual_review'::text])),
+  verification_method text NOT NULL DEFAULT 'automated'::text CHECK (verification_method = ANY (ARRAY['automated'::text, 'manual'::text])),
+  verified_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT identity_validations_pkey PRIMARY KEY (id),
+  CONSTRAINT identity_validations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.doctor_validations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  doctor_id uuid NOT NULL,
+  license_number text NOT NULL,
+  sirepro_status text NOT NULL DEFAULT 'pending'::text CHECK (sirepro_status = ANY (ARRAY['pending'::text, 'processing'::text, 'valid'::text, 'invalid'::text, 'error'::text])),
+  raw_scraper_response jsonb,
+  error_message text,
+  validated_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT doctor_validations_pkey PRIMARY KEY (id),
+  CONSTRAINT doctor_validations_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.mock_sirepro_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  matricula text NOT NULL UNIQUE,
+  nombre_completo text NOT NULL,
+  especialidad text,
+  estado_matricula text DEFAULT 'VIGENTE'::text,
+  fecha_emision date,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT mock_sirepro_data_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.sucursales (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -153,24 +212,23 @@ CREATE TABLE public.sucursales (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT sucursales_pkey PRIMARY KEY (id)
 );
-
 CREATE TABLE public.doctor_sucursal (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   doctor_id uuid NOT NULL,
   sucursal_id uuid NOT NULL,
+  schedule text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT doctor_sucursal_pkey PRIMARY KEY (id),
   CONSTRAINT doctor_sucursal_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
   CONSTRAINT doctor_sucursal_sucursal_id_fkey FOREIGN KEY (sucursal_id) REFERENCES public.sucursales(id)
 );
-
 CREATE TABLE public.doctor_schedules (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   doctor_id uuid NOT NULL,
   sucursal_id uuid NOT NULL,
   day_of_week integer NOT NULL CHECK (day_of_week >= 1 AND day_of_week <= 7),
   start_time time without time zone NOT NULL,
-  end_time time without time zone NOT NULL CHECK (end_time > start_time),
+  end_time time without time zone NOT NULL,
   slot_duration_minutes integer DEFAULT 30,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
@@ -178,58 +236,10 @@ CREATE TABLE public.doctor_schedules (
   CONSTRAINT doctor_schedules_doctor_id_fkey FOREIGN KEY (doctor_id) REFERENCES public.profiles(id),
   CONSTRAINT doctor_schedules_sucursal_id_fkey FOREIGN KEY (sucursal_id) REFERENCES public.sucursales(id)
 );
-
--- Función para generar las "píldoras de hora" (slots disponibles)
-CREATE OR REPLACE FUNCTION public.get_available_slots(
-    p_doctor_id uuid,
-    p_sucursal_id uuid,
-    p_date date
-)
-RETURNS TABLE (
-    slot_time time
-) AS $$
-DECLARE
-    v_day_of_week integer;
-    v_schedule record;
-BEGIN
-    -- En PostgreSQL, extract(isodow from date) devuelve 1=Lunes, 7=Domingo
-    v_day_of_week := extract(isodow from p_date);
-
-    -- Obtener el horario del doctor para ese día en esa sucursal
-    SELECT * INTO v_schedule
-    FROM public.doctor_schedules
-    WHERE doctor_id = p_doctor_id
-      AND sucursal_id = p_sucursal_id
-      AND day_of_week = v_day_of_week
-      AND is_active = true
-    LIMIT 1;
-
-    -- Si no hay horario activo para ese día, no retornar nada
-    IF NOT FOUND OR v_schedule.start_time >= v_schedule.end_time THEN
-        RETURN;
-    END IF;
-
-    -- Generar los slots de tiempo y filtrar los que ya están reservados
-    RETURN QUERY
-    WITH slots AS (
-        SELECT generate_series(
-            v_schedule.start_time::timestamp,
-            (v_schedule.end_time - (v_schedule.slot_duration_minutes || ' minutes')::interval)::timestamp,
-            (v_schedule.slot_duration_minutes || ' minutes')::interval
-        )::time AS slot_time
-    )
-    SELECT s.slot_time
-    FROM slots s
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM public.appointments a
-        WHERE a.doctor_id = p_doctor_id
-          AND a.appointment_date = p_date
-          AND a.status IN ('scheduled', 'confirmed', 'in_progress')
-          -- Verificamos si hay superposición con una cita existente
-          AND (s.slot_time < COALESCE(a.end_time, a.appointment_time + (v_schedule.slot_duration_minutes || ' minutes')::interval)
-               AND 
-               (s.slot_time + (v_schedule.slot_duration_minutes || ' minutes')::interval) > a.appointment_time)
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE TABLE public.specialties (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  description text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT specialties_pkey PRIMARY KEY (id)
+);

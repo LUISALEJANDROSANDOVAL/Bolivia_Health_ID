@@ -341,15 +341,37 @@ export default function DoctorPrescriptionsPage() {
 
       setIsSearching(true)
 
-      // 1. Obtener IDs de pacientes con permiso activo para este doctor (y no expirado)
+      // Obtener perfil del doctor (especialidad) y sus sucursales
+      const { data: doctorProfile } = await supabase
+        .from('profiles')
+        .select('specialty')
+        .eq('id', doctorId)
+        .single()
+      
+      const specialty = doctorProfile?.specialty
+
+      const { data: doctorSucursales } = await supabase
+        .from('doctor_sucursal')
+        .select('sucursal_id')
+        .eq('doctor_id', doctorId)
+
+      const sucursalIds = doctorSucursales?.map((ds: any) => ds.sucursal_id) || []
+
+      // 1. Obtener permisos activos
       const { data: permissions } = await supabase
         .from('access_permissions')
-        .select('patient_id')
-        .eq('doctor_id', doctorId)
+        .select('patient_id, doctor_id, specialty, sucursal_id')
         .eq('status', 'active')
         .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
 
-      const authorizedIds = permissions?.map(p => p.patient_id) || []
+      // Filtrar permisos válidos para este doctor
+      const validPermissions = (permissions || []).filter((p: any) => {
+        if (p.doctor_id === doctorId) return true
+        if (p.specialty === specialty && sucursalIds.includes(p.sucursal_id)) return true
+        return false
+      })
+
+      const authorizedIds = [...new Set(validPermissions.map(p => p.patient_id).filter(Boolean))]
 
       if (authorizedIds.length === 0) {
         setPatients([])
