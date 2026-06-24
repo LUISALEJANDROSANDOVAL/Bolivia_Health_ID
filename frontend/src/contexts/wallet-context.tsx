@@ -129,11 +129,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       // B. Sincronización de Perfil Público en Supabase
-      const { data: existing, error: fetchError } = await supabase
+      // 1. Buscamos primero por wallet_address
+      let { data: existing, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('wallet_address', wallet)
         .single()
+
+      if (fetchError && fetchError.code === 'PGRST116' && email) {
+        // 2. Si no existe por wallet, buscamos por email (caso de médicos pre-registrados)
+        const { data: existingByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email.toLowerCase())
+          .single()
+        
+        if (existingByEmail) {
+          // Encontramos un médico pre-registrado, actualizamos su wallet_address placeholder con el real
+          await supabase.from('profiles').update({ wallet_address: wallet }).eq('id', existingByEmail.id);
+          existing = { ...existingByEmail, wallet_address: wallet };
+          fetchError = null;
+        }
+      }
 
       if (!fetchError && existing) {
         let needsUpdate = false;
@@ -181,7 +198,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       setProfile(profileData)
     } catch (err: any) {
-      console.error('Error sincronizando perfil:', err)
+      console.error('Error sincronizando perfil:', err.message || JSON.stringify(err) || err)
     } finally {
       setLoading(false)
     }

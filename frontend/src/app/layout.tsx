@@ -46,6 +46,7 @@ export const viewport: Viewport = {
 }
 
 import { Toaster } from 'sonner'
+import { Toaster as ShadcnToaster } from '@/components/ui/toaster'
 
 export default function RootLayout({
   children,
@@ -59,6 +60,7 @@ export default function RootLayout({
           {children}
         </ClientWrapper>
         <Toaster position="top-center" richColors />
+        <ShadcnToaster />
         <Analytics />
       </body>
     </html>

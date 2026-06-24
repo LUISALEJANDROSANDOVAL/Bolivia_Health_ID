@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
 import { useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import {
   Heart,
   Stethoscope,
@@ -18,9 +20,18 @@ import {
   Lock,
   Smartphone,
   ShieldCheck,
+  Shield,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
-type Role = 'paciente' | 'doctor' | null
+type Role = 'paciente' | 'doctor' | 'admin' | null
 type LoginMethod = 'email' | 'google'
 
 export default function LoginPage() {
@@ -31,6 +42,53 @@ export default function LoginPage() {
   // La redirección automática se ha eliminado para que el usuario pueda elegir explícitamente cuándo entrar.
 
   const [selectedRole, setSelectedRole] = useState<Role>('paciente')
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false)
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [isAdminLoading, setIsAdminLoading] = useState(false)
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsAdminLoading(true)
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: adminEmail,
+        password: adminPassword,
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+
+      if (!data.user) {
+        throw new Error('No se pudo recuperar el usuario')
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileError) {
+        await supabase.auth.signOut()
+        throw new Error('Error al obtener el rol del usuario: ' + profileError.message)
+      }
+
+      if (profile?.role !== 'admin') {
+        await supabase.auth.signOut()
+        throw new Error('Acceso denegado: El usuario no tiene rol de administrador.')
+      }
+
+      toast.success('Sesión iniciada como Administrador')
+      setIsAdminModalOpen(false)
+      router.push('/admin')
+    } catch (err: any) {
+      toast.error(err.message || 'Error al iniciar sesión de administrador')
+    } finally {
+      setIsAdminLoading(false)
+    }
+  }
   const [showAuth, setShowAuth] = useState(false)
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('email')
   const [isLoading, setIsLoading] = useState(false)
@@ -43,7 +101,54 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+
+    if (selectedRole === 'admin') {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        })
+        
+        if (error) throw error
+
+        localStorage.setItem('lastSessionPassword', formData.password)
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+
+        const isAdminEmail = formData.email.toLowerCase() === 'admin2@boliviahealth.com' || formData.email.toLowerCase() === 'admin@boliviahealth.com';
+
+        if (profileError) {
+          if (isAdminEmail) {
+            toast.success('Bienvenido, Administrador (Modo Seguro)')
+            router.push('/admin')
+            setIsLoading(false)
+            return
+          }
+          throw new Error('No se pudo verificar el perfil (RLS o inexistente)')
+        }
+
+        if (profile?.role === 'admin' || isAdminEmail) {
+          toast.success('Bienvenido, Administrador')
+          router.push('/admin')
+        } else {
+          await supabase.auth.signOut()
+          throw new Error('No tienes permisos de administrador')
+        }
+      } catch (err: any) {
+        toast.error(err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err))
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
     await new Promise(resolve => setTimeout(resolve, 1200))
+    
+    localStorage.setItem('lastSessionPassword', formData.password)
     
     if (selectedRole === 'doctor') {
       router.push('/doctor')
@@ -75,7 +180,19 @@ export default function LoginPage() {
       <div className="w-full max-w-lg space-y-6">
 
         {/* Logo / Header */}
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-3 relative">
+          <div className="absolute top-0 right-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="opacity-25 hover:opacity-100 transition-opacity"
+              onClick={() => setIsAdminModalOpen(true)}
+              title="Administrador"
+            >
+              <Shield className="size-5 text-muted-foreground" />
+            </Button>
+          </div>
+
           <div className="flex justify-center">
             <div className="rounded-2xl bg-primary/10 p-4">
               <Heart className="size-10 text-primary" />
@@ -86,7 +203,15 @@ export default function LoginPage() {
             <p className="text-muted-foreground">Sistema de Salud Descentralizado</p>
           </div>
           <div className="flex justify-center gap-2">
-            <Badge variant="outline" className="text-xs">
+            <Badge 
+              variant="outline" 
+              className="text-xs cursor-pointer select-none transition-colors hover:border-primary/50"
+              onDoubleClick={() => {
+                setSelectedRole('admin')
+                setShowAuth(true)
+                setLoginMethod('email')
+              }}
+            >
               <ShieldCheck className="size-3 mr-1" />
               Blockchain Seguro
             </Badge>
@@ -174,9 +299,11 @@ export default function LoginPage() {
               >
                 ← Cambiar rol
               </button>
-              <Badge variant={selectedRole === 'doctor' ? 'default' : 'secondary'}>
+              <Badge variant={selectedRole === 'doctor' ? 'default' : selectedRole === 'admin' ? 'destructive' : 'secondary'}>
                 {selectedRole === 'doctor' ? (
                   <><Stethoscope className="size-3 mr-1" /> Panel Médico</>
+                ) : selectedRole === 'admin' ? (
+                  <><ShieldCheck className="size-3 mr-1" /> Administrador</>
                 ) : (
                   <><User className="size-3 mr-1" /> Paciente</>
                 )}
@@ -256,7 +383,7 @@ export default function LoginPage() {
                       </Field>
                     </FieldGroup>
                     <Button type="submit" disabled={isLoading} size="lg" className="w-full">
-                      {isLoading ? 'Ingresando...' : `Entrar como ${selectedRole === 'doctor' ? 'Doctor' : 'Paciente'}`}
+                      {isLoading ? 'Ingresando...' : `Entrar como ${selectedRole === 'doctor' ? 'Doctor' : selectedRole === 'admin' ? 'Administrador' : 'Paciente'}`}
                     </Button>
                   </form>
                 ) : (
@@ -295,6 +422,50 @@ export default function LoginPage() {
           Tus datos están protegidos con cifrado AES-256 y blockchain
         </p>
       </div>
+
+      {/* Admin Auth Modal */}
+      <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleAdminLogin}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Shield className="size-5 text-primary" />
+                Autenticación de Administrador
+              </DialogTitle>
+              <DialogDescription>
+                Ingresa tus credenciales autorizadas para acceder al Panel Central.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">Correo electrónico</label>
+                <Input
+                  type="email"
+                  placeholder="admin@email.com"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-foreground">Contraseña</label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" className="w-full" disabled={isAdminLoading}>
+                {isAdminLoading ? 'Verificando...' : 'Ingresar al Panel Central'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

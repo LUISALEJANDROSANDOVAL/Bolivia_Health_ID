@@ -41,6 +41,16 @@ export function SecuritySettings() {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' })
 
+  // Cargar la contraseña de la sesión activa al montar el componente
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedPassword = localStorage.getItem('lastSessionPassword')
+      if (savedPassword) {
+        setPasswords(prev => ({ ...prev, current: savedPassword }))
+      }
+    }
+  }, [])
+
   const [sessions, setSessions] = useState<any[]>([])
 
   // Función para detectar el dispositivo actual

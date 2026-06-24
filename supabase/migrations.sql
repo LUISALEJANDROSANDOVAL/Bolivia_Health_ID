@@ -243,3 +243,90 @@ CREATE TABLE public.specialties (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT specialties_pkey PRIMARY KEY (id)
 );
+
+-- Función para generar las "píldoras de hora" (slots disponibles)
+CREATE OR REPLACE FUNCTION public.get_available_slots(
+    p_doctor_id uuid,
+    p_sucursal_id uuid,
+    p_date date
+)
+RETURNS TABLE (
+    slot_time time
+) AS $$
+DECLARE
+    v_day_of_week integer;
+    v_schedule record;
+BEGIN
+    -- En PostgreSQL, extract(isodow from date) devuelve 1=Lunes, 7=Domingo
+    v_day_of_week := extract(isodow from p_date);
+
+    -- Obtener el horario del doctor para ese día en esa sucursal
+    SELECT * INTO v_schedule
+    FROM public.doctor_schedules
+    WHERE doctor_id = p_doctor_id
+      AND sucursal_id = p_sucursal_id
+      AND day_of_week = v_day_of_week
+      AND is_active = true
+    LIMIT 1;
+
+    -- Si no hay horario activo para ese día, no retornar nada
+    IF NOT FOUND OR v_schedule.start_time >= v_schedule.end_time THEN
+        RETURN;
+    END IF;
+
+    -- Generar los slots de tiempo y filtrar los que ya están reservados
+    RETURN QUERY
+    WITH slots AS (
+        SELECT generate_series(
+            v_schedule.start_time::timestamp,
+            (v_schedule.end_time - (v_schedule.slot_duration_minutes || ' minutes')::interval)::timestamp,
+            (v_schedule.slot_duration_minutes || ' minutes')::interval
+        )::time AS slot_time
+    )
+    SELECT s.slot_time
+    FROM slots s
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.appointments a
+        WHERE a.doctor_id = p_doctor_id
+          AND a.appointment_date = p_date
+          AND a.status IN ('scheduled', 'confirmed', 'in_progress')
+          -- Verificamos si hay superposición con una cita existente
+          AND (s.slot_time < COALESCE(a.end_time, a.appointment_time + (v_schedule.slot_duration_minutes || ' minutes')::interval)
+               AND 
+               (s.slot_time + (v_schedule.slot_duration_minutes || ' minutes')::interval) > a.appointment_time)
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.fn_final_verification()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.role = 'medico' THEN
+    IF NEW.identity_verified IS DISTINCT FROM true THEN
+      NEW.identity_verified := false;
+    END IF;
+    IF NEW.license_verified IS DISTINCT FROM true THEN
+      NEW.license_verified := false;
+    END IF;
+
+    IF NEW.identity_verified AND NEW.license_verified THEN
+      NEW.approval_status := 'approved';
+    ELSE
+      NEW.approval_status := 'pending';
+    END IF;
+  ELSE
+    NEW.identity_verified := false;
+    NEW.license_verified := false;
+    NEW.approval_status := 'pending';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_0_final_validation ON public.profiles;
+
+CREATE TRIGGER tr_0_final_validation
+BEFORE INSERT OR UPDATE ON public.profiles
+FOR EACH ROW EXECUTE FUNCTION public.fn_final_verification();
