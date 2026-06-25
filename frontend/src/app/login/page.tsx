@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Shield,
   Globe,
+  Briefcase,
 } from 'lucide-react'
 import {
   Dialog,
@@ -31,7 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-type Role = 'paciente' | 'doctor' | 'admin' | null
+type Role = 'paciente' | 'doctor' | 'admin' | 'secretaria' | null
 type LoginMethod = 'email' | 'google'
 
 export default function LoginPage() {
@@ -46,45 +47,50 @@ export default function LoginPage() {
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [isAdminLoading, setIsAdminLoading] = useState(false)
+  const [dialogRole, setDialogRole] = useState<'admin' | 'secretaria'>('secretaria')
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleDialogLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsAdminLoading(true)
+
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: adminPassword,
+      // Llamar a nuestra propia API route (mismo dominio = no puede ser bloqueado)
+      // El servidor se encarga de autenticar con Supabase
+      const response = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: adminEmail,
+          password: adminPassword,
+          role: dialogRole,
+        }),
       })
 
-      if (error) {
-        throw new Error(error.message)
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al iniciar sesión')
       }
 
-      if (!data.user) {
-        throw new Error('No se pudo recuperar el usuario')
+      // Establecer la sesión en el cliente de Supabase con los tokens del servidor
+      await supabase.auth.setSession({
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
+      })
+
+      // Redirigir con recarga completa para que la página destino cargue la sesión limpia
+      if (dialogRole === 'secretaria') {
+        toast.success('Sesión iniciada como Secretaría')
+        setIsAdminModalOpen(false)
+        window.location.href = '/secretaria'
+      } else {
+        toast.success('Sesión iniciada como Administrador')
+        setIsAdminModalOpen(false)
+        window.location.href = '/admin'
       }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-
-      if (profileError) {
-        await supabase.auth.signOut()
-        throw new Error('Error al obtener el rol del usuario: ' + profileError.message)
-      }
-
-      if (profile?.role !== 'admin') {
-        await supabase.auth.signOut()
-        throw new Error('Acceso denegado: El usuario no tiene rol de administrador.')
-      }
-
-      toast.success('Sesión iniciada como Administrador')
-      setIsAdminModalOpen(false)
-      router.push('/admin')
     } catch (err: any) {
-      toast.error(err.message || 'Error al iniciar sesión de administrador')
+      console.error('Admin/Secretaria login error:', err)
+      toast.error(err.message || 'Error al iniciar sesión')
     } finally {
       setIsAdminLoading(false)
     }
@@ -101,50 +107,6 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
-    if (selectedRole === 'admin') {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password
-        })
-        
-        if (error) throw error
-
-        localStorage.setItem('lastSessionPassword', formData.password)
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-
-        const isAdminEmail = formData.email.toLowerCase() === 'admin2@boliviahealth.com' || formData.email.toLowerCase() === 'admin@boliviahealth.com';
-
-        if (profileError) {
-          if (isAdminEmail) {
-            toast.success('Bienvenido, Administrador (Modo Seguro)')
-            router.push('/admin')
-            setIsLoading(false)
-            return
-          }
-          throw new Error('No se pudo verificar el perfil (RLS o inexistente)')
-        }
-
-        if (profile?.role === 'admin' || isAdminEmail) {
-          toast.success('Bienvenido, Administrador')
-          router.push('/admin')
-        } else {
-          await supabase.auth.signOut()
-          throw new Error('No tienes permisos de administrador')
-        }
-      } catch (err: any) {
-        toast.error(err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err))
-      } finally {
-        setIsLoading(false)
-      }
-      return
-    }
 
     await new Promise(resolve => setTimeout(resolve, 1200))
     
@@ -169,6 +131,8 @@ export default function LoginPage() {
     // Redirección manual solo después de interactuar con el botón
     if (selectedRole === 'doctor') {
       router.push('/doctor')
+    } else if (selectedRole === 'secretaria') {
+      router.push('/secretaria')
     } else {
       router.push('/dashboard')
     }
@@ -204,12 +168,7 @@ export default function LoginPage() {
           <div className="flex justify-center gap-2">
             <Badge 
               variant="outline" 
-              className="text-xs cursor-pointer select-none transition-colors hover:border-primary/50"
-              onDoubleClick={() => {
-                setSelectedRole('admin')
-                setShowAuth(true)
-                setLoginMethod('email')
-              }}
+              className="text-xs select-none"
             >
               <ShieldCheck className="size-3 mr-1" />
               Blockchain Seguro
@@ -227,40 +186,40 @@ export default function LoginPage() {
             <p className="text-center text-sm font-medium text-muted-foreground">
               Selecciona tu perfil para continuar
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto w-full">
               {/* Paciente */}
               <button
                 onClick={() => setSelectedRole('paciente')}
-                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-6 transition-all focus:outline-none ${
+                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-5 transition-all focus:outline-none ${
                   selectedRole === 'paciente'
                     ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
                     : 'border-border bg-card hover:border-primary/50'
                 }`}
               >
-                <div className={`rounded-xl p-4 transition-colors ${selectedRole === 'paciente' ? 'bg-blue-500/20' : 'bg-blue-500/10 group-hover:bg-blue-500/20'}`}>
-                  <User className="size-8 text-blue-500" />
+                <div className={`rounded-xl p-3.5 transition-colors ${selectedRole === 'paciente' ? 'bg-blue-500/20' : 'bg-blue-500/10 group-hover:bg-blue-500/20'}`}>
+                  <User className="size-6 text-blue-500" />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold text-foreground">Soy Paciente</p>
-                  <p className="text-xs text-muted-foreground mt-1">Accede a tu historial y datos</p>
+                  <p className="font-semibold text-sm text-foreground">Soy Paciente</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Accede a tus datos</p>
                 </div>
               </button>
 
               {/* Doctor */}
               <button
                 onClick={() => setSelectedRole('doctor')}
-                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-6 transition-all focus:outline-none ${
+                className={`group flex flex-col items-center gap-4 rounded-2xl border-2 p-5 transition-all focus:outline-none ${
                   selectedRole === 'doctor'
                     ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
                     : 'border-border bg-card hover:border-primary/50'
                 }`}
               >
-                <div className={`rounded-xl p-4 transition-colors ${selectedRole === 'doctor' ? 'bg-green-500/20' : 'bg-green-500/10 group-hover:bg-green-500/20'}`}>
-                  <Stethoscope className="size-8 text-green-500" />
+                <div className={`rounded-xl p-3.5 transition-colors ${selectedRole === 'doctor' ? 'bg-green-500/20' : 'bg-green-500/10 group-hover:bg-green-500/20'}`}>
+                  <Stethoscope className="size-6 text-green-500" />
                 </div>
                 <div className="text-center">
-                  <p className="font-semibold text-foreground">Soy Doctor</p>
-                  <p className="text-xs text-muted-foreground mt-1">Panel médico profesional</p>
+                  <p className="font-semibold text-sm text-foreground">Soy Doctor</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Panel médico</p>
                 </div>
               </button>
             </div>
@@ -299,11 +258,13 @@ export default function LoginPage() {
               >
                 ← Cambiar rol
               </button>
-              <Badge variant={selectedRole === 'doctor' ? 'default' : selectedRole === 'admin' ? 'destructive' : 'secondary'}>
+              <Badge variant={selectedRole === 'doctor' ? 'default' : selectedRole === 'admin' ? 'destructive' : selectedRole === 'secretaria' ? 'outline' : 'secondary'}>
                 {selectedRole === 'doctor' ? (
                   <><Stethoscope className="size-3 mr-1" /> Panel Médico</>
                 ) : selectedRole === 'admin' ? (
                   <><ShieldCheck className="size-3 mr-1" /> Administrador</>
+                ) : selectedRole === 'secretaria' ? (
+                  <><Briefcase className="size-3 mr-1" /> Secretaría</>
                 ) : (
                   <><User className="size-3 mr-1" /> Paciente</>
                 )}
@@ -338,6 +299,8 @@ export default function LoginPage() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   {selectedRole === 'doctor' ? (
                     <Stethoscope className="size-5 text-primary" />
+                  ) : selectedRole === 'secretaria' ? (
+                    <Briefcase className="size-5 text-amber-500" />
                   ) : (
                     <User className="size-5 text-primary" />
                   )}
@@ -361,7 +324,7 @@ export default function LoginPage() {
                         <Input
                           name="email"
                           type="email"
-                          placeholder={selectedRole === 'doctor' ? 'doctor@email.com' : 'paciente@email.com'}
+                          placeholder={selectedRole === 'doctor' ? 'doctor@email.com' : selectedRole === 'secretaria' ? 'secretaria@boliviahealth.com' : 'paciente@email.com'}
                           value={formData.email}
                           onChange={handleChange}
                           required
@@ -383,7 +346,7 @@ export default function LoginPage() {
                       </Field>
                     </FieldGroup>
                     <Button type="submit" disabled={isLoading} size="lg" className="w-full">
-                      {isLoading ? 'Ingresando...' : `Entrar como ${selectedRole === 'doctor' ? 'Doctor' : selectedRole === 'admin' ? 'Administrador' : 'Paciente'}`}
+                      {isLoading ? 'Ingresando...' : `Entrar como ${selectedRole === 'doctor' ? 'Doctor' : selectedRole === 'admin' ? 'Administrador' : selectedRole === 'secretaria' ? 'Secretaría' : 'Paciente'}`}
                     </Button>
                   </form>
                 ) : (
@@ -423,25 +386,47 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Admin Auth Modal */}
+      {/* Admin/Secretaria Auth Modal */}
       <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleAdminLogin}>
+          <form onSubmit={handleDialogLogin}>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Shield className="size-5 text-primary" />
-                Autenticación de Administrador
+                Control de Acceso Administrativo
               </DialogTitle>
               <DialogDescription>
-                Ingresa tus credenciales autorizadas para acceder al Panel Central.
+                Ingresa tus credenciales autorizadas para acceder al sistema.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              {/* Tab Selector */}
+              <div className="flex bg-muted p-1 rounded-lg gap-1 border">
+                <button
+                  type="button"
+                  onClick={() => setDialogRole('secretaria')}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    dialogRole === 'secretaria' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Secretaría
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDialogRole('admin')}
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                    dialogRole === 'admin' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Administrador
+                </button>
+              </div>
+
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-foreground">Correo electrónico</label>
                 <Input
                   type="email"
-                  placeholder="admin@email.com"
+                  placeholder={dialogRole === 'admin' ? 'admin@boliviahealth.com' : 'secretaria@boliviahealth.com'}
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   required
@@ -460,7 +445,7 @@ export default function LoginPage() {
             </div>
             <DialogFooter>
               <Button type="submit" className="w-full" disabled={isAdminLoading}>
-                {isAdminLoading ? 'Verificando...' : 'Ingresar al Panel Central'}
+                {isAdminLoading ? 'Verificando...' : `Ingresar como ${dialogRole === 'admin' ? 'Administrador' : 'Secretaría'}`}
               </Button>
             </DialogFooter>
           </form>

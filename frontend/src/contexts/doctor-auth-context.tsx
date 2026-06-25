@@ -11,6 +11,8 @@ interface DoctorAuthContextType {
   doctorLicense: string | null
   doctorId: string | null
   doctorSpecialty: string | null
+  doctorHospital: string | null
+  doctorBranches: string[]
   approvalStatus: 'pending' | 'approved' | 'rejected' | null
   identityVerified: boolean
   licenseVerified: boolean
@@ -26,6 +28,8 @@ const defaultValue: DoctorAuthContextType = {
   doctorLicense: null,
   doctorId: null,
   doctorSpecialty: null,
+  doctorHospital: null,
+  doctorBranches: [],
   approvalStatus: null,
   identityVerified: false,
   licenseVerified: false,
@@ -42,6 +46,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
   const [doctorLicense, setDoctorLicense] = useState<string | null>(null)
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const [doctorSpecialty, setDoctorSpecialty] = useState<string | null>(null)
+  const [doctorHospital, setDoctorHospital] = useState<string | null>(null)
+  const [doctorBranches, setDoctorBranches] = useState<string[]>([])
   const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | null>(null)
   const [identityVerified, setIdentityVerified] = useState(false)
   const [licenseVerified, setLicenseVerified] = useState(false)
@@ -53,6 +59,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
     setIsDoctorAuthenticated(false)
     setDoctorName(null)
     setDoctorId(null)
+    setDoctorHospital(null)
+    setDoctorBranches([])
   }, [disconnect])
 
   const fetchDoctorProfile = useCallback(async (walletAddr: string) => {
@@ -60,7 +68,7 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, hospitals(name)')
         .eq('wallet_address', walletAddr.toLowerCase())
         .single()
 
@@ -72,6 +80,16 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         setApprovalStatus(data.approval_status)
         setIdentityVerified(data.identity_verified || false)
         setLicenseVerified(data.license_verified || false)
+        setDoctorHospital(data.hospitals?.name || 'Hospital del Sistema')
+
+        // Cargar sucursales del doctor
+        const { data: sucs } = await supabase
+          .from('doctor_sucursal')
+          .select('sucursales(name)')
+          .eq('doctor_id', data.id)
+        
+        const branchNames = sucs?.map((s: any) => s.sucursales?.name).filter(Boolean) || []
+        setDoctorBranches(branchNames)
         setIsDoctorAuthenticated(true)
       } else {
         setIsDoctorAuthenticated(false)
@@ -82,6 +100,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         setApprovalStatus(null)
         setIdentityVerified(false)
         setLicenseVerified(false)
+        setDoctorHospital(null)
+        setDoctorBranches([])
       }
     } catch (err) {
       console.error('Error al verificar perfil de doctor:', err)
@@ -107,17 +127,14 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
             filter: `wallet_address=eq.${address.toLowerCase()}`
           },
           (payload) => {
-            console.log('Cambio detectado en perfil (Realtime):', payload.new)
-            const data = payload.new
-            if (data.role === 'medico') {
-              setDoctorName(data.full_name)
-              setDoctorId(data.id)
-              setDoctorSpecialty(data.specialty || 'General')
-              setDoctorLicense(data.license_number || data.cedula_identidad || 'PENDIENTE')
-              setApprovalStatus(data.approval_status)
-              setIdentityVerified(data.identity_verified || false)
-              setLicenseVerified(data.license_verified || false)
-              setIsDoctorAuthenticated(true)
+            if (payload.new) {
+              const updated = payload.new
+              setDoctorName(updated.full_name)
+              setDoctorSpecialty(updated.specialty || 'General')
+              setDoctorLicense(updated.license_number || updated.cedula_identidad || 'PENDIENTE')
+              setApprovalStatus(updated.approval_status)
+              setIdentityVerified(updated.identity_verified || false)
+              setLicenseVerified(updated.license_verified || false)
             }
           }
         )
@@ -135,6 +152,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
       setApprovalStatus(null)
       setIdentityVerified(false)
       setLicenseVerified(false)
+      setDoctorHospital(null)
+      setDoctorBranches([])
     }
   }, [isConnected, address, fetchDoctorProfile])
 
@@ -147,6 +166,8 @@ export function DoctorAuthProvider({ children }: { children: ReactNode }) {
         doctorLicense,
         doctorId,
         doctorSpecialty,
+        doctorHospital,
+        doctorBranches,
         approvalStatus,
         identityVerified,
         licenseVerified,

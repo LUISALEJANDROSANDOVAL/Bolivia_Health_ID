@@ -44,7 +44,7 @@ interface WalletContextType {
   isDbConnected: boolean
   walletAddress: string | null
   userName: string | null
-  role: 'paciente' | 'medico' | null
+  role: 'paciente' | 'medico' | 'secretaria' | 'admin' | null
   connect: () => void
   connectDb: () => void
   disconnect: () => void
@@ -226,10 +226,62 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const activeIsConnected = particleConnected || isConnected;
 
   useEffect(() => {
-    if (activeIsConnected && activeAddress) {
-      syncProfile(activeAddress, particleUserInfo?.email, particleUserInfo?.name)
-    } else {
-      setProfile(null)
+    let active = true;
+
+    async function loadSessionProfile() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!active) return
+
+      if (session?.user) {
+        // Consultar el perfil por el ID de la sesión de Supabase Auth
+        const { data: userProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (active && userProfile) {
+          setProfile(userProfile)
+          return
+        }
+      }
+
+      // Si no hay sesión en Supabase Auth, procedemos con el flujo Web3 normal
+      if (activeIsConnected && activeAddress) {
+        syncProfile(activeAddress, particleUserInfo?.email, particleUserInfo?.name)
+      } else {
+        if (active) setProfile(null)
+      }
+    }
+
+    loadSessionProfile()
+
+    // Suscribirse a los cambios en Supabase Auth (para login/logout tradicional)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!active) return
+      
+      if (session?.user) {
+        const { data: userProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (active && userProfile) {
+          setProfile(userProfile)
+        }
+      } else {
+        if (activeIsConnected && activeAddress) {
+          syncProfile(activeAddress, particleUserInfo?.email, particleUserInfo?.name)
+        } else {
+          if (active) setProfile(null)
+        }
+      }
+    })
+
+    return () => {
+      active = false
+      subscription.unsubscribe()
     }
   }, [activeIsConnected, activeAddress, syncProfile, particleUserInfo])
 
@@ -274,17 +326,30 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setSessionActive(false)
       setSessionAddress(null)
       
-      // Cerrar sesión en Supabase Auth silenciosamente
-      await supabase.auth.signOut()
-
+      // 1. Desconectar Particle y resetear estados locales de Web3 antes de signOut
       if (particle && particleConnected) {
-        await particle.auth.logout();
+        try {
+          await particle.auth.logout();
+        } catch (e) {
+          console.error('Error during Particle logout:', e);
+        }
         setParticleConnected(false);
         setParticleAddress(null);
         setParticleUserInfo(null);
       }
-      wagmiDisconnect()
+
+      // 2. Desconectar Wagmi
+      try {
+        wagmiDisconnect()
+      } catch (e) {
+        console.error('Error during Wagmi disconnect:', e);
+      }
+
+      // 3. Resetear perfil local
       setProfile(null)
+
+      // 4. Cerrar sesión en Supabase Auth al final
+      await supabase.auth.signOut()
     } catch (error) {
       console.error('Error al desconectar:', error)
     }

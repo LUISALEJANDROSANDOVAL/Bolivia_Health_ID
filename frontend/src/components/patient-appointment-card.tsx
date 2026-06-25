@@ -14,16 +14,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 
-const BOLIVIAN_HEALTH_CENTERS = [
-  "Hospital de Clínicas (La Paz)",
-  "Hospital de la Mujer (La Paz)",
-  "Hospital del Niño (La Paz)",
-  "Hospital del Tórax (La Paz)",
-  "Hospital Viedma (Cochabamba)",
-  "Hospital San Juan de Dios (Santa Cruz)",
-  "Hospital Japonés (Santa Cruz)",
-  "Centro de Salud Local / de Barrio"
-]
+
 
 interface Doctor {
   id: string
@@ -49,9 +40,45 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
     end_time: '09:30',
     reason: 'Consulta General',
     priority: 'normal',
-    location: BOLIVIAN_HEALTH_CENTERS[0],
+    location: '',
     type: 'presencial'
   })
+
+  const [sucursalesList, setSucursalesList] = useState<any[]>([])
+  const [selectedSucursalId, setSelectedSucursalId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadSucursales() {
+      try {
+        const { data, error } = await supabase
+          .from('sucursales')
+          .select('*, hospitals(name)')
+          .order('name')
+        if (!error && data) {
+          setSucursalesList(data)
+          if (data.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              location: `${data[0].hospitals?.name || 'Hospital'} - ${data[0].name}`
+            }))
+            setSelectedSucursalId(data[0].id)
+          }
+        }
+      } catch (err) {
+        console.error('Error cargando sucursales:', err)
+      }
+    }
+    loadSucursales()
+  }, [])
+
+  const handleSucursalChange = (sucursalId: string) => {
+    const found = sucursalesList.find(s => s.id === sucursalId)
+    if (found) {
+      const locText = `${found.hospitals?.name || 'Hospital'} - ${found.name}`
+      setFormData(prev => ({ ...prev, location: locText }))
+      setSelectedSucursalId(sucursalId)
+    }
+  }
 
   // Effect for doctor search
   useEffect(() => {
@@ -118,7 +145,8 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
           priority: formData.priority,
           location: formData.location,
           type: formData.type,
-          status: 'scheduled'
+          status: 'scheduled',
+          sucursal_id: formData.type === 'presencial' ? selectedSucursalId : null
         })
 
       if (error) throw error
@@ -134,9 +162,12 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
         end_time: '09:30',
         reason: 'Consulta General',
         priority: 'normal',
-        location: BOLIVIAN_HEALTH_CENTERS[0],
+        location: sucursalesList.length > 0 ? `${sucursalesList[0].hospitals?.name || 'Hospital'} - ${sucursalesList[0].name}` : '',
         type: 'presencial'
       })
+      if (sucursalesList.length > 0) {
+        setSelectedSucursalId(sucursalesList[0].id)
+      }
       
       if (onAppointmentCreated) onAppointmentCreated()
     } catch (err: any) {
@@ -283,11 +314,19 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
                   <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Tipo de Cita</Label>
                   <Select 
                     value={formData.type} 
-                    onValueChange={(val: 'virtual' | 'presencial') => setFormData({
-                      ...formData, 
-                      type: val,
-                      location: val === 'virtual' ? 'Consultorio Virtual' : BOLIVIAN_HEALTH_CENTERS[0]
-                    })}
+                    onValueChange={(val: 'virtual' | 'presencial') => {
+                      const defaultLoc = val === 'virtual' ? 'Consultorio Virtual' : (sucursalesList.length > 0 ? `${sucursalesList[0].hospitals?.name || 'Hospital'} - ${sucursalesList[0].name}` : '');
+                      setFormData({
+                        ...formData, 
+                        type: val,
+                        location: defaultLoc
+                      });
+                      if (val === 'presencial' && sucursalesList.length > 0) {
+                        setSelectedSucursalId(sucursalesList[0].id);
+                      } else {
+                        setSelectedSucursalId(null);
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 text-sm font-bold">
                       <SelectValue placeholder="Tipo" />
@@ -303,16 +342,16 @@ export function PatientAppointmentCard({ onAppointmentCreated }: { onAppointment
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-foreground/40 ml-1">Establecimiento de Salud</Label>
                     <Select 
-                      value={formData.location} 
-                      onValueChange={(val) => setFormData({...formData, location: val})}
+                      value={selectedSucursalId || ''} 
+                      onValueChange={handleSucursalChange}
                     >
                       <SelectTrigger className="h-12 rounded-2xl bg-foreground/[0.03] border-border/50 text-sm font-bold">
-                        <SelectValue placeholder="Seleccionar hospital" />
+                        <SelectValue placeholder="Seleccionar establecimiento" />
                       </SelectTrigger>
                       <SelectContent className="rounded-2xl border-border/50">
-                        {BOLIVIAN_HEALTH_CENTERS.map((center) => (
-                          <SelectItem key={center} value={center} className="rounded-xl font-bold">
-                            {center}
+                        {sucursalesList.map((s) => (
+                          <SelectItem key={s.id} value={s.id} className="rounded-xl font-bold">
+                            {s.hospitals?.name || 'Hospital'} - {s.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

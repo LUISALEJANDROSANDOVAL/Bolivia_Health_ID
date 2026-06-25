@@ -17,7 +17,7 @@ export function WelcomeBanner() {
     if (walletAddress && isDbConnected) {
       supabase
         .from('profiles')
-        .select('*')
+        .select('*, hospitals(name)')
         .eq('wallet_address', walletAddress.toLowerCase())
         .maybeSingle()
         .then(({ data }) => {
@@ -146,7 +146,9 @@ export function WelcomeBanner() {
         <>Bienvenido a <br /><span className="opacity-90">Bolivia Health ID</span></>
       )}
       description="Tu identidad de salud descentralizada gestionada por tu propia Wallet. Seguridad inquebrantable para tus registros médicos."
-      subtitle="Tu historial médico está sincronizado y protegido en la red Avalanche Fuji."
+      subtitle={profileData?.hospitals?.name 
+        ? `Afiliación: ${profileData.hospitals.name} | Tu historial médico está protegido en Avalanche Fuji.`
+        : "Tu historial médico está sincronizado y protegido en la red Avalanche Fuji."}
       stats={[
         { label: 'Cumplimiento', value: '98%', icon: TrendingUp },
         { label: 'Seguridad', value: isConnected ? `${securityScore}%` : '0%', icon: Shield }

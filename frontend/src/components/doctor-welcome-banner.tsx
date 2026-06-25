@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 
 export function DoctorWelcomeBanner() {
-  const { isDoctorAuthenticated, doctorName, doctorLicense, loading } = useDoctorAuth()
+  const { isDoctorAuthenticated, doctorName, doctorLicense, doctorHospital, doctorBranches, loading } = useDoctorAuth()
   const { isConnected, connect, walletAddress, sessionActive, startClinicalSession } = useWallet()
   const [showActivationModal, setShowActivationModal] = useState(false)
   const [activating, setActivating] = useState(false)
@@ -164,7 +164,7 @@ export function DoctorWelcomeBanner() {
           ? "Esta wallet no está registrada como profesional médico en el sistema. Por favor, conecta tu wallet autorizada."
           : "Gestiona historiales médicos de forma segura con tecnología blockchain. Privacidad total para tus pacientes."
         }
-        subtitle={isDoctorAuthenticated ? `Licencia: ${doctorLicense}` : isConnected ? `Wallet: ${walletAddress?.slice(0,6)}...${walletAddress?.slice(-4)}` : "Verificando identidad digital..."}
+        subtitle={isDoctorAuthenticated ? `Licencia: ${doctorLicense} | Hospital: ${doctorHospital || 'General'} | Sedes: ${doctorBranches && doctorBranches.length > 0 ? doctorBranches.join(', ') : 'Ninguna'}` : isConnected ? `Wallet: ${walletAddress?.slice(0,6)}...${walletAddress?.slice(-4)}` : "Verificando identidad digital..."}
         stats={[
           { 
             label: 'Historial de Firmas', 

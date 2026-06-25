@@ -21,6 +21,7 @@ function RoleGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isConnected && role) {
       const isDoctorPath = pathname.startsWith('/doctor')
+      const isSecretaryPath = pathname.startsWith('/secretaria')
       const isVerificando = pathname === '/verificando'
       const isPublic = pathname === '/'
       const isRegister = pathname === '/register'
@@ -30,8 +31,12 @@ function RoleGuard({ children }: { children: React.ReactNode }) {
 
       if (role === 'medico' && !isDoctorPath) {
         router.push('/doctor')
-      } else if (role === 'paciente' && isDoctorPath) {
+      } else if (role === 'paciente' && (isDoctorPath || isSecretaryPath)) {
         router.push('/dashboard')
+      } else if (role === 'secretaria' && !isSecretaryPath) {
+        router.push('/secretaria')
+      } else if (role === 'medico' && isSecretaryPath) {
+        router.push('/doctor')
       }
     }
   }, [isConnected, role, pathname, router])
