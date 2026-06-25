@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -14,7 +14,8 @@ import {
   Alert
 } from 'react-native';
 import { Text } from '../components/CustomText';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   User,
   Activity,
@@ -23,8 +24,7 @@ import {
   ChevronLeft,
   Save,
   LogOut,
-  Copy,
-  CheckCircle2
+  Copy
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -42,6 +42,7 @@ import {
 export default function ConfiguracionScreen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
+  const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,10 +54,26 @@ export default function ConfiguracionScreen({ navigation }: any) {
   const [faceIdEnabled, setFaceIdEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
+  // Animations
+  const anim1 = useRef(new Animated.Value(0)).current;
+  const anim2 = useRef(new Animated.Value(0)).current;
+  const anim3 = useRef(new Animated.Value(0)).current;
+  const anim4 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.stagger(150, [
+        Animated.spring(anim1, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.spring(anim2, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.spring(anim3, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.spring(anim4, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [loading]);
 
   const loadData = async () => {
     try {
@@ -77,9 +94,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setSaving(true);
-      
       const success = await updatePatientData(wallet, profile, vitals);
-      
       setSaving(false);
       if (success) {
         Toast.show({ type: 'success', text1: 'Éxito', text2: 'Cambios guardados correctamente' });
@@ -106,10 +121,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             await logoutPatient();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            });
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
           },
         },
       ]
@@ -122,8 +134,6 @@ export default function ConfiguracionScreen({ navigation }: any) {
     Toast.show({ type: 'success', text1: 'Copiado', text2: 'Dirección copiada al portapapeles' });
   };
 
-
-
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
@@ -132,21 +142,41 @@ export default function ConfiguracionScreen({ navigation }: any) {
     );
   }
 
+  // Styles for animated cards
+  const getAnimatedStyle = (anim: Animated.Value) => ({
+    opacity: anim,
+    transform: [{
+      translateY: anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [30, 0]
+      })
+    }]
+  });
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ChevronLeft size={28} color={theme.textPrimary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Configuración</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.saveButton}>
-          {saving ? (
-            <ActivityIndicator size="small" color={theme.primary} />
-          ) : (
-            <Save size={24} color={theme.primary} />
-          )}
-        </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      
+      {/* Premium Gradient Header */}
+      <View style={styles.gradientHeaderContainer}>
+        <LinearGradient 
+          colors={isDark ? ['#020C1B', '#0A192F'] : ['#F8FAFC', '#E2E8F0']}
+          style={[StyleSheet.absoluteFillObject, { borderBottomLeftRadius: 30, borderBottomRightRadius: 30 }]}
+        />
+        <SafeAreaView edges={['top']} style={{ paddingBottom: 16 }}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+              <ChevronLeft size={28} color={theme.textPrimary} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Configuración</Text>
+            <TouchableOpacity onPress={handleSave} disabled={saving} style={styles.headerBtn}>
+              {saving ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <Save size={24} color={theme.primary} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </View>
 
       <KeyboardAvoidingView 
@@ -160,9 +190,9 @@ export default function ConfiguracionScreen({ navigation }: any) {
         >
           
           {/* Section 1: Mi Perfil */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Animated.View style={[styles.card, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#E2E8F0' }, getAnimatedStyle(anim1)]}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+              <View style={[styles.iconContainer, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
                 <User size={20} color="#3B82F6" />
               </View>
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Mi Perfil</Text>
@@ -170,7 +200,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
             
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Cédula de Identidad (Solo lectura)</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]}>
                 <TextInput
                   style={[styles.input, { color: theme.textSecondary }]}
                   value={profile.cedula_identidad || ''}
@@ -181,7 +211,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Teléfono</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
                 <TextInput
                   style={[styles.input, { color: theme.textPrimary }]}
                   value={profile.phone || ''}
@@ -195,7 +225,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Dirección</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
                 <TextInput
                   style={[styles.input, { color: theme.textPrimary }]}
                   value={profile.address || ''}
@@ -205,12 +235,12 @@ export default function ConfiguracionScreen({ navigation }: any) {
                 />
               </View>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Section 2: Datos Clínicos */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Animated.View style={[styles.card, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#E2E8F0' }, getAnimatedStyle(anim2)]}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+              <View style={[styles.iconContainer, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
                 <Activity size={20} color="#EF4444" />
               </View>
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Datos Clínicos</Text>
@@ -218,7 +248,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Tipo de Sangre</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+              <View style={[styles.inputContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
                 <TextInput
                   style={[styles.input, { color: theme.textPrimary }]}
                   value={vitals.blood_type || ''}
@@ -231,7 +261,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>Alergias</Text>
-              <View style={[styles.inputContainer, { backgroundColor: theme.background, borderColor: theme.border, height: 80 }]}>
+              <View style={[styles.inputContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', height: 80, paddingVertical: 12 }]}>
                 <TextInput
                   style={[styles.input, { color: theme.textPrimary, height: '100%', textAlignVertical: 'top' }]}
                   value={vitals.allergies || ''}
@@ -242,12 +272,12 @@ export default function ConfiguracionScreen({ navigation }: any) {
                 />
               </View>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Section 3: Seguridad y Preferencias */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Animated.View style={[styles.card, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#E2E8F0' }, getAnimatedStyle(anim3)]}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
+              <View style={[styles.iconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
                 <Shield size={20} color="#10B981" />
               </View>
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Seguridad y Preferencias</Text>
@@ -265,7 +295,7 @@ export default function ConfiguracionScreen({ navigation }: any) {
               />
             </View>
             
-            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <View style={[styles.divider, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]} />
 
             <View style={styles.switchRow}>
               <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>Notificaciones Push</Text>
@@ -278,43 +308,50 @@ export default function ConfiguracionScreen({ navigation }: any) {
                 trackColor={{ false: '#767577', true: '#3B82F6' }}
               />
             </View>
-          </View>
+          </Animated.View>
 
           {/* Section 4: Blockchain e Información */}
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Animated.View style={[styles.card, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#E2E8F0' }, getAnimatedStyle(anim4)]}>
             <View style={styles.cardHeader}>
-              <View style={[styles.iconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+              <View style={[styles.iconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
                 <LinkIcon size={20} color="#8B5CF6" />
               </View>
               <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Blockchain e Información</Text>
             </View>
 
             <Text style={[styles.label, { color: theme.textSecondary, marginBottom: 8 }]}>Dirección de la Wallet</Text>
-            <TouchableOpacity style={[styles.walletContainer, { backgroundColor: theme.background, borderColor: theme.border }]} onPress={copyToClipboard}>
+            <TouchableOpacity style={[styles.walletContainer, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9' }]} onPress={copyToClipboard} activeOpacity={0.7}>
               <Text style={[styles.walletText, { color: theme.textPrimary }]} numberOfLines={1} ellipsizeMode="middle">
                 {wallet}
               </Text>
-              <Copy size={16} color={theme.textSecondary} />
+              <Copy size={18} color={theme.textSecondary} />
             </TouchableOpacity>
 
             <View style={styles.networkInfoRow}>
               <View style={styles.networkDot} />
               <Text style={[styles.networkText, { color: theme.textSecondary }]}>Avalanche Fuji Testnet</Text>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <LogOut size={20} color="#FFFFFF" />
-            <Text style={styles.logoutText}>Cerrar Identidad Médica</Text>
-          </TouchableOpacity>
+          <Animated.View style={getAnimatedStyle(anim4)}>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+              <LinearGradient
+                colors={['#EF4444', '#DC2626']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.logoutGradient}
+              >
+                <LogOut size={20} color="#FFFFFF" />
+                <Text style={styles.logoutText}>Cerrar Identidad Médica</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
 
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
-
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -322,164 +359,153 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  gradientHeaderContainer: {
+    paddingHorizontal: 20,
+    zIndex: 10,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
+    paddingVertical: 10,
   },
-  backButton: {
-    padding: 4,
+  headerBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(150, 150, 150, 0.1)',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  saveButton: {
-    padding: 4,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   scrollContent: {
     padding: 20,
-    gap: 20,
+    gap: 24,
+    paddingTop: 30,
   },
   card: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    borderRadius: 24,
+    padding: 24,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
+    marginBottom: 24,
+    gap: 16,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   label: {
     fontSize: 13,
-    marginBottom: 8,
-    fontWeight: '600',
+    marginBottom: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+    opacity: 0.8,
   },
   inputContainer: {
-    borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    height: 48,
+    height: 56,
     justifyContent: 'center',
   },
   input: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'Inter_500Medium',
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   switchLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
   },
   divider: {
     height: 1,
-    marginVertical: 12,
+    marginVertical: 8,
   },
   walletContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   walletText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     flex: 1,
     marginRight: 10,
   },
   networkInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    gap: 8,
+    marginTop: 20,
+    gap: 10,
+    justifyContent: 'center',
   },
   networkDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981', // Green for active network
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   networkText: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
   },
   logoutButton: {
+    marginTop: 10,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logoutGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EF4444',
-    paddingVertical: 16,
-    borderRadius: 16,
-    marginTop: 10,
-    gap: 10,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    paddingVertical: 18,
+    gap: 12,
   },
   logoutText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  toastContainer: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  toastContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 30,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  toastText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  }
 });
