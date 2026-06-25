@@ -149,6 +149,8 @@ export async function getPatientData(walletAddress: string): Promise<PatientData
     .from('patient_vitals')
     .select('*')
     .eq('patient_id', profile.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (vitalsError) {
@@ -184,5 +186,96 @@ export async function logoutPatient(): Promise<void> {
     await AsyncStorage.removeItem(CURRENT_WALLET_KEY);
   } catch (error) {
     console.error('Error logging out patient:', error);
+  }
+}
+
+/**
+ * Updates patient profile and vitals.
+ */
+export async function updatePatientData(
+  walletAddress: string,
+  profileUpdates: Partial<PatientProfile>,
+  vitalsUpdates: Partial<PatientVitals>
+): Promise<boolean> {
+  try {
+    const wallet = walletAddress.toLowerCase();
+    const cacheKey = `${PATIENT_PROFILE_CACHE_KEY}_${wallet}`;
+
+    // Ensure session
+    const expectedEmail = `${wallet}@boliviahealth.com`;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || session.user?.email !== expectedEmail) {
+      console.log(`[PatientService] Re-authenticating session before update...`);
+      const loggedIn = await loginPatient(wallet);
+      if (!loggedIn) return false;
+    }
+
+    // Update Profile
+    if (Object.keys(profileUpdates).length > 0) {
+      const { id, wallet_address, role, created_at, ...safeProfileUpdates } = profileUpdates as any;
+      
+      if (Object.keys(safeProfileUpdates).length > 0) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update(safeProfileUpdates)
+          .eq('wallet_address', wallet);
+
+        if (profileError) {
+          console.error('Error updating profile:', profileError.message);
+          return false;
+        }
+      }
+    }
+
+    // Update Vitals (if id is available from existing profile)
+    // First, we need the profile ID
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('wallet_address', wallet)
+      .single();
+
+    if (profileData && Object.keys(vitalsUpdates).length > 0) {
+      // Check if vitals record exists
+      const { data: existingVitals } = await supabase
+        .from('patient_vitals')
+        .select('id')
+        .eq('patient_id', profileData.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingVitals) {
+        const { id, patient_id, created_at, ...safeVitalsUpdates } = vitalsUpdates as any;
+        const { error: vitalsError } = await supabase
+          .from('patient_vitals')
+          .update(safeVitalsUpdates)
+          .eq('id', existingVitals.id);
+
+        if (vitalsError) {
+          console.error('Error updating vitals:', vitalsError.message);
+          return false;
+        }
+      } else {
+        // Create new vitals record
+        const { id, patient_id, created_at, ...safeVitalsUpdates } = vitalsUpdates as any;
+        const { error: vitalsError } = await supabase
+          .from('patient_vitals')
+          .insert([{ patient_id: profileData.id, ...safeVitalsUpdates }]);
+
+        if (vitalsError) {
+          console.error('Error inserting vitals:', vitalsError.message);
+          return false;
+        }
+      }
+    }
+
+    // Clear cache to force refresh on next load
+    await AsyncStorage.removeItem(cacheKey);
+
+    return true;
+  } catch (error) {
+    console.error('Error in updatePatientData:', error);
+    return false;
   }
 }

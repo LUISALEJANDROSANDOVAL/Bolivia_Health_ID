@@ -21,14 +21,6 @@ import { Colors } from '../theme/Colors';
 
 const { width } = Dimensions.get('window');
 
-// ── DATOS DE DEMO ────────────────────────────────────────────────────────────
-const TURNO_DEMO = {
-  miTurno: 18,
-  turnoActual: 14,
-  totalEnEspera: 4,
-  tiempoEspera: 25,
-  consultorio: 'Consultorio 4',
-};
 
 export default function FichaActivaScreen({ route, navigation }: any) {
   const hospital = route?.params?.hospital ?? { nombre: 'Clínica del Sur', tiempo: '~10 min' };

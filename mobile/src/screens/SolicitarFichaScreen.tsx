@@ -1,20 +1,21 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, FlatList, useColorScheme, ActivityIndicator, Modal } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, FlatList, useColorScheme, Modal } from 'react-native';
 
 import {
   ArrowLeft,
   Search,
-  Star,
   MapPin,
-  ChevronDown,
-  GraduationCap,
   MessageCircle,
-  X
+  GraduationCap,
+  X,
+  Ghost
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/Colors';
 import { supabase } from '../services/supabase';
+import { Skeleton } from '../components/Skeleton';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 45) / 2; // 2 columns with spacing
@@ -73,7 +74,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
             ?.map((ds: any) => ds.sucursales?.name)
             .filter(Boolean) || [];
           const branchName = sucursalNames.join(', ') || 'Sede Central';
-          const branchId = doc.doctor_sucursal?.[0]?.sucursal_id || null;
+          const branchIds = doc.doctor_sucursal?.map((ds: any) => ds.sucursal_id) || [];
 
           const prefs = doc.preferences || {};
           const image = prefs.image || 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop';
@@ -84,12 +85,12 @@ export default function SolicitarFichaScreen({ navigation }: any) {
           return {
             id: doc.id,
             name: doc.full_name,
-            specialty: doc.specialty || 'Medicina General',
+            specialty: (doc.specialty || 'Medicina General').trim(),
             university,
             languages,
             rm: doc.license_number || 'S/N',
             branch: branchName,
-            branchId,
+            branchIds,
             image,
             featured,
           };
@@ -133,7 +134,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
     }
 
     if (selectedBranch) {
-      result = result.filter(d => d.branchId === selectedBranch.id);
+      result = result.filter(d => d.branchIds && d.branchIds.includes(selectedBranch.id));
     }
 
     if (selectedSpecialty) {
@@ -144,10 +145,14 @@ export default function SolicitarFichaScreen({ navigation }: any) {
   }, [activeFilter, selectedBranch, selectedSpecialty, doctors]);
 
   const handleDoctorPress = (doctor: any) => {
-    navigation.navigate('DoctorProfile', { doctor });
+    navigation.navigate('DoctorProfile', { 
+      doctor, 
+      preselectedBranchId: selectedBranch ? selectedBranch.id : null 
+    });
   };
 
   const handleFilterPillPress = (item: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (item === 'Todos') {
       setActiveFilter('Todos');
       setSelectedBranch(null);
@@ -317,13 +322,24 @@ export default function SolicitarFichaScreen({ navigation }: any) {
 
       {/* ── LISTA DE DOCTORES (GRID) ── */}
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={theme.primary} />
+        <View style={{ flex: 1, padding: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Skeleton width="48%" height={220} borderRadius={20} />
+            <Skeleton width="48%" height={220} borderRadius={20} />
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Skeleton width="48%" height={220} borderRadius={20} />
+            <Skeleton width="48%" height={220} borderRadius={20} />
+          </View>
         </View>
       ) : filteredDoctors.length === 0 ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ color: theme.textSecondary, fontSize: 16, fontWeight: '600' }}>
-            No se encontraron médicos con estos filtros.
+          <Ghost color={theme.textSecondary} size={64} style={{ marginBottom: 16, opacity: 0.5 }} />
+          <Text style={{ color: theme.textPrimary, fontSize: 18, fontWeight: '700', textAlign: 'center' }}>
+            No hay especialistas
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 8 }}>
+            Intenta cambiar los filtros o buscar en otra clínica.
           </Text>
         </View>
       ) : (
@@ -357,6 +373,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
               <TouchableOpacity 
                 style={[styles.modalItem, { borderBottomColor: theme.border }]}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedBranch(null);
                   setBranchModalVisible(false);
                 }}
@@ -368,6 +385,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
                   key={branch.id}
                   style={[styles.modalItem, { borderBottomColor: theme.border }]}
                   onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setSelectedBranch(branch);
                     setActiveFilter('Filtros');
                     setBranchModalVisible(false);
@@ -401,6 +419,7 @@ export default function SolicitarFichaScreen({ navigation }: any) {
               <TouchableOpacity 
                 style={[styles.modalItem, { borderBottomColor: theme.border }]}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedSpecialty(null);
                   setSpecialtyModalVisible(false);
                 }}

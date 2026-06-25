@@ -1,30 +1,23 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
-
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, useColorScheme } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getActiveWallet, getPatientData, PatientProfile } from '../services/patientService';
 import { supabase } from '../services/supabase';
 import { Colors } from '../theme/Colors';
+import { Skeleton } from '../components/Skeleton';
 import {
   Stethoscope,
-  Pill,
-  Ambulance,
   Lock,
-  Ticket,
-  User,
   Bell,
   Activity,
   MoreVertical,
   Clock,
   Phone,
   X,
-  Plus,
-  Home,
   FileText,
-  MessageSquare,
-  Calendar
+  Settings
 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -32,12 +25,41 @@ const { width, height } = Dimensions.get('window');
 export default function HomeScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
-  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
+  const [patientProfile, setPatientProfile] = useState<PatientProfile & { avatar_url?: string } | null>(null);
   const [activeAppointment, setActiveAppointment] = useState<any>(null);
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
 
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
+
+  // Animations
+  const animWelcome = useRef(new Animated.Value(0)).current;
+  const animCards = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+    loadData();
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.stagger(150, [
+        Animated.spring(animWelcome, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.spring(animCards, { toValue: 1, tension: 40, friction: 8, useNativeDriver: true }),
+      ]).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.05, duration: 1200, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true })
+        ])
+      ).start();
+    }
+  }, [loading]);
 
   const loadData = async () => {
     try {
@@ -52,6 +74,7 @@ export default function HomeScreen({ navigation }: any) {
           .select('*')
           .eq('patient_id', patientData.profile.id)
           .in('status', ['scheduled', 'confirmed', 'in_progress'])
+          .gte('appointment_date', new Date().toISOString().split('T')[0])
           .order('appointment_date', { ascending: true })
           .order('appointment_time', { ascending: true })
           .limit(1);
@@ -69,14 +92,6 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadData();
-    });
-    loadData();
-    return unsubscribe;
-  }, [navigation]);
-
   const formatAppointmentDate = (dateStr: string, timeStr: string) => {
     if (!dateStr) return '';
     try {
@@ -84,13 +99,10 @@ export default function HomeScreen({ navigation }: any) {
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
       const day = parseInt(parts[2], 10);
-      
       const date = new Date(year, month, day);
       const options: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
-      const formattedDate = date.toLocaleDateString('en-US', options);
-      const formattedTime = timeStr ? timeStr.slice(0, 5) : '';
+      const formattedDate = date.toLocaleDateString('es-ES', options);
       
-      // Calculate end time
       let endTimeStr = '';
       if (timeStr) {
         const [hours, minutes] = timeStr.split(':').map(Number);
@@ -100,19 +112,12 @@ export default function HomeScreen({ navigation }: any) {
           endMinutes -= 60;
           endHours += 1;
         }
+        const format12H = (h: number) => h === 0 ? 12 : h > 12 ? h - 12 : h;
         const period = hours >= 12 ? 'PM' : 'AM';
         const endPeriod = endHours >= 12 ? 'PM' : 'AM';
-        
-        const format12H = (h: number) => {
-          if (h === 0) return 12;
-          if (h > 12) return h - 12;
-          return h;
-        };
-        
         endTimeStr = `${format12H(hours)}:${minutes.toString().padStart(2, '0')} - ${format12H(endHours)}:${endMinutes.toString().padStart(2, '0')} ${endPeriod}`;
       }
-
-      return `${formattedDate} • ${endTimeStr}`;
+      return `${formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)} • ${endTimeStr}`;
     } catch (e) {
       return `${dateStr} • ${timeStr}`;
     }
@@ -120,514 +125,293 @@ export default function HomeScreen({ navigation }: any) {
 
   if (loading) {
     return (
-      <View style={[styles.loadingCenter, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>Sincronizando datos...</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.gradientHeaderContainer}>
+          <SafeAreaView style={styles.safeArea}>
+            <View style={styles.headerRow}>
+              <View>
+                <Skeleton width={120} height={20} borderRadius={10} style={{ marginBottom: 8 }} />
+                <Skeleton width={200} height={32} borderRadius={10} />
+              </View>
+              <Skeleton width={50} height={50} borderRadius={25} />
+            </View>
+          </SafeAreaView>
+        </View>
+        <View style={[styles.bottomSheet, { backgroundColor: theme.surface }]}>
+          <View style={{ padding: 24, marginTop: 40 }}>
+             <Skeleton width="100%" height={120} borderRadius={20} style={{ marginBottom: 24 }} />
+             <Skeleton width="60%" height={24} borderRadius={10} style={{ marginBottom: 16 }} />
+             <Skeleton width="100%" height={160} borderRadius={24} style={{ marginBottom: 12 }} />
+          </View>
+        </View>
       </View>
     );
   }
 
-  const firstName = patientProfile?.full_name ? patientProfile.full_name.split(' ')[0] : 'Rajesh';
+  const firstName = patientProfile?.full_name ? patientProfile.full_name.split(' ')[0] : 'Paciente';
+  const initial = firstName.charAt(0).toUpperCase();
+
+  const getAnimatedStyle = (anim: Animated.Value) => ({
+    opacity: anim,
+    transform: [{
+      translateY: anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [40, 0]
+      })
+    }]
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       
-      {/* ─── HEADER GRADIENT BACKGROUND ─── */}
-      <View style={styles.gradientHeaderContainer}>
-        <Svg height="100%" width="100%" style={StyleSheet.absoluteFillObject}>
-          <Defs>
-            <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor={isDark ? '#081720' : '#0F2B3D'} />
-              <Stop offset="50%" stopColor={isDark ? '#0D2A6E' : '#1E40AF'} />
-              <Stop offset="100%" stopColor={isDark ? '#1C4A9E' : '#3B82F6'} />
-            </LinearGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#grad)" />
-        </Svg>
-
+      {/* ─── PREMIUM GRADIENT HEADER ─── */}
+      <LinearGradient 
+        colors={isDark ? ['#051024', '#0A1B3F'] : ['#0F2B3D', '#1E40AF']} 
+        style={styles.gradientHeaderContainer}
+      >
         <SafeAreaView style={styles.safeArea}>
-          {/* Header Row */}
           <View style={styles.headerRow}>
-            <TouchableOpacity style={styles.avatarImageContainer} onPress={() => navigation?.navigate('HealthID')}>
-              <Image 
-                source={{uri: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop'}} 
-                style={styles.avatarImage} 
-              />
+            {/* Smart Avatar */}
+            <TouchableOpacity style={styles.avatarContainer} onPress={() => navigation?.navigate('HealthID')} activeOpacity={0.8}>
+              {patientProfile?.avatar_url ? (
+                <Image source={{ uri: patientProfile.avatar_url }} style={styles.avatarImage} />
+              ) : (
+                <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.smartAvatar}>
+                  <Text style={styles.smartAvatarText}>{initial}</Text>
+                </LinearGradient>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bellButton}>
-              <Bell size={20} color="#0F2B3D" strokeWidth={2} />
-            </TouchableOpacity>
+
+            <View style={styles.headerRightButtons}>
+              <TouchableOpacity style={styles.iconButton}>
+                <Bell size={20} color="#0F2B3D" strokeWidth={2.5} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton} onPress={() => navigation?.navigate('Configuracion')}>
+                <Settings size={20} color="#0F2B3D" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Welcome Text & Urgent Care Button */}
-          <View style={styles.welcomeContainer}>
-            <Text style={styles.welcomeText}>¡Hola,</Text>
-            <Text style={styles.nameText}>{firstName}!</Text>
+          <Animated.View style={[styles.welcomeContainer, getAnimatedStyle(animWelcome)]}>
+            <Text style={styles.welcomeText}>¡Hola, <Text style={styles.nameText}>{firstName}</Text>!</Text>
             <Text style={styles.subtitleText}>¿Cómo te sientes hoy?</Text>
             
-            <TouchableOpacity 
-              style={styles.urgentCareBtn}
-              onPress={() => setEmergencyModalVisible(true)}
-            >
-              <Activity size={18} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.urgentCareText}>Atención Urgente</Text>
-            </TouchableOpacity>
-          </View>
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <TouchableOpacity 
+                style={styles.urgentCareBtn}
+                onPress={() => setEmergencyModalVisible(true)}
+                activeOpacity={0.9}
+              >
+                <LinearGradient colors={['#EF4444', '#B91C1C']} style={styles.urgentGradient}>
+                  <Activity size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <Text style={styles.urgentCareText}>Atención Urgente</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </Animated.View>
 
-          {/* Doctor Image Overlay */}
+          {/* Decorative Doctor Image Overlay (Bottom right of header) */}
           <Image
             source={require('../../assets/doctor_hero_female_cropped.png')}
             style={styles.doctorImage}
             resizeMode="contain"
           />
         </SafeAreaView>
-      </View>
+      </LinearGradient>
 
-      {/* ─── BOTTOM SHEET (WHITE/DARK AREA) ─── */}
+      {/* ─── BOTTOM SHEET ─── */}
       <View style={[styles.bottomSheet, { backgroundColor: theme.background }]}>
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Services Section */}
-          <Text style={[styles.sectionTitle, { marginBottom: 20 }]}>Servicios Clínicos</Text>
-          <View style={styles.servicesGrid}>
-            <View style={styles.serviceItem}>
-              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('SolicitarFicha')}>
-                <Stethoscope size={28} color={theme.primary} strokeWidth={1.5} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          
+          <Animated.View style={getAnimatedStyle(animCards)}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Servicios Clínicos</Text>
+            <View style={styles.servicesGrid}>
+              <TouchableOpacity style={styles.serviceItem} onPress={() => navigation?.navigate('SolicitarFicha')} activeOpacity={0.7}>
+                <LinearGradient colors={['rgba(59,130,246,0.15)', 'rgba(59,130,246,0.05)']} style={styles.serviceCircle}>
+                  <Stethoscope size={28} color="#3B82F6" strokeWidth={2} />
+                </LinearGradient>
+                <Text style={[styles.serviceText, { color: theme.textSecondary }]}>Agendar Cita</Text>
               </TouchableOpacity>
-              <Text style={styles.serviceText}>Agendar Cita</Text>
-            </View>
 
-            <View style={styles.serviceItem}>
-              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('Historial')}>
-                <FileText size={28} color={theme.primary} strokeWidth={1.5} />
+              <TouchableOpacity style={styles.serviceItem} onPress={() => navigation?.navigate('Historial')} activeOpacity={0.7}>
+                <LinearGradient colors={['rgba(16,185,129,0.15)', 'rgba(16,185,129,0.05)']} style={styles.serviceCircle}>
+                  <FileText size={28} color="#10B981" strokeWidth={2} />
+                </LinearGradient>
+                <Text style={[styles.serviceText, { color: theme.textSecondary }]}>Historial</Text>
               </TouchableOpacity>
-              <Text style={styles.serviceText}>Historial</Text>
-            </View>
 
-            <View style={styles.serviceItem}>
-              <TouchableOpacity style={[styles.serviceCircle, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation?.navigate('Permisos')}>
-                <Lock size={28} color={theme.primary} strokeWidth={1.5} />
+              <TouchableOpacity style={styles.serviceItem} onPress={() => navigation?.navigate('Permisos')} activeOpacity={0.7}>
+                <LinearGradient colors={['rgba(139,92,246,0.15)', 'rgba(139,92,246,0.05)']} style={styles.serviceCircle}>
+                  <Lock size={28} color="#8B5CF6" strokeWidth={2} />
+                </LinearGradient>
+                <Text style={[styles.serviceText, { color: theme.textSecondary }]}>Permisos</Text>
               </TouchableOpacity>
-              <Text style={styles.serviceText}>Permisos</Text>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* Appointment Section */}
-          <View style={styles.appointmentHeader}>
-            <Text style={styles.sectionTitle}>Próxima Cita</Text>
-            <TouchableOpacity onPress={() => navigation?.navigate('MisCitas')}>
-              <Text style={styles.seeAllText}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
-
-          {activeAppointment ? (
-            <View style={[styles.appointmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={styles.appointmentDateRow}>
-                <View style={styles.dateInfo}>
-                  <Clock size={16} color={theme.textPrimary} strokeWidth={2} />
-                  <Text style={styles.dateText}>
-                    {formatAppointmentDate(activeAppointment.appointment_date, activeAppointment.appointment_time)}
-                  </Text>
-                </View>
-                <MoreVertical size={20} color={theme.textSecondary} />
-              </View>
-
-              <View style={[styles.appointmentDivider, { backgroundColor: theme.border }]} />
-
-              <View style={styles.doctorInfoRow}>
-                <View style={[styles.doctorAvatarContainer, { backgroundColor: theme.background }]}>
-                  <Image 
-                    source={require('../../assets/doctor_hero_female_cropped.png')} 
-                    style={styles.cardDoctorImage} 
-                  />
-                  <View style={styles.onlineIndicator} />
-                </View>
-                <View style={styles.doctorDetails}>
-                  <Text style={styles.doctorName}>{activeAppointment.doctor_name || 'Dr. Prem Tiwari'}</Text>
-                  <Text style={styles.doctorSpecialty}>{activeAppointment.specialty || 'Orthopedic'}</Text>
-                </View>
-              </View>
+          <Animated.View style={[getAnimatedStyle(animCards), { marginTop: 30 }]}>
+            <View style={styles.appointmentHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Próxima Cita</Text>
+              <TouchableOpacity onPress={() => navigation?.navigate('MisCitas')}>
+                <Text style={styles.seeAllText}>Ver todas</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity 
-              style={[styles.appointmentCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => navigation?.navigate('SolicitarFicha')}
-            >
-              <Text style={styles.dateText}>No tienes citas próximas</Text>
-              <Text style={[styles.doctorSpecialty, {marginTop: 4}]}>Toca aquí para agendar una consulta</Text>
-            </TouchableOpacity>
-          )}
+
+            {activeAppointment ? (
+              <TouchableOpacity 
+                activeOpacity={0.9} 
+                onPress={() => navigation?.navigate('FichaActiva', { appointmentId: activeAppointment.id })}
+                style={[styles.appointmentCard, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#CBD5E1' }]}
+              >
+                <View style={styles.appointmentDateRow}>
+                  <View style={styles.dateInfo}>
+                    <Clock size={16} color={theme.textPrimary} strokeWidth={2.5} />
+                    <Text style={[styles.dateText, { color: theme.textPrimary }]}>
+                      {formatAppointmentDate(activeAppointment.appointment_date, activeAppointment.appointment_time)}
+                    </Text>
+                  </View>
+                  <MoreVertical size={20} color={theme.textSecondary} />
+                </View>
+
+                <View style={[styles.appointmentDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
+
+                <View style={styles.doctorInfoRow}>
+                  <View style={styles.doctorAvatarContainer}>
+                    {/* Hardcoded fallback strictly for the doctor card until dynamic backend supports it */}
+                    <Image 
+                      source={{ uri: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop' }} 
+                      style={styles.cardDoctorImage} 
+                    />
+                    <View style={styles.onlineIndicator} />
+                  </View>
+                  <View style={styles.doctorDetails}>
+                    <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{activeAppointment.doctor_name || 'Médico Asignado'}</Text>
+                    <Text style={[styles.doctorSpecialty, { color: theme.textSecondary }]}>{activeAppointment.specialty || 'Consulta Médica'}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.appointmentCard, styles.emptyCard, { backgroundColor: theme.surface, shadowColor: isDark ? '#000' : '#CBD5E1' }]}
+                onPress={() => navigation?.navigate('SolicitarFicha')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.emptyCardIcon}>
+                  <Clock size={32} color={theme.textSecondary} opacity={0.5} />
+                </View>
+                <Text style={[styles.dateText, { color: theme.textPrimary }]}>No tienes citas próximas</Text>
+                <Text style={[styles.doctorSpecialty, { color: theme.textSecondary, marginTop: 4 }]}>Toca aquí para agendar tu primera consulta médica</Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
           
           <View style={{height: 130}} />
         </ScrollView>
       </View>
 
       {/* ─── EMERGENCY MODAL ─── */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={emergencyModalVisible}
-        onRequestClose={() => setEmergencyModalVisible(false)}
-      >
+      <Modal animationType="fade" transparent={true} visible={emergencyModalVisible} onRequestClose={() => setEmergencyModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <TouchableOpacity 
-              style={[styles.modalCloseButton, { backgroundColor: theme.background }]}
-              onPress={() => setEmergencyModalVisible(false)}
-            >
+          <Animated.View style={[styles.modalContent, { backgroundColor: theme.surface, transform: [{ scale: 1 }] }]}>
+            <TouchableOpacity style={[styles.modalCloseButton, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => setEmergencyModalVisible(false)}>
               <X size={20} color={theme.textSecondary} />
             </TouchableOpacity>
-            
             <View style={styles.modalHeaderIcon}>
-              <Activity size={32} color="#EF4444" />
+              <LinearGradient colors={['rgba(239,68,68,0.2)', 'rgba(239,68,68,0.05)']} style={styles.modalIconBg}>
+                <Activity size={36} color="#EF4444" strokeWidth={2.5} />
+              </LinearGradient>
             </View>
-
-            <Text style={styles.modalTitle}>Asistencia de Emergencia</Text>
-            <Text style={styles.modalText}>
-              Llama a una ambulancia inmediatamente.
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Asistencia Inmediata</Text>
+            <Text style={[styles.modalText, { color: theme.textSecondary }]}>
+              Comunícate directamente con los servicios de emergencia nacionales.
             </Text>
-
             <View style={styles.emergencyPhonesList}>
-              <TouchableOpacity 
-                style={styles.emergencyPhoneItem}
-                onPress={() => Linking.openURL('tel:165')}
-              >
-                <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
+              <TouchableOpacity style={styles.emergencyPhoneItem} onPress={() => Linking.openURL('tel:165')} activeOpacity={0.8}>
+                <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.phoneIconBg}>
+                  <Phone size={18} color="#FFFFFF" fill="#FFFFFF" />
+                </LinearGradient>
                 <View style={styles.phoneTexts}>
-                  <Text style={styles.phoneLabel}>Ambulancia Nacional</Text>
+                  <Text style={[styles.phoneLabel, { color: theme.textPrimary }]}>Ambulancia Nacional</Text>
                   <Text style={styles.phoneValue}>165</Text>
                 </View>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity 
-              style={styles.btnModalClose}
-              onPress={() => setEmergencyModalVisible(false)}
-            >
-              <Text style={styles.btnModalCloseText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingCenter: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#64748B',
-  },
+  container: { flex: 1 },
+  gradientHeaderContainer: { height: height * 0.42, width: '100%', position: 'relative' },
+  safeArea: { flex: 1, paddingHorizontal: 24, paddingTop: Platform.OS === 'android' ? 20 : 0 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, zIndex: 10 },
   
-  // Header Gradient Area
-  gradientHeaderContainer: {
-    height: height * 0.45,
-    width: '100%',
-    position: 'relative',
+  // Smart Avatar
+  avatarContainer: {
+    width: 48, height: 48, borderRadius: 24, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.8)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: 24,
+  avatarImage: { width: '100%', height: '100%' },
+  smartAvatar: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  smartAvatarText: { color: '#FFF', fontSize: 20, fontWeight: '800' },
+  
+  headerRightButtons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconButton: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.95)',
+    justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 10,
-    zIndex: 10,
-  },
-  avatarImageContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  bellButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Welcome Text
-  welcomeContainer: {
-    marginTop: 20,
-    zIndex: 10,
-    maxWidth: '52%',
-  },
-  welcomeText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 38,
-  },
-  nameText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 38,
-  },
-  subtitleText: {
-    fontSize: 16,
-    color: '#E2E8F0',
-    marginTop: 8,
-  },
-  urgentCareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginTop: 15,
-    gap: 6,
-  },
-  urgentCareText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-
-  // Doctor Image Override
-  doctorImage: {
-    position: 'absolute',
-    right: -15,
-    bottom: -30, 
-    width: width * 0.58,
-    height: height * 0.46,
-    zIndex: 5,
-  },
-
-  // Bottom Sheet White Area
-  bottomSheet: {
-    flex: 1,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    marginTop: -30,
-    zIndex: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 30,
-  },
-
-  // Services
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  servicesGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    marginBottom: 35,
-  },
-  serviceItem: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  serviceCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  serviceText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // Appointment Section
-  appointmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  seeAllText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#2D7FF9',
-  },
-  appointmentCard: {
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.04,
-    shadowRadius: 15,
-    elevation: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2D7FF9',
-  },
-  appointmentDateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dateText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  appointmentDivider: {
-    height: 1,
-    marginVertical: 16,
-    marginLeft: 26,
-  },
-  doctorInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  doctorAvatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardDoctorImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 24,
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  doctorDetails: {
-    flex: 1,
-  },
-  doctorName: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  doctorSpecialty: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 43, 61, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    borderRadius: 28,
-    padding: 24,
-    alignItems: 'center',
-  },
-  modalCloseButton: {
-    position: 'absolute',
-    top: 18,
-    right: 18,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalHeaderIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: '#FEF2F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  modalText: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  emergencyPhonesList: {
-    width: '100%',
-    marginBottom: 16,
-  },
-  emergencyPhoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EF4444',
-    padding: 14,
-    borderRadius: 16,
-    gap: 12,
-  },
-  phoneTexts: {
-    flex: 1,
-  },
-  phoneLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
-    textTransform: 'uppercase',
-  },
-  phoneValue: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  btnModalClose: {
-    paddingVertical: 12,
-  },
-  btnModalCloseText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  welcomeContainer: { marginTop: 30, zIndex: 10, maxWidth: width * 0.65 },
+  welcomeText: { fontSize: 32, color: '#FFFFFF', fontWeight: '400', letterSpacing: -0.5 },
+  nameText: { fontWeight: '800' },
+  subtitleText: { fontSize: 16, color: 'rgba(255,255,255,0.8)', marginTop: 8, fontWeight: '500', lineHeight: 22 },
+  
+  urgentCareBtn: { marginTop: 24, borderRadius: 30, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8, alignSelf: 'flex-start' },
+  urgentGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 30, gap: 10 },
+  urgentCareText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  
+  doctorImage: { position: 'absolute', bottom: -10, right: -20, width: width * 0.5, height: width * 0.65, opacity: 0.95, zIndex: 1 },
+  bottomSheet: { flex: 1, marginTop: -40, borderTopLeftRadius: 36, borderTopRightRadius: 36, overflow: 'hidden' },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20, letterSpacing: -0.3 },
+  
+  servicesGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10 },
+  serviceItem: { alignItems: 'center', width: (width - 80) / 3 },
+  serviceCircle: { width: 64, height: 64, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  serviceText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  
+  appointmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  seeAllText: { color: '#3B82F6', fontSize: 14, fontWeight: '700' },
+  
+  appointmentCard: { borderRadius: 24, padding: 20, borderWidth: 1, borderColor: 'transparent', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 5 },
+  emptyCard: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
+  emptyCardIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(150,150,150,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  appointmentDateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  dateInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dateText: { fontSize: 15, fontWeight: '700' },
+  appointmentDivider: { height: 1, marginHorizontal: -20, marginBottom: 16 },
+  doctorInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  doctorAvatarContainer: { width: 56, height: 56, borderRadius: 28, position: 'relative' },
+  cardDoctorImage: { width: '100%', height: '100%', borderRadius: 28 },
+  onlineIndicator: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#10B981', borderWidth: 2, borderColor: '#FFFFFF' },
+  doctorDetails: { flex: 1 },
+  doctorName: { fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  doctorSpecialty: { fontSize: 14, fontWeight: '500' },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: width * 0.85, borderRadius: 32, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 10 },
+  modalCloseButton: { position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  modalHeaderIcon: { marginBottom: 20, marginTop: 10 },
+  modalIconBg: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center' },
+  modalTitle: { fontSize: 22, fontWeight: '800', marginBottom: 10, textAlign: 'center' },
+  modalText: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 30 },
+  emergencyPhonesList: { width: '100%', gap: 12 },
+  emergencyPhoneItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, backgroundColor: 'rgba(150,150,150,0.05)', borderWidth: 1, borderColor: 'rgba(150,150,150,0.1)' },
+  phoneIconBg: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  phoneTexts: { flex: 1 },
+  phoneLabel: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  phoneValue: { fontSize: 18, fontWeight: '800', color: '#EF4444' }
 });
