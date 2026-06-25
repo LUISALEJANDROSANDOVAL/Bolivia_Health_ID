@@ -44,6 +44,7 @@ export function DoctorSidebar({ isOpen, onClose }: DoctorSidebarProps) {
       panelTagline="Panel Médico"
       footerTitle="Cifrado Activo"
       footerSubtitle={doctorLicense || 'Verified'}
+      homeHref="/doctor"
     />
   )
 }

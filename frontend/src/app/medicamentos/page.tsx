@@ -11,7 +11,9 @@ import {
   XCircle, 
   CalendarDays,
   Loader2,
-  Sparkles
+  Sparkles,
+  Syringe,
+  Droplets
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -64,16 +66,16 @@ const statusConfig = {
 }
 
 // Pill icon by form
-const formEmoji: Record<string, string> = {
-  'tableta': '💊',
-  'cápsula': '💊',
-  'capsula': '💊',
-  'inyección': '💉',
-  'inyeccion': '💉',
-  'jarabe': '🧴',
-  'crema': '🧴',
-  'gotas': '💧',
-  'default': '💊',
+const formIcon: Record<string, React.ComponentType<{ className?: string }>> = {
+  'tableta': Pill,
+  'cápsula': Pill,
+  'capsula': Pill,
+  'inyección': Syringe,
+  'inyeccion': Syringe,
+  'jarabe': Droplets,
+  'crema': Droplets,
+  'gotas': Droplets,
+  'default': Pill,
 }
 
 const groupColors = [
@@ -337,7 +339,7 @@ export default function MedicamentosPage() {
             filteredMedications.map((med) => {
               const Status = statusConfig[med.status]
               const StatusIcon = Status.icon
-              const emoji = formEmoji[med.form ?? 'default'] ?? formEmoji.default
+              const FormIcon = formIcon[med.form ?? 'default'] ?? formIcon.default
               const isAiLoading = loadingAi[med.name]
               const aiDesc = aiDescriptions[med.name]
 
@@ -372,7 +374,7 @@ export default function MedicamentosPage() {
 
                   <div className="flex flex-col lg:flex-row lg:items-start gap-6">
                     <div className="size-16 rounded-2xl bg-foreground/10 flex items-center justify-center shrink-0">
-                      <span className="text-3xl">{emoji}</span>
+                      <FormIcon className="size-8 text-foreground/70" />
                     </div>
                     
                     <div className="flex-1">

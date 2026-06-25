@@ -105,7 +105,7 @@ export const DoctorProfileSettings = forwardRef<DoctorProfileSettingsRef, Doctor
         await refreshProfile()
         setSavedOk(true)
         toast({
-          title: '✅ Perfil actualizado',
+          title: 'Perfil actualizado',
           description: 'Tu información profesional ha sido guardada en la base de datos.',
         })
         

@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LucideIcon, Heart, X, LogOut, Activity, Shield, Sparkles } from 'lucide-react'
+import { LucideIcon, X, LogOut, Activity, Shield, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -24,6 +24,7 @@ interface SidebarBaseProps {
   panelTagline: string
   footerTitle: string
   footerSubtitle: string
+  homeHref?: string
 }
 
 export function SidebarBase({
@@ -34,7 +35,8 @@ export function SidebarBase({
   panelTitle,
   panelTagline,
   footerTitle,
-  footerSubtitle
+  footerSubtitle,
+  homeHref = '/dashboard'
 }: SidebarBaseProps) {
   const pathname = usePathname()
 
@@ -57,11 +59,11 @@ export function SidebarBase({
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-electric opacity-20" />
           <div className="relative flex h-24 items-center justify-between border-b border-white/20 px-6">
-            <Link href="/" className="flex items-center gap-3 group">
+            <Link href={homeHref} className="flex items-center gap-3 group">
               <div className="relative">
                 <div className="absolute inset-0 bg-white/20 rounded-xl blur-lg group-hover:blur-xl transition-all" />
-                <div className="relative flex size-12 items-center justify-center rounded-xl bg-white/20">
-                  <Heart className="size-6 text-white" />
+                <div className="relative flex size-12 items-center justify-center rounded-xl bg-white/10 p-1">
+                  <img src="/logo-icon-dark.png" alt="Logo" className="size-full object-contain" />
                 </div>
               </div>
               <div className="flex flex-col">

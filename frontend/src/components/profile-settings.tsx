@@ -89,7 +89,7 @@ export const ProfileSettings = forwardRef<ProfileSettingsRef, ProfileSettingsPro
         await updateProfile(formData)
         setSavedOk(true)
         toast({
-          title: '✅ Perfil guardado',
+          title: 'Perfil guardado',
           description: 'Tu información fue guardada en Supabase correctamente.',
         })
         // Reset el check de guardado después de 3s

@@ -58,6 +58,7 @@ import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
 import { useWallet } from '@/contexts/wallet-context'
 import { toast } from 'sonner'
+import { generateSingleDiagnosisPDF } from '@/lib/pdf-helper'
 import {
   Select,
   SelectContent,
@@ -182,6 +183,61 @@ export default function PatientView360() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
+  // List expansion states
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [showAllStudies, setShowAllStudies] = useState(false)
+  const [showAllMedications, setShowAllMedications] = useState(false)
+
+  // Derivar states
+  const [isDerivarModalOpen, setIsDerivarModalOpen] = useState(false)
+  const [specialties, setSpecialties] = useState<any[]>([])
+  const [sucursales, setSucursales] = useState<any[]>([])
+  const [selectedSpecialty, setSelectedSpecialty] = useState('')
+  const [selectedSucursal, setSelectedSucursal] = useState('')
+  const [isDerivando, setIsDerivando] = useState(false)
+
+  useEffect(() => {
+    if (isDerivarModalOpen && specialties.length === 0) {
+      // Load both specialties and sucursales
+      Promise.all([
+        supabase.from('specialties').select('id, name'),
+        supabase.from('sucursales').select('id, name')
+      ]).then(([resSpecialties, resSucursales]) => {
+        if (resSpecialties.data) {
+          setSpecialties(resSpecialties.data)
+          if (resSpecialties.data.length > 0) setSelectedSpecialty(resSpecialties.data[0].name)
+        }
+        if (resSucursales.data) {
+          setSucursales(resSucursales.data)
+          if (resSucursales.data.length > 0) setSelectedSucursal(resSucursales.data[0].id)
+        }
+      })
+    }
+  }, [isDerivarModalOpen, specialties.length])
+
+  const handleDerivar = async () => {
+    if (!selectedSpecialty || !selectedSucursal) return
+    setIsDerivando(true)
+    try {
+      const { error } = await supabase.from('access_permissions').insert({
+        patient_id: patientId,
+        doctor_id: null,
+        specialty: selectedSpecialty,
+        sucursal_id: selectedSucursal,
+        status: 'active', // Automático
+        requested_by: doctorId
+      })
+      if (error) throw error
+      toast.success('Se ha derivado a la especialidad exitosamente. Los médicos de esta especialidad ya tienen acceso.')
+      setIsDerivarModalOpen(false)
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al derivar a especialidad')
+    } finally {
+      setIsDerivando(false)
+    }
+  }
+
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -193,6 +249,9 @@ export default function PatientView360() {
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null)
   const [detailMeds, setDetailMeds] = useState<any[]>([])
   const [loadingMedsForDetail, setLoadingMedsForDetail] = useState(false)
+
+  // File Viewer state
+  const [fileViewerUrl, setFileViewerUrl] = useState<string | null>(null)
 
   const parseDescription = (descStr: string) => {
     if (!descStr) return {}
@@ -744,7 +803,18 @@ export default function PatientView360() {
               <p className="text-muted-foreground">
                 {age} años • {profile.gender === 'M' ? 'Masculino' : profile.gender === 'F' ? 'Femenino' : profile.gender || 'N/A'}
               </p>
-              <p className="mt-2 font-mono text-sm text-foreground">CI: {profile.cedula_identidad}</p>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="font-mono text-sm text-foreground">CI: {profile.cedula_identidad}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs border-cyan-500/50 text-cyan-600 hover:bg-cyan-500/10"
+                  onClick={() => setIsDerivarModalOpen(true)}
+                >
+                  <Share2 className="size-3 mr-1.5" />
+                  Derivar a Especialidad
+                </Button>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-foreground">{vitals?.blood_type || 'N/A'}</div>
@@ -759,7 +829,7 @@ export default function PatientView360() {
                 <Alert key={idx} className="border-destructive bg-destructive/5">
                   <AlertCircle className="size-4 text-destructive" />
                   <AlertDescription className="text-destructive font-semibold">
-                    ⚠️ ALERGIA: {allergy}
+                    ALERGIA: {allergy}
                   </AlertDescription>
                 </Alert>
               ))}
@@ -993,7 +1063,8 @@ export default function PatientView360() {
                 <CardContent>
                   <div className="space-y-3">
                     {medications.length > 0 ? (
-                      medications.map((med) => (
+                      <div className={`space-y-3 ${showAllMedications ? 'max-h-[300px] overflow-y-auto pr-2' : ''}`}>
+                      {(showAllMedications ? medications : medications.slice(0, 4)).map((med) => (
                         <div key={med.id} className="flex items-center justify-between text-sm p-2 bg-foreground/5 rounded-lg">
                           <div>
                             <span className="text-foreground font-semibold block">{med.name}</span>
@@ -1001,9 +1072,32 @@ export default function PatientView360() {
                           </div>
                           <Badge variant="secondary">{med.dosage}</Badge>
                         </div>
-                      ))
+                      ))}
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">No hay medicamentos activos.</p>
+                    )}
+                    {!showAllMedications && medications.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllMedications(true)}
+                          className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                        >
+                          Mostrar todos ({medications.length - 4} más)
+                        </Button>
+                      </div>
+                    )}
+                    {showAllMedications && medications.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllMedications(false)}
+                          className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                        >
+                          Mostrar menos
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -1062,8 +1156,9 @@ export default function PatientView360() {
                     <Lock className="size-5 text-azul-electrico" />
                     Historial Clínico
                   </CardTitle>
-                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold">
-                    🔒 Inmutable · Blockchain
+                  <Badge className="bg-azul-electrico/10 text-azul-electrico border-azul-electrico/20 text-xs font-bold gap-1 flex items-center">
+                    <ShieldCheck className="size-3" />
+                    Inmutable · Blockchain
                   </Badge>
                 </div>
                 <CardDescription>Línea de tiempo clínica del paciente — registros verificados en cadena</CardDescription>
@@ -1071,7 +1166,8 @@ export default function PatientView360() {
               <CardContent className="p-6">
                 {verifiedRecords.length > 0 ? (
                   <div className="space-y-4">
-                    {verifiedRecords.map((record: any) => {
+                    <div className={`space-y-4 ${showAllHistory ? 'max-h-[600px] overflow-y-auto pr-2' : ''}`}>
+                    {(showAllHistory ? verifiedRecords : verifiedRecords.slice(0, 4)).map((record: any) => {
                       const cfg = categoryConfig[record.category] ?? categoryConfig.default
                       const TypeIcon = cfg.icon
                       const scfg = statusConfig[record.status_detail || record.status] ?? statusConfig.default
@@ -1100,7 +1196,22 @@ export default function PatientView360() {
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 min-w-0">
+                            <div 
+                              className="flex-1 min-w-0"
+                              onClick={() => {
+                                const cat = (record.category || '').toLowerCase()
+                                if (cat === 'laboratorio' || cat === 'imágenes' || cat === 'imagen' || cat === 'radiología' || cat === 'radiologia' || cat === 'genético' || cat === 'genetico' || cat === 'estudios') {
+                                  if (record.fileUrl) {
+                                    setFileViewerUrl(record.fileUrl)
+                                  } else {
+                                    handleViewDetail(record)
+                                  }
+                                } else {
+                                  // Diagnósticos, Consultas, Recetas, etc.
+                                  handleViewDetail(record)
+                                }
+                              }}
+                            >
                               <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className={`text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
@@ -1183,39 +1294,53 @@ export default function PatientView360() {
                                     <span>Dr(a). {record.doctor.full_name}{record.doctor.specialty ? ` · ${record.doctor.specialty}` : ''}</span>
                                   </div>
                                 )}
-                                {fileUrl && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5 ml-auto"
-                                    onClick={async (e) => {
-                                      e.stopPropagation()
-                                      try {
-                                        const res = await fetch(fileUrl)
-                                        const blob = await res.blob()
-                                        const contentType = res.headers.get('content-type')
-                                        let extension = '.pdf'
-                                        if (contentType?.includes('image/png')) extension = '.png'
-                                        else if (contentType?.includes('image/jpeg')) extension = '.jpg'
-                                        else if (contentType?.includes('image/webp')) extension = '.webp'
+                                  <div className="flex gap-2 ml-auto">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 gap-1.5"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (record.fileUrl) {
+                                          setFileViewerUrl(record.fileUrl)
+                                        }
+                                      }}
+                                    >
+                                      <Eye className="size-3" />
+                                      Ver
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 gap-1.5"
+                                      onClick={async (e) => {
+                                        e.stopPropagation()
+                                        try {
+                                          const res = await fetch(fileUrl)
+                                          const blob = await res.blob()
+                                          const contentType = res.headers.get('content-type')
+                                          let extension = '.pdf'
+                                          if (contentType?.includes('image/png')) extension = '.png'
+                                          else if (contentType?.includes('image/jpeg')) extension = '.jpg'
+                                          else if (contentType?.includes('image/webp')) extension = '.webp'
 
-                                        const url = window.URL.createObjectURL(blob)
-                                        const a = document.createElement('a')
-                                        a.href = url
-                                        a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
-                                        document.body.appendChild(a)
-                                        a.click()
-                                        window.URL.revokeObjectURL(url)
-                                        document.body.removeChild(a)
-                                      } catch (err) {
-                                        window.open(fileUrl, '_blank')
-                                      }
-                                    }}
-                                  >
-                                    <Download className="size-3" />
-                                    Descargar
-                                  </Button>
-                                )}
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = `${record.title.replace(/\s+/g, '_')}${extension}`
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
+                                        } catch (err) {
+                                          window.open(fileUrl, '_blank')
+                                        }
+                                      }}
+                                    >
+                                      <Download className="size-3" />
+                                      Descargar
+                                    </Button>
+                                  </div>
                                 {/* IPFS & Tx Links */}
                                 {record.ipfsHash && (
                                   <a
@@ -1247,6 +1372,29 @@ export default function PatientView360() {
                         </div>
                       )
                     })}
+                    </div>
+                    {!showAllHistory && verifiedRecords.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllHistory(true)}
+                          className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                        >
+                          Mostrar todos los datos ({verifiedRecords.length - 4} más)
+                        </Button>
+                      </div>
+                    )}
+                    {showAllHistory && verifiedRecords.length > 4 && (
+                      <div className="pt-2 flex justify-center">
+                        <Button 
+                          variant="ghost" 
+                          onClick={() => setShowAllHistory(false)}
+                          className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                        >
+                          Mostrar menos
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-16 flex flex-col items-center">
@@ -1410,7 +1558,8 @@ export default function PatientView360() {
                   <h4 className="font-semibold text-foreground border-b border-border/30 pb-2">Documentos Guardados</h4>
                   {studies.length > 0 ? (
                     <div className="space-y-4">
-                      {studies.map((study) => {
+                      <div className={`space-y-4 ${showAllStudies ? 'max-h-[600px] overflow-y-auto pr-2' : ''}`}>
+                      {(showAllStudies ? studies : studies.slice(0, 4)).map((study) => {
                         let studyType: 'laboratorio' | 'imagen' | 'radiologia' | 'genetico' | 'otro' = 'otro'
                         const cat = (study.category || '').toLowerCase()
                         if (cat === 'laboratorio' || cat === 'estudios') studyType = 'laboratorio'
@@ -1458,7 +1607,7 @@ export default function PatientView360() {
                                       variant="ghost"
                                       size="sm"
                                       className="text-foreground/40 hover:text-cyan-500 hover:bg-foreground/5 text-xs font-black uppercase tracking-widest"
-                                      onClick={() => window.open(fileUrl, '_blank')}
+                                      onClick={() => setFileViewerUrl(fileUrl)}
                                     >
                                       <Eye className="size-4 mr-1.5" />
                                       Ver
@@ -1524,6 +1673,29 @@ export default function PatientView360() {
                           </div>
                         )
                       })}
+                      </div>
+                      {!showAllStudies && studies.length > 4 && (
+                        <div className="pt-2 flex justify-center">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => setShowAllStudies(true)}
+                            className="w-full text-cyan-500 hover:text-cyan-400 hover:bg-cyan-500/10 font-bold border border-cyan-500/20"
+                          >
+                            Mostrar todos los datos ({studies.length - 4} más)
+                          </Button>
+                        </div>
+                      )}
+                      {showAllStudies && studies.length > 4 && (
+                        <div className="pt-2 flex justify-center">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => setShowAllStudies(false)}
+                            className="w-full text-foreground/50 hover:text-foreground/70 font-bold"
+                          >
+                            Mostrar menos
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-10 bg-foreground/5 rounded-xl border border-border/50">
@@ -1540,6 +1712,7 @@ export default function PatientView360() {
       </div>
 
       {/* Modal de Detalle de Diagnóstico */}
+      {/* Selected Record Dialog */}
       <Dialog open={selectedRecord !== null} onOpenChange={(open) => { if (!open) setSelectedRecord(null) }}>
         <DialogContent 
           showCloseButton={false}
@@ -1561,6 +1734,48 @@ export default function PatientView360() {
                       <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
                         Diagnóstico Registrado
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const parsed = parseDescription(item.description)
+                          const blob = await generateSingleDiagnosisPDF({
+                            title: item.title,
+                            date: new Date(item.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+                            patientName: profile?.full_name || 'Paciente del Sistema',
+                            patientCi: profile?.cedula_identidad || 'N/A',
+                            doctorName: item.doctor?.full_name || '',
+                            doctorLicense: '', 
+                            doctorSpecialty: item.doctor?.specialty,
+                            soap: {
+                              reason: parsed.reason,
+                              anamnesis: parsed.anamnesis,
+                              physicalExam: parsed.physicalExam,
+                              observations: parsed.observations
+                            },
+                            medications: detailMeds.map(m => ({
+                              name: m.name,
+                              dosage: m.dosage,
+                              frequency: m.frequency,
+                              duration: m.end_date ? `Hasta: ${m.end_date}` : 'N/A'
+                            })),
+                            ipfsHash: item.ipfsHash,
+                            txHash: item.txHash
+                          })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `diagnostico_${item.title.replace(/\s+/g, '_')}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md gap-1.5 h-8 px-3 font-bold rounded-lg"
+                      >
+                        <Download className="size-3.5" />
+                        <span>PDF</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1699,6 +1914,79 @@ export default function PatientView360() {
               </div>
             )
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Derivación */}
+      <Dialog open={isDerivarModalOpen} onOpenChange={setIsDerivarModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Derivar a Especialidad</DialogTitle>
+            <DialogDescription>
+              Selecciona la especialidad y sucursal a la que deseas derivar al paciente. Los médicos de esta especialidad en dicha sucursal tendrán acceso automático al historial.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Especialidad</label>
+              <Select value={selectedSpecialty} onValueChange={setSelectedSpecialty}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una especialidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {specialties.map(sp => (
+                    <SelectItem key={sp.id} value={sp.name}>{sp.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Sucursal</label>
+              <Select value={selectedSucursal} onValueChange={setSelectedSucursal}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una sucursal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sucursales.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsDerivarModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleDerivar} disabled={isDerivando || !selectedSpecialty || !selectedSucursal} className="bg-cyan-500 hover:bg-cyan-600 text-white">
+              {isDerivando ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+              Derivar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Viewer Dialog */}
+      <Dialog open={fileViewerUrl !== null} onOpenChange={(open) => { if (!open) setFileViewerUrl(null) }}>
+        <DialogContent className="w-full sm:max-w-5xl max-h-[90vh] rounded-2xl bg-black/95 backdrop-blur-xl border-border/50 shadow-2xl p-0 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
+            <h3 className="text-white font-bold text-sm tracking-widest uppercase">Visor de Archivos</h3>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setFileViewerUrl(null)}
+              className="h-8 w-8 rounded-full text-white/70 hover:text-white hover:bg-white/10"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="flex-1 w-full h-full p-0 overflow-hidden relative bg-black/50 flex items-center justify-center">
+            {fileViewerUrl && (
+              <iframe
+                src={fileViewerUrl}
+                className="w-full h-full border-0 rounded-b-2xl bg-white"
+                title="Visor de Documento"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </DoctorLayout>

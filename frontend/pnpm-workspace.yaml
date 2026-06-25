@@ -1,5 +1,6 @@
 allowBuilds:
   bufferutil: false
+  core-js: true
   keccak: false
   sharp: false
   tesseract.js: false

@@ -38,6 +38,7 @@ import { useReadContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
 import { getAddress } from 'viem'
+import { generateSingleDiagnosisPDF } from '@/lib/pdf-helper'
 import {
   Dialog,
   DialogContent,
@@ -638,6 +639,48 @@ export function MedicalRecords() {
                       <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
                         Diagnóstico Registrado
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const parsed = parseDescription(item.description)
+                          const blob = await generateSingleDiagnosisPDF({
+                            title: item.title,
+                            date: item.date,
+                            patientName: patientProfile?.full_name || 'Paciente del Sistema',
+                            patientCi: patientProfile?.cedula_identidad || 'N/A',
+                            doctorName: item.doctor || '',
+                            doctorLicense: '', 
+                            doctorSpecialty: item.doctorSpecialty,
+                            soap: {
+                              reason: parsed.reason,
+                              anamnesis: parsed.anamnesis,
+                              physicalExam: parsed.physicalExam,
+                              observations: parsed.observations
+                            },
+                            medications: detailMeds.map(m => ({
+                              name: m.name,
+                              dosage: m.dosage,
+                              frequency: m.frequency,
+                              duration: m.end_date ? `Hasta: ${m.end_date}` : 'N/A'
+                            })),
+                            ipfsHash: item.ipfsHash,
+                            txHash: item.txHash
+                          })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `diagnostico_${item.title.replace(/\s+/g, '_')}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md gap-1.5 h-8 px-3 font-bold rounded-lg"
+                      >
+                        <Download className="size-3.5" />
+                        <span>PDF</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

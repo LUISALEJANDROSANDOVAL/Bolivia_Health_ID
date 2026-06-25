@@ -8,6 +8,7 @@ import { useWriteContract } from 'wagmi'
 import { MEDICAL_RECORDS_ADDRESS, MEDICAL_RECORDS_ABI } from '@/lib/contracts'
 import { toast } from 'sonner'
 import { useDoctorAuth } from '@/contexts/doctor-auth-context'
+import { generateSingleDiagnosisPDF } from '@/lib/pdf-helper'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,7 +48,8 @@ import {
   Activity,
   Brain,
   Zap,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react'
 
 interface Patient {
@@ -135,7 +137,7 @@ export default function DoctorPrescriptionsPage() {
   const [detailMeds, setDetailMeds] = useState<any[]>([])
 
   const { walletAddress, signMessage, sessionActive, startClinicalSession, signMessageWithSession } = useWallet()
-  const { doctorId: authDoctorId } = useDoctorAuth()
+  const { doctorId: authDoctorId, doctorName, doctorLicense } = useDoctorAuth()
   const [doctorId, setDoctorId] = useState<string | null>(null)
   const { writeContractAsync } = useWriteContract()
 
@@ -486,42 +488,38 @@ export default function DoctorPrescriptionsPage() {
         throw new Error('Debes conectar tu wallet para firmar los registros médicos.')
       }
 
-      // 1. Compile diagnosis data into JSON and upload to Pinata (IPFS)
-      const diagnosisData = {
-        patient: {
-          name: selectedPatient.name,
-          ci: selectedPatient.ci,
-          walletAddress: selectedPatient.walletAddress
-        },
-        doctor: {
-          id: doctorId,
-          walletAddress: walletAddress
-        },
-        clinicalCase: {
+      // 1. Compile diagnosis data into PDF and upload to Pinata (IPFS)
+      const blob = await generateSingleDiagnosisPDF({
+        title: selectedDiagnosis
+          ? `${selectedDiagnosis.code} - ${selectedDiagnosis.description}`
+          : diagnosis,
+        date: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }),
+        patientName: selectedPatient.name,
+        patientCi: selectedPatient.ci,
+        doctorName: doctorName || 'Doctor',
+        doctorLicense: doctorLicense || 'N/A',
+        doctorSpecialty: 'Médico Tratante',
+        soap: {
           reason,
           anamnesis,
           physicalExam,
           observations
         },
-        diagnosis: selectedDiagnosis
-          ? `${selectedDiagnosis.code} - ${selectedDiagnosis.description}`
-          : diagnosis,
         medications: medications.map(m => ({
           name: m.name,
           dosage: m.dose,
           frequency: m.frequency,
-          duration: m.duration,
-          instructions: m.instructions
+          duration: m.duration || 'N/A'
         })),
-        timestamp: new Date().toISOString()
-      }
+        ipfsHash: 'Cargando a IPFS...',
+        txHash: 'Firmando transacción...'
+      })
 
-      const blob = new Blob([JSON.stringify(diagnosisData, null, 2)], { type: 'application/json' })
-      const jsonFile = new File([blob], `diagnosis_${selectedPatient.ci}_${Date.now()}.json`, { type: 'application/json' })
+      const pdfFile = new File([blob], `diagnosis_${selectedPatient.ci}_${Date.now()}.pdf`, { type: 'application/pdf' })
 
       const formData = new FormData()
-      formData.append('file', jsonFile)
-      formData.append('pinataMetadata', JSON.stringify({ name: jsonFile.name }))
+      formData.append('file', pdfFile)
+      formData.append('pinataMetadata', JSON.stringify({ name: pdfFile.name }))
 
       const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT
       if (!pinataJwt) {
@@ -1514,6 +1512,48 @@ export default function DoctorPrescriptionsPage() {
                       <Badge className="bg-white/20 hover:bg-white/30 text-white border-none backdrop-blur-md">
                         Diagnóstico Registrado
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const parsed = parseDescription(item.description)
+                          const blob = await generateSingleDiagnosisPDF({
+                            title: item.title,
+                            date: recordDate,
+                            patientName: item.patient?.full_name || 'Paciente del Sistema',
+                            patientCi: 'Verificado', 
+                            doctorName: item.doctor?.full_name || doctorName || '',
+                            doctorLicense: item.doctor?.license_number || doctorLicense || '', 
+                            doctorSpecialty: item.doctor?.specialty || '',
+                            soap: {
+                              reason: parsed.reason,
+                              anamnesis: parsed.anamnesis,
+                              physicalExam: parsed.physicalExam,
+                              observations: parsed.observations
+                            },
+                            medications: detailMeds.map(m => ({
+                              name: m.name,
+                              dosage: m.dosage,
+                              frequency: m.frequency,
+                              duration: m.end_date ? `Hasta: ${m.end_date}` : 'N/A'
+                            })),
+                            ipfsHash: parsed.ipfs || item.ipfsHash,
+                            txHash: parsed.tx || item.txHash
+                          })
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `diagnostico_${item.title.replace(/\s+/g, '_')}.pdf`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                        }}
+                        className="bg-white/10 hover:bg-white/20 text-white border-none backdrop-blur-md gap-1.5 h-8 px-3 font-bold rounded-lg"
+                      >
+                        <Download className="size-3.5" />
+                        <span>PDF</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

@@ -170,9 +170,7 @@ export default function DoctorSettingsPage() {
 
         {/* Banner de seguridad */}
         <div className="bg-gradient-electric rounded-2xl p-5 text-white overflow-hidden relative">
-          <div className="absolute right-0 top-0 opacity-10">
-            <div className="text-9xl">🔒</div>
-          </div>
+          <Lock className="size-32 text-white/10 absolute -right-4 -top-4 select-none pointer-events-none" />
           <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="relative">
