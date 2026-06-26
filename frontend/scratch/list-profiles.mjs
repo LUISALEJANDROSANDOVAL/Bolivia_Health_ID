@@ -27,17 +27,23 @@ envContent.split('\n').forEach(line => {
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+if (!url || !key) {
+  console.error('Missing URL or Key');
+  process.exit(1);
+}
+
 const supabase = createClient(url, key);
 
 async function run() {
   const { data, error } = await supabase
-    .from('doctor_sucursal')
-    .select('*, profiles(full_name)');
+    .from('profiles')
+    .select('id, email, role, full_name')
+    .in('role', ['admin', 'secretaria']);
   
   if (error) {
-    console.error(error);
+    console.error('Error fetching profiles:', error);
   } else {
-    console.log('doctor_sucursal relations:', data);
+    console.log('Profiles in DB:', data);
   }
 }
 

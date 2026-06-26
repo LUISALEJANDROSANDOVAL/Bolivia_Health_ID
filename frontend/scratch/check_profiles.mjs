@@ -1,34 +1,47 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const envPath = path.resolve('.env.local');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const envPath = path.resolve(__dirname, '../.env.local');
 const envContent = fs.readFileSync(envPath, 'utf8');
 
-const getEnv = (name) => {
-    const match = envContent.match(new RegExp(`${name}=(.*)`));
-    return match ? match[1].trim() : null;
-};
+const env = {};
+envContent.split('\n').forEach(line => {
+  const match = line.match(/^\s*([\w\.\-]+)\s*=\s*(.*)?\s*$/);
+  if (match) {
+    let key = match[1];
+    let value = match[2] || '';
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.substring(1, value.length - 1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.substring(1, value.length - 1);
+    }
+    env[key] = value.trim();
+  }
+});
 
-const supabaseUrl = getEnv('NEXT_PUBLIC_SUPABASE_URL');
-const supabaseAnonKey = getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+const url = env.NEXT_PUBLIC_SUPABASE_URL;
+const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(url, key);
 
-async function checkProfiles() {
-  const { data: profiles, error } = await supabase
+async function run() {
+  const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role, wallet_address');
+    .select('id, full_name, role, cedula_identidad, email');
   
   if (error) {
-    console.error('Error fetching profiles:', error);
-    return;
+    console.error(error);
+  } else {
+    console.log('All profiles in DB:');
+    data.forEach(p => {
+      console.log(`- ID: ${p.id} | Name: ${p.full_name} | Role: ${p.role} | CI: "${p.cedula_identidad}" | Email: ${p.email}`);
+    });
   }
-  
-  console.log('--- Database Profiles ---');
-  profiles.forEach(p => {
-    console.log(`Name: ${p.full_name} | Role: ${p.role} | Wallet: ${p.wallet_address}`);
-  });
 }
 
-checkProfiles();
+run();

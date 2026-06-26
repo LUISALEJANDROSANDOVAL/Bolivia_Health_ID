@@ -152,7 +152,13 @@ export async function inviteDoctor(token: string, data: { name: string; email: s
       wallet_address: placeholderWallet
     }])
 
-  if (error) return { error: error.message }
+  if (error) {
+    let friendlyMessage = error.message
+    if (error.code === '23505' || error.message.includes('profiles_email_key')) {
+      friendlyMessage = 'Este correo electrónico ya está registrado en el sistema para otro usuario o médico.'
+    }
+    return { error: friendlyMessage }
+  }
   
   revalidatePath('/admin/doctores')
   return { success: true }

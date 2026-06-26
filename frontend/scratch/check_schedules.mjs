@@ -31,13 +31,13 @@ const supabase = createClient(url, key);
 
 async function run() {
   const { data, error } = await supabase
-    .from('doctor_sucursal')
-    .select('*, profiles(full_name)');
+    .from('doctor_schedules')
+    .select('*, profiles(full_name), sucursales(name)');
   
   if (error) {
     console.error(error);
   } else {
-    console.log('doctor_sucursal relations:', data);
+    console.log('doctor_schedules records:', data);
   }
 }
 

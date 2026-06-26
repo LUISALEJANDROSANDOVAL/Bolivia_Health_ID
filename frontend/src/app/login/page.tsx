@@ -49,6 +49,14 @@ export default function LoginPage() {
   const [isAdminLoading, setIsAdminLoading] = useState(false)
   const [dialogRole, setDialogRole] = useState<'admin' | 'secretaria'>('secretaria')
 
+  const handleDialogClose = (open: boolean) => {
+    setIsAdminModalOpen(open)
+    if (!open) {
+      setIsAdminLoading(false)
+      setAdminPassword('')
+    }
+  }
+
   const handleDialogLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsAdminLoading(true)
@@ -387,7 +395,7 @@ export default function LoginPage() {
       </div>
 
       {/* Admin/Secretaria Auth Modal */}
-      <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
+      <Dialog open={isAdminModalOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-md">
           <form onSubmit={handleDialogLogin}>
             <DialogHeader>

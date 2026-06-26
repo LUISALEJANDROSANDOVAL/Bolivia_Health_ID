@@ -35,7 +35,8 @@ import {
   Stethoscope,
   Video,
   MapPin,
-  ClipboardCheck
+  ClipboardCheck,
+  CalendarClock
 } from 'lucide-react'
 
 interface Appointment {
@@ -45,6 +46,7 @@ interface Appointment {
   status: string
   type: 'presencial' | 'virtual'
   doctorName: string
+  doctorId: string
   specialty: string
   patientName: string
   patientCi: string
@@ -63,6 +65,20 @@ export default function SecretariaDashboard() {
   const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterDoctor, setFilterDoctor] = useState<string>('all')
+
+  // Rescheduling states
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false)
+  const [rescheduleLoading, setRescheduleLoading] = useState(false)
+  const [selectedRescheduleApt, setSelectedRescheduleApt] = useState<Appointment | null>(null)
+  const [rescheduleForm, setRescheduleForm] = useState({
+    id: '',
+    doctor_id: '',
+    appointment_date: '',
+    appointment_time: '',
+    reason: ''
+  })
+  const [rescheduleAvailability, setRescheduleAvailability] = useState<'available' | 'occupied' | 'outside_schedule' | 'no_schedule' | 'loading' | null>(null)
 
   // Modals
   const [isBookModalOpen, setIsBookModalOpen] = useState(false)
@@ -89,6 +105,219 @@ export default function SecretariaDashboard() {
     appointment_time: '09:00',
     reason: 'Consulta General'
   })
+
+  const [availability, setAvailability] = useState<'available' | 'occupied' | 'outside_schedule' | 'no_schedule' | 'loading' | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    async function checkDoctorAvailability() {
+      if (!bookingForm.doctor_id || !bookingForm.appointment_date || !bookingForm.appointment_time || !sucursal) {
+        setAvailability(null)
+        return
+      }
+
+      setAvailability('loading')
+
+      try {
+        const { doctor_id, appointment_date, appointment_time } = bookingForm
+
+        // 1. Verificar conflictos (citas en la misma fecha y hora)
+        const { data: conflicts, error: conflictError } = await supabase
+          .from('appointments')
+          .select('id')
+          .eq('doctor_id', doctor_id)
+          .eq('appointment_date', appointment_date)
+          .eq('appointment_time', appointment_time)
+          .in('status', ['scheduled', 'confirmed', 'in_progress'])
+
+        if (conflictError) throw conflictError
+
+        if (active && conflicts && conflicts.length > 0) {
+          setAvailability('occupied')
+          return
+        }
+
+        // 2. Verificar horarios configurados
+        // Parsear el día de la semana (1 = Lunes, ..., 7 = Domingo)
+        const dateObj = new Date(appointment_date + 'T12:00:00')
+        const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay()
+
+        // Primero consultamos si el doctor tiene CUALQUIER horario en esta sucursal
+        const { data: allSchedules, error: allSchedError } = await supabase
+          .from('doctor_schedules')
+          .select('id')
+          .eq('doctor_id', doctor_id)
+          .eq('sucursal_id', sucursal.id)
+          .eq('is_active', true)
+
+        if (allSchedError) throw allSchedError
+
+        if (!allSchedules || allSchedules.length === 0) {
+          if (active) setAvailability('no_schedule')
+          return
+        }
+
+        // Si tiene horarios, buscamos si trabaja este día
+        const { data: schedules, error: schedError } = await supabase
+          .from('doctor_schedules')
+          .select('start_time, end_time')
+          .eq('doctor_id', doctor_id)
+          .eq('sucursal_id', sucursal.id)
+          .eq('day_of_week', dayOfWeek)
+          .eq('is_active', true)
+
+        if (schedError) throw schedError
+
+        if (!schedules || schedules.length === 0) {
+          if (active) setAvailability('outside_schedule')
+          return
+        }
+
+        // Comparar horas
+        const selectedTime = appointment_time.length === 5 ? appointment_time + ':00' : appointment_time
+        const isWithin = schedules.some(s => {
+          const start = s.start_time
+          const end = s.end_time
+          return selectedTime >= start && selectedTime < end
+        })
+
+        if (active) {
+          setAvailability(isWithin ? 'available' : 'outside_schedule')
+        }
+      } catch (err) {
+        console.error('Error checking availability:', err)
+        if (active) setAvailability(null)
+      }
+    }
+
+    checkDoctorAvailability()
+
+    return () => {
+      active = false
+    }
+  }, [bookingForm.doctor_id, bookingForm.appointment_date, bookingForm.appointment_time, sucursal])
+
+  useEffect(() => {
+    let active = true
+
+    async function checkRescheduleAvailability() {
+      if (!rescheduleForm.id || !rescheduleForm.doctor_id || !rescheduleForm.appointment_date || !rescheduleForm.appointment_time || !sucursal) {
+        setRescheduleAvailability(null)
+        return
+      }
+
+      setRescheduleAvailability('loading')
+
+      try {
+        const { id, doctor_id, appointment_date, appointment_time } = rescheduleForm
+
+        // 1. Verificar conflictos (citas en la misma fecha y hora, excluyendo la cita actual)
+        const { data: conflicts, error: conflictError } = await supabase
+          .from('appointments')
+          .select('id')
+          .eq('doctor_id', doctor_id)
+          .eq('appointment_date', appointment_date)
+          .eq('appointment_time', appointment_time)
+          .neq('id', id)
+          .in('status', ['scheduled', 'confirmed', 'in_progress'])
+
+        if (conflictError) throw conflictError
+
+        if (active && conflicts && conflicts.length > 0) {
+          setRescheduleAvailability('occupied')
+          return
+        }
+
+        // 2. Verificar horarios configurados
+        const dateObj = new Date(appointment_date + 'T12:00:00')
+        const dayOfWeek = dateObj.getDay() === 0 ? 7 : dateObj.getDay()
+
+        // Primero consultamos si el doctor tiene CUALQUIER horario en esta sucursal
+        const { data: allSchedules, error: allSchedError } = await supabase
+          .from('doctor_schedules')
+          .select('id')
+          .eq('doctor_id', doctor_id)
+          .eq('sucursal_id', sucursal.id)
+          .eq('is_active', true)
+
+        if (allSchedError) throw allSchedError
+
+        if (!allSchedules || allSchedules.length === 0) {
+          if (active) setRescheduleAvailability('no_schedule')
+          return
+        }
+
+        // Si tiene horarios, buscamos si trabaja este día
+        const { data: schedules, error: schedError } = await supabase
+          .from('doctor_schedules')
+          .select('start_time, end_time')
+          .eq('doctor_id', doctor_id)
+          .eq('sucursal_id', sucursal.id)
+          .eq('day_of_week', dayOfWeek)
+          .eq('is_active', true)
+
+        if (schedError) throw schedError
+
+        if (!schedules || schedules.length === 0) {
+          if (active) setRescheduleAvailability('outside_schedule')
+          return
+        }
+
+        // Comparar horas
+        const selectedTime = appointment_time.length === 5 ? appointment_time + ':00' : appointment_time
+        const isWithin = schedules.some(s => {
+          const start = s.start_time
+          const end = s.end_time
+          return selectedTime >= start && selectedTime < end
+        })
+
+        if (active) {
+          setRescheduleAvailability(isWithin ? 'available' : 'outside_schedule')
+        }
+      } catch (err) {
+        console.error('Error checking reschedule availability:', err)
+        if (active) setRescheduleAvailability(null)
+      }
+    }
+
+    checkRescheduleAvailability()
+
+    return () => {
+      active = false
+    }
+  }, [rescheduleForm.id, rescheduleForm.doctor_id, rescheduleForm.appointment_date, rescheduleForm.appointment_time, sucursal])
+
+  // Handle saving rescheduling
+  const handleSaveReschedule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!rescheduleForm.id || !rescheduleForm.appointment_date || !rescheduleForm.appointment_time) {
+      toast.error('Falta información requerida')
+      return
+    }
+
+    setRescheduleLoading(true)
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          appointment_date: rescheduleForm.appointment_date,
+          appointment_time: rescheduleForm.appointment_time,
+          reason: rescheduleForm.reason
+        })
+        .eq('id', rescheduleForm.id)
+
+      if (error) throw error
+
+      toast.success('Cita reprogramada correctamente')
+      setIsRescheduleModalOpen(false)
+      fetchData()
+    } catch (err: any) {
+      toast.error('Error al reprogramar la cita: ' + err.message)
+    } finally {
+      setRescheduleLoading(false)
+    }
+  }
 
   // Load sucursal, doctors, and appointments
   const fetchData = useCallback(async () => {
@@ -131,7 +360,11 @@ export default function SecretariaDashboard() {
         .eq('sucursal_id', activeSucursal.id)
 
       const activeDoctors = sucsDocs?.map((d: any) => d.profiles).filter(Boolean) || []
-      setDoctors(activeDoctors)
+      // Eliminar duplicados por ID de médico
+      const uniqueDoctors = Array.from(
+        new Map(activeDoctors.map((doc: any) => [doc.id, doc])).values()
+      )
+      setDoctors(uniqueDoctors)
 
       // 3. Obtener citas de esta sucursal
       const { data: apts, error: aptsError } = await supabase
@@ -143,6 +376,7 @@ export default function SecretariaDashboard() {
           status,
           type,
           doctor_name,
+          doctor_id,
           specialty,
           reason,
           patient_id,
@@ -161,6 +395,7 @@ export default function SecretariaDashboard() {
           status: a.status,
           type: a.type || 'presencial',
           doctorName: a.doctor_name || 'Médico',
+          doctorId: a.doctor_id || '',
           specialty: a.specialty || 'General',
           patientName: a.profiles?.full_name || 'Paciente',
           patientCi: a.profiles?.cedula_identidad || 'N/A',
@@ -206,13 +441,24 @@ export default function SecretariaDashboard() {
     setShowCreatePatientForm(false)
 
     try {
-      const { data, error } = await supabase
+      const cleanSearch = patientSearchCi.trim()
+      const digitsOnly = cleanSearch.replace(/\D/g, '')
+
+      let filterStr = `cedula_identidad.eq.${cleanSearch},cedula_identidad.ilike.${cleanSearch}%,cedula_identidad.ilike.%${cleanSearch},full_name.ilike.%${cleanSearch}%`
+      if (digitsOnly && digitsOnly !== cleanSearch) {
+        filterStr += `,cedula_identidad.eq.${digitsOnly},cedula_identidad.ilike.${digitsOnly}%`
+      }
+
+      const { data: results, error } = await supabase
         .from('profiles')
         .select('id, full_name, email, phone, cedula_identidad')
-        .eq('cedula_identidad', patientSearchCi)
-        .maybeSingle()
+        .eq('role', 'paciente')
+        .or(filterStr)
+        .limit(1)
 
       if (error) throw error
+
+      const data = results && results.length > 0 ? results[0] : null
 
       if (data) {
         setFoundPatient(data)
@@ -221,7 +467,7 @@ export default function SecretariaDashboard() {
         toast.info('Paciente no registrado. Puedes crearlo abajo.')
         setNewPatientData({
           name: '',
-          ci: patientSearchCi,
+          ci: cleanSearch,
           email: '',
           phone: ''
         })
@@ -319,12 +565,13 @@ export default function SecretariaDashboard() {
   const filteredAppointments = appointments.filter(apt => {
     const matchesDate = apt.date === filterDate
     const matchesStatus = filterStatus === 'all' || apt.status === filterStatus
+    const matchesDoctor = filterDoctor === 'all' || apt.doctorId === filterDoctor
     const matchesSearch = 
       apt.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       apt.patientCi.includes(searchTerm) ||
       apt.doctorName.toLowerCase().includes(searchTerm.toLowerCase())
 
-    return matchesDate && matchesStatus && matchesSearch
+    return matchesDate && matchesStatus && matchesDoctor && matchesSearch
   })
 
   // Count stats
@@ -450,6 +697,20 @@ export default function SecretariaDashboard() {
                 </Select>
               </div>
 
+              <div className="w-full md:w-[180px]">
+                <Select value={filterDoctor} onValueChange={setFilterDoctor}>
+                  <SelectTrigger className="h-11 rounded-xl bg-foreground/[0.03] border-border/50 font-bold text-sm w-full">
+                    <SelectValue placeholder="Especialista" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border/50">
+                    <SelectItem value="all" className="font-bold">Todos los médicos</SelectItem>
+                    {doctors.map(d => (
+                      <SelectItem key={d.id} value={d.id} className="font-bold">{d.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="w-full relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input 
@@ -460,6 +721,26 @@ export default function SecretariaDashboard() {
                 />
               </div>
             </div>
+
+            {/* Quick Clear Filter Button */}
+            {(filterDate !== format(new Date(), 'yyyy-MM-dd') || searchTerm || filterStatus !== 'all' || filterDoctor !== 'all') && (
+              <div className="flex justify-end animate-slide-in">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    setFilterDate(format(new Date(), 'yyyy-MM-dd'))
+                    setSearchTerm('')
+                    setFilterStatus('all')
+                    setFilterDoctor('all')
+                  }}
+                  className="text-xs text-rose-500 hover:bg-rose-500/10 font-bold h-8 rounded-lg"
+                >
+                  <X className="size-3.5 mr-1" />
+                  Limpiar Filtros
+                </Button>
+              </div>
+            )}
 
             {/* Listado de Citas */}
             {loading ? (
@@ -534,6 +815,30 @@ export default function SecretariaDashboard() {
                               >
                                 <ClipboardCheck className="size-3.5 mr-1" />
                                 Check-in
+                              </Button>
+                            )}
+
+                            {/* Acción: Reprogramar */}
+                            {apt.status !== 'completed' && apt.status !== 'cancelled' && (
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedRescheduleApt(apt)
+                                  setRescheduleForm({
+                                    id: apt.id,
+                                    doctor_id: apt.doctorId,
+                                    appointment_date: apt.date,
+                                    appointment_time: apt.time,
+                                    reason: apt.reason
+                                  })
+                                  setIsRescheduleModalOpen(true)
+                                }}
+                                className="h-8 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-lg font-bold text-xs"
+                                title="Reprogramar Cita"
+                              >
+                                <CalendarClock className="size-3.5 mr-1" />
+                                Reprogramar
                               </Button>
                             )}
 
@@ -674,7 +979,7 @@ export default function SecretariaDashboard() {
                   onValueChange={(val) => setBookingForm({...bookingForm, doctor_id: val})}
                   required
                 >
-                  <SelectTrigger className="h-12 rounded-xl bg-foreground/[0.03] border-border/50 font-bold text-sm">
+                  <SelectTrigger className="w-full h-12 rounded-xl bg-foreground/[0.03] border-border/50 font-bold text-sm">
                     <SelectValue placeholder="Seleccionar médico" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/50">
@@ -710,6 +1015,42 @@ export default function SecretariaDashboard() {
                 </div>
               </div>
 
+              {/* Disponibilidad del Médico */}
+              {bookingForm.doctor_id && bookingForm.appointment_date && bookingForm.appointment_time && (
+                <div className="mt-1 animate-slide-in">
+                  {availability === 'loading' && (
+                    <div className="flex items-center gap-2 p-3 bg-muted/50 border border-border/30 rounded-xl text-xs text-muted-foreground font-bold">
+                      <Loader2 className="size-4 animate-spin text-amber-500" />
+                      Verificando disponibilidad del médico...
+                    </div>
+                  )}
+                  {availability === 'available' && (
+                    <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="flex size-2 rounded-full bg-emerald-500" />
+                      Horario Disponible para Consulta
+                    </div>
+                  )}
+                  {availability === 'occupied' && (
+                    <div className="flex items-center gap-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-600 dark:text-rose-400 font-bold">
+                      <span className="flex size-2 rounded-full bg-rose-500 animate-ping" />
+                      Este horario ya está ocupado por otra cita activa.
+                    </div>
+                  )}
+                  {availability === 'outside_schedule' && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400 font-bold">
+                      <span className="flex size-2 rounded-full bg-amber-500" />
+                      Fuera de horario de atención configurado para el doctor.
+                    </div>
+                  )}
+                  {availability === 'no_schedule' && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-bold">
+                      <span className="flex size-2 rounded-full bg-blue-500" />
+                      El médico no tiene horarios configurados. Se permite agendar.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label className="text-xs font-bold">Motivo de Consulta</Label>
                 <Input 
@@ -731,7 +1072,7 @@ export default function SecretariaDashboard() {
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={bookingLoading || !foundPatient || !bookingForm.doctor_id}
+                  disabled={bookingLoading || !foundPatient || !bookingForm.doctor_id || availability === 'occupied'}
                   className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-12 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/10"
                 >
                   {bookingLoading && <Loader2 className="size-4 animate-spin" />}
@@ -740,6 +1081,121 @@ export default function SecretariaDashboard() {
               </DialogFooter>
             </form>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Reprogramar Cita */}
+      <Dialog open={isRescheduleModalOpen} onOpenChange={setIsRescheduleModalOpen}>
+        <DialogContent className="max-w-md rounded-[2.5rem] bg-background/95 backdrop-blur-xl border border-border/50 text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black flex items-center gap-2">
+              <CalendarClock className="size-6 text-amber-500" />
+              Reprogramar Cita
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Modifica la fecha, hora o el motivo de la cita para el paciente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedRescheduleApt && (
+            <div className="p-4 bg-foreground/[0.02] border border-border/50 rounded-2xl space-y-1 mb-2">
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Cita Actual</p>
+              <h4 className="text-md font-black text-foreground">{selectedRescheduleApt.patientName}</h4>
+              <p className="text-xs text-muted-foreground">
+                CI: {selectedRescheduleApt.patientCi} | Médico: {selectedRescheduleApt.doctorName}
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveReschedule} className="space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Nueva Fecha</Label>
+                <Input 
+                  type="date"
+                  value={rescheduleForm.appointment_date}
+                  onChange={(e) => setRescheduleForm({...rescheduleForm, appointment_date: e.target.value})}
+                  required
+                  className="h-12 rounded-xl bg-foreground/[0.03] border-border/50 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold">Nueva Hora</Label>
+                <Input 
+                  type="time"
+                  value={rescheduleForm.appointment_time}
+                  onChange={(e) => setRescheduleForm({...rescheduleForm, appointment_time: e.target.value})}
+                  required
+                  className="h-12 rounded-xl bg-foreground/[0.03] border-border/50 font-bold"
+                />
+              </div>
+            </div>
+
+            {/* Disponibilidad del Médico en Reprogramación */}
+            {rescheduleForm.doctor_id && rescheduleForm.appointment_date && rescheduleForm.appointment_time && (
+              <div className="mt-1 animate-slide-in">
+                {rescheduleAvailability === 'loading' && (
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 border border-border/30 rounded-xl text-xs text-muted-foreground font-bold">
+                    <Loader2 className="size-4 animate-spin text-amber-500" />
+                    Verificando disponibilidad...
+                  </div>
+                )}
+                {rescheduleAvailability === 'available' && (
+                  <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 dark:text-emerald-400 font-bold">
+                    <span className="flex size-2 rounded-full bg-emerald-500" />
+                    Horario Disponible para Consulta
+                  </div>
+                )}
+                {rescheduleAvailability === 'occupied' && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-rose-600 dark:text-rose-400 font-bold">
+                    <span className="flex size-2 rounded-full bg-rose-500 animate-ping" />
+                    Este horario ya está ocupado por otra cita activa.
+                  </div>
+                )}
+                {rescheduleAvailability === 'outside_schedule' && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400 font-bold">
+                    <span className="flex size-2 rounded-full bg-amber-500" />
+                    Fuera de horario de atención configurado para el doctor.
+                  </div>
+                )}
+                {rescheduleAvailability === 'no_schedule' && (
+                  <div className="flex items-center gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-bold">
+                    <span className="flex size-2 rounded-full bg-blue-500" />
+                    El médico no tiene horarios configurados. Se permite agendar.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold">Motivo / Notas</Label>
+              <Input 
+                placeholder="Motivo del cambio de día o consulta..."
+                value={rescheduleForm.reason}
+                onChange={(e) => setRescheduleForm({...rescheduleForm, reason: e.target.value})}
+                className="h-12 rounded-xl bg-foreground/[0.03] border-border/50 font-bold text-sm"
+              />
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={() => setIsRescheduleModalOpen(false)}
+                className="h-12 rounded-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={rescheduleLoading || rescheduleAvailability === 'occupied'}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-bold h-12 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/10"
+              >
+                {rescheduleLoading && <Loader2 className="size-4 animate-spin" />}
+                Guardar Cambios
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

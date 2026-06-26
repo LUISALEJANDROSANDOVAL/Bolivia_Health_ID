@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Read .env.local manually
 const envPath = path.resolve(__dirname, '../.env.local');
 const envContent = fs.readFileSync(envPath, 'utf8');
 
@@ -27,17 +28,26 @@ envContent.split('\n').forEach(line => {
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+console.log('URL:', url);
+console.log('Key length:', key ? key.length : 0);
+
+if (!url || !key) {
+  console.error('Missing URL or Key');
+  process.exit(1);
+}
+
 const supabase = createClient(url, key);
 
 async function run() {
-  const { data, error } = await supabase
-    .from('doctor_sucursal')
-    .select('*, profiles(full_name)');
-  
-  if (error) {
-    console.error(error);
-  } else {
-    console.log('doctor_sucursal relations:', data);
+  console.log('Testing sign in with incorrect password first...');
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: 'secretaria@boliviahealth.com',
+      password: 'wrongpassword',
+    });
+    console.log('Wrong Password Result:', { data, error });
+  } catch (e) {
+    console.error('Error with wrong password:', e);
   }
 }
 

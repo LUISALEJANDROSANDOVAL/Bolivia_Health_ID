@@ -27,17 +27,32 @@ envContent.split('\n').forEach(line => {
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+if (!url || !key) {
+  console.error('Missing URL or Key');
+  process.exit(1);
+}
+
 const supabase = createClient(url, key);
 
 async function run() {
   const { data, error } = await supabase
-    .from('doctor_sucursal')
-    .select('*, profiles(full_name)');
+    .from('secretaria_sucursal')
+    .select('*');
   
   if (error) {
-    console.error(error);
+    console.error('Error fetching secretaria_sucursal:', error);
   } else {
-    console.log('doctor_sucursal relations:', data);
+    console.log('secretaria_sucursal:', data);
+  }
+
+  const { data: sucursalData, error: sucursalError } = await supabase
+    .from('sucursales')
+    .select('*');
+  
+  if (sucursalError) {
+    console.error('Error fetching sucursales:', sucursalError);
+  } else {
+    console.log('sucursales:', sucursalData);
   }
 }
 

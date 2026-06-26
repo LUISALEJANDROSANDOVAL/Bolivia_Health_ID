@@ -1,7 +1,8 @@
 import {
   Building2,
   UsersRound,
-  LayoutDashboard
+  LayoutDashboard,
+  CalendarRange
 } from 'lucide-react'
 import { useWallet } from '@/contexts/wallet-context'
 import { SidebarBase, NavItem } from '@/components/ui/sidebar-base'
@@ -11,6 +12,7 @@ const navigationItems: NavItem[] = [
   { title: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { title: 'Sucursales', href: '/admin/sucursales', icon: Building2 },
   { title: 'Doctores', href: '/admin/doctores', icon: UsersRound },
+  { title: 'Agenda Global', href: '/admin/citas', icon: CalendarRange },
 ]
 
 interface AdminSidebarProps {

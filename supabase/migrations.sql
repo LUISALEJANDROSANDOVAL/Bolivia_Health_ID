@@ -715,6 +715,12 @@ CREATE POLICY admin_select_all_profiles ON public.profiles
 CREATE POLICY admin_update_all_profiles ON public.profiles 
   FOR UPDATE TO authenticated USING (public.is_admin());
 
+CREATE POLICY admin_insert_all_profiles ON public.profiles
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+CREATE POLICY admin_delete_all_profiles ON public.profiles
+  FOR DELETE TO authenticated USING (public.is_admin());
+
 CREATE POLICY admin_all_schedules ON public.doctor_schedules 
   FOR ALL TO authenticated USING (public.is_admin());
 
@@ -723,6 +729,15 @@ CREATE POLICY admin_all_hospitals ON public.hospitals
 
 CREATE POLICY admin_all_secretaria_sucursal ON public.secretaria_sucursal
   FOR ALL TO authenticated USING (public.is_admin());
+
+CREATE POLICY admin_all_sucursales ON public.sucursales
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+CREATE POLICY admin_all_doctor_sucursal ON public.doctor_sucursal
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+CREATE POLICY admin_all_appointments ON public.appointments
+  FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 
 -- -----------------------------------------------------------------------------
