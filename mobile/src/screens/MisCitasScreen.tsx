@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, useColorScheme } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, useColorScheme, Animated, ActivityIndicator } from 'react-native';
 
 import {
   ArrowLeft,
@@ -8,6 +8,7 @@ import {
   Calendar,
   User,
   ChevronDown,
+  ChevronRight,
   Ghost,
   Clock,
 } from 'lucide-react-native';
@@ -16,8 +17,37 @@ import { Colors } from '../theme/Colors';
 import { supabase } from '../services/supabase';
 import { getActiveWallet, getPatientData } from '../services/patientService';
 import { Skeleton } from '../components/Skeleton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
+
+const AnimatedCard = ({ children, delay }: { children: React.ReactNode, delay: number }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: 1,
+      tension: 40,
+      friction: 7,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [50, 0]
+        })
+      }]
+    }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function MisCitasScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -29,7 +59,6 @@ export default function MisCitasScreen({ navigation }: any) {
   const [completed, setCompleted] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados para expandir/colapsar las secciones
   const [upcomingExpanded, setUpcomingExpanded] = useState(true);
   const [completedExpanded, setCompletedExpanded] = useState(true);
 
@@ -45,7 +74,6 @@ export default function MisCitasScreen({ navigation }: any) {
         return;
       }
 
-      // Query appointments
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
@@ -73,7 +101,6 @@ export default function MisCitasScreen({ navigation }: any) {
             date: fullDate,
             status: statusText,
             statusRaw: apt.status,
-            image: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200&auto=format&fit=crop',
           };
         });
 
@@ -97,6 +124,53 @@ export default function MisCitasScreen({ navigation }: any) {
     loadAppointments();
     return unsubscribe;
   }, [navigation]);
+
+  const getInitials = (name: string) => {
+    if (!name || name === 'Médico General') return 'MG';
+    const parts = name.trim().split(' ').filter(p => p.length > 0);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const renderSmartAvatar = (name: string) => {
+    const initials = getInitials(name);
+    return (
+      <LinearGradient
+        colors={isDark ? ['#1E40AF', '#3B82F6'] : ['#2563EB', '#60A5FA']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.doctorAvatarGradient}
+      >
+        <Text style={styles.doctorAvatarInitials}>{initials}</Text>
+      </LinearGradient>
+    );
+  };
+
+  const getPillStyle = (statusRaw: string) => {
+    if (statusRaw === 'in_progress') {
+      return {
+        bg: isDark ? 'rgba(234, 88, 12, 0.15)' : '#FFEDD5',
+        text: isDark ? '#FB923C' : '#C2410C'
+      };
+    }
+    if (statusRaw === 'completed') {
+      return {
+        bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#DCFCE7',
+        text: isDark ? '#34D399' : '#166534'
+      };
+    }
+    if (statusRaw === 'cancelled') {
+      return {
+        bg: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+        text: isDark ? '#F87171' : '#B91C1C'
+      };
+    }
+    return {
+      bg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#DBEAFE',
+      text: isDark ? '#60A5FA' : '#1E40AF'
+    };
+  };
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), backgroundColor: theme.background }]}>
@@ -126,10 +200,10 @@ export default function MisCitasScreen({ navigation }: any) {
       {loading ? (
         <View style={{ flex: 1, padding: 20 }}>
           <Skeleton width="40%" height={24} borderRadius={12} style={{ marginBottom: 16 }} />
-          <Skeleton width="100%" height={120} borderRadius={20} style={{ marginBottom: 12 }} />
-          <Skeleton width="100%" height={120} borderRadius={20} style={{ marginBottom: 32 }} />
+          <Skeleton width="100%" height={140} borderRadius={24} style={{ marginBottom: 12 }} />
+          <Skeleton width="100%" height={140} borderRadius={24} style={{ marginBottom: 32 }} />
           <Skeleton width="40%" height={24} borderRadius={12} style={{ marginBottom: 16 }} />
-          <Skeleton width="100%" height={120} borderRadius={20} />
+          <Skeleton width="100%" height={140} borderRadius={24} />
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -142,10 +216,10 @@ export default function MisCitasScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <View style={styles.sectionHeaderLeft}>
-                <View style={[styles.statusDot, { backgroundColor: '#EA580C' }]} />
-                <Text style={styles.sectionTitle}>Próximas ({upcoming.length})</Text>
+                <View style={[styles.statusDot, { backgroundColor: '#3B82F6' }]} />
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Próximas ({upcoming.length})</Text>
               </View>
-              <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
+              <View style={[styles.chevronContainer, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <ChevronDown 
                   size={16} 
                   color={theme.textSecondary} 
@@ -155,44 +229,54 @@ export default function MisCitasScreen({ navigation }: any) {
             </TouchableOpacity>
   
             {upcomingExpanded && upcoming.length === 0 && (
-              <View style={{ padding: 30, alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 20, marginVertical: 10 }}>
+              <View style={[styles.emptyStateCard, isDark && styles.glassEmptyState]}>
                 <Ghost color={theme.textSecondary} size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
-                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '700' }}>Sin citas próximas</Text>
+                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '800' }}>Sin citas próximas</Text>
                 <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 4, fontSize: 13 }}>No tienes citas programadas por el momento.</Text>
               </View>
             )}
   
-            {upcomingExpanded && upcoming.map((apt) => (
-              <TouchableOpacity 
-                key={apt.id} 
-                style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}
-                onPress={() => {
-                  navigation.navigate('FichaActiva', {
-                    appointmentId: apt.id,
-                    hospital: { nombre: 'Clínica Sede Central', ciudad: 'La Paz' },
-                    especialidad: { nombre: apt.specialty }
-                  });
-                }}
-              >
-                <View style={styles.cardTopRow}>
-                  <Text style={styles.cardTypeTitle}>{apt.type}</Text>
-                  <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(59, 130, 246, 0.15)' } : styles.pillUpcoming]}>
-                    <Text style={[styles.pillTextUpcoming, isDark && { color: '#60A5FA' }]}>{apt.status}</Text>
-                  </View>
-                </View>
-  
-                <View style={styles.cardBottomRow}>
-                  <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
-                  <View style={styles.doctorInfo}>
-                    <Text style={styles.doctorName}>{apt.doctorName}</Text>
-                    <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
-                  </View>
-                  <View style={styles.dateContainer}>
-                    <Text style={styles.dateText}>{apt.date}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {upcomingExpanded && upcoming.map((apt, idx) => {
+              const pill = getPillStyle(apt.statusRaw);
+              return (
+                <AnimatedCard key={apt.id} delay={idx * 100}>
+                  <TouchableOpacity 
+                    style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassCardDark]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      navigation.navigate('FichaActiva', {
+                        appointmentId: apt.id,
+                        hospital: { nombre: 'Clínica Sede Central', ciudad: 'La Paz' },
+                        especialidad: { nombre: apt.specialty }
+                      });
+                    }}
+                  >
+                    <View style={styles.cardTopRow}>
+                      <Text style={[styles.cardTypeTitle, { color: theme.textPrimary }]}>{apt.type}</Text>
+                      <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                        <Text style={[styles.pillText, { color: pill.text }]}>{apt.status}</Text>
+                      </View>
+                    </View>
+      
+                    <View style={styles.cardBottomRow}>
+                      {renderSmartAvatar(apt.doctorName)}
+                      <View style={styles.doctorInfo}>
+                        <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{apt.doctorName}</Text>
+                        <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
+                      </View>
+                      <ChevronRight size={20} color={theme.border} />
+                    </View>
+                    
+                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                    
+                    <View style={styles.cardFooter}>
+                      <Calendar size={14} color={theme.textSecondary} />
+                      <Text style={[styles.dateText, { color: theme.textSecondary }]}>{apt.date}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </AnimatedCard>
+              );
+            })}
           </View>
   
           {/* ── CITAS COMPLETADAS ── */}
@@ -204,9 +288,9 @@ export default function MisCitasScreen({ navigation }: any) {
             >
               <View style={styles.sectionHeaderLeft}>
                 <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.sectionTitle}>Completadas ({completed.length})</Text>
+                <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Completadas ({completed.length})</Text>
               </View>
-              <View style={[styles.chevronContainer, { borderColor: theme.border }]}>
+              <View style={[styles.chevronContainer, { borderColor: theme.border, backgroundColor: theme.surface }]}>
                 <ChevronDown 
                   size={16} 
                   color={theme.textSecondary} 
@@ -216,34 +300,43 @@ export default function MisCitasScreen({ navigation }: any) {
             </TouchableOpacity>
   
             {completedExpanded && completed.length === 0 && (
-              <View style={{ padding: 30, alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 20, marginVertical: 10 }}>
+              <View style={[styles.emptyStateCard, isDark && styles.glassEmptyState]}>
                 <Clock color={theme.textSecondary} size={48} style={{ marginBottom: 12, opacity: 0.5 }} />
-                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '700' }}>Sin historial</Text>
+                <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '800' }}>Sin historial</Text>
                 <Text style={{ color: theme.textSecondary, textAlign: 'center', marginTop: 4, fontSize: 13 }}>No tienes citas archivadas.</Text>
               </View>
             )}
   
-            {completedExpanded && completed.map((apt) => (
-              <View key={apt.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: isDark ? '#000' : '#0F2B3D' }]}>
-                <View style={styles.cardTopRow}>
-                  <Text style={styles.cardTypeTitle}>{apt.type}</Text>
-                  <View style={[styles.pill, isDark ? { backgroundColor: 'rgba(16, 185, 129, 0.15)' } : styles.pillCompleted]}>
-                    <Text style={[styles.pillTextCompleted, isDark && { color: '#34D399' }]}>{apt.status}</Text>
+            {completedExpanded && completed.map((apt, idx) => {
+              const pill = getPillStyle(apt.statusRaw);
+              return (
+                <AnimatedCard key={apt.id} delay={(upcoming.length * 100) + (idx * 100)}>
+                  <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassCardDark]}>
+                    <View style={styles.cardTopRow}>
+                      <Text style={[styles.cardTypeTitle, { color: theme.textPrimary }]}>{apt.type}</Text>
+                      <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                        <Text style={[styles.pillText, { color: pill.text }]}>{apt.status}</Text>
+                      </View>
+                    </View>
+      
+                    <View style={styles.cardBottomRow}>
+                      {renderSmartAvatar(apt.doctorName)}
+                      <View style={styles.doctorInfo}>
+                        <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{apt.doctorName}</Text>
+                        <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
+                      </View>
+                    </View>
+
+                    <View style={[styles.divider, { backgroundColor: theme.border }]} />
+                    
+                    <View style={styles.cardFooter}>
+                      <Calendar size={14} color={theme.textSecondary} />
+                      <Text style={[styles.dateText, { color: theme.textSecondary }]}>{apt.date}</Text>
+                    </View>
                   </View>
-                </View>
-  
-                <View style={styles.cardBottomRow}>
-                  <Image source={{ uri: apt.image }} style={[styles.doctorAvatar, { backgroundColor: theme.border }]} />
-                  <View style={styles.doctorInfo}>
-                    <Text style={styles.doctorName}>{apt.doctorName}</Text>
-                    <Text style={[styles.specialtyText, { color: theme.textSecondary }]}>{apt.specialty}</Text>
-                  </View>
-                  <View style={styles.dateContainer}>
-                    <Text style={styles.dateText}>{apt.date}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
+                </AnimatedCard>
+              );
+            })}
           </View>
           
           <View style={{ height: 100 }} />
@@ -293,30 +386,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
   chevronContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+  },
+
+  emptyStateCard: {
+    padding: 30, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 24, marginVertical: 10,
+  },
+  glassEmptyState: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
 
   // Cards
@@ -325,23 +425,26 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  glassCardDark: {
+    backgroundColor: 'rgba(30, 41, 59, 0.4)', borderColor: 'rgba(255, 255, 255, 0.05)'
   },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
+    alignItems: 'center',
+    marginBottom: 20,
   },
   cardTypeTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     flex: 1,
     marginRight: 10,
-    lineHeight: 22,
   },
   
   // Pills
@@ -350,53 +453,59 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
   },
-  pillUpcoming: {
-    backgroundColor: '#DBEAFE', 
-  },
-  pillTextUpcoming: {
-    color: '#1E40AF',
+  pillText: {
     fontSize: 12,
-    fontWeight: '700',
-  },
-  pillCompleted: {
-    backgroundColor: '#DCFCE7', 
-  },
-  pillTextCompleted: {
-    color: '#166534',
-    fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
-  // Card Bottom Info
+  // Card Middle Info
   cardBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  doctorAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    marginRight: 12,
+  doctorAvatarGradient: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  doctorAvatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   doctorInfo: {
     flex: 1,
   },
   doctorName: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
     marginBottom: 2,
   },
   specialtyText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
   },
-  dateContainer: {
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
+
+  // Divider
+  divider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 16,
+    opacity: 0.5,
+  },
+
+  // Footer
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   dateText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700',
-    marginTop: 20, 
   },
 });

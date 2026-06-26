@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, Calendar, User } from 'lucide-react-native';
+import { Home, Calendar, Settings } from 'lucide-react-native';
 import { useColorScheme } from 'react-native';
 import { Colors } from '../theme/Colors';
 
@@ -40,7 +40,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   Home: undefined;
   MisCitas: undefined;
-  HealthID: undefined;
+  Configuracion: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -94,11 +94,11 @@ function MainTabNavigator() {
         }}
       />
       <Tab.Screen 
-        name="HealthID" 
-        component={HealthIDScreen} 
+        name="Configuracion" 
+        component={ConfiguracionScreen} 
         options={{
-          tabBarLabel: 'Mi ID',
-          tabBarIcon: ({ color, size }) => <User color={color} size={24} />
+          tabBarLabel: 'Ajustes',
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={24} />
         }}
       />
     </Tab.Navigator>

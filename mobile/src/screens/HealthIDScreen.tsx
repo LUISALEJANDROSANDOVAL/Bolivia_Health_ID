@@ -8,6 +8,7 @@ import {
   Activity,
   Droplets,
   Shield,
+  HeartPulse,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +17,34 @@ import { Colors } from '../theme/Colors';
 import { getActiveWallet, getPatientData, PatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
+
+const AnimatedCard = ({ children, delay }: { children: React.ReactNode, delay: number }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: 1,
+      tension: 50,
+      friction: 8,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [40, 0]
+        })
+      }]
+    }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function HealthIDScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -42,19 +71,19 @@ export default function HealthIDScreen({ navigation }: any) {
     };
     loadData();
 
-    // Iniciar animación del láser
+    // Animación Láser más suave
     Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnim, {
-          toValue: 180, // Altura interior de la caja QR
-          duration: 2500,
-          easing: Easing.linear,
+          toValue: 180, 
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(scanLineAnim, {
           toValue: 0,
-          duration: 2500,
-          easing: Easing.linear,
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
       ])
@@ -69,9 +98,18 @@ export default function HealthIDScreen({ navigation }: any) {
     }
   };
 
+  const getInitials = (name: string) => {
+    if (!name) return 'ID';
+    const parts = name.trim().split(' ').filter(p => p.length > 0);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), backgroundColor: theme.background }]}>
-      {/* ── HEADER ── */}
+      {/* ── HEADER LIMPIO ── */}
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -80,13 +118,13 @@ export default function HealthIDScreen({ navigation }: any) {
           <ArrowLeft size={22} color={theme.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Mi Identidad Médica</Text>
-        <View style={{ width: 44 }} /> {/* Spacer */}
+        <View style={{ width: 44 }} />
       </View>
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#2D7FF9" />
-          <Text style={{ marginTop: 10, color: theme.textSecondary }}>Cargando Identidad...</Text>
+          <Text style={{ marginTop: 16, color: theme.textSecondary, fontWeight: '600' }}>Cargando Identidad Digital...</Text>
         </View>
       ) : !patientData ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -95,101 +133,126 @@ export default function HealthIDScreen({ navigation }: any) {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-        {/* ── TARJETA DIGITAL (APPLE WALLET STYLE) ── */}
-        <View style={[styles.cardWrapper, isDark && { shadowColor: '#000', shadowOpacity: 0.5, elevation: 15 }]}>
-          <LinearGradient
-            colors={isDark ? ['#081720', '#0D2A6E', '#1C4A9E'] : ['#0F2B3D', '#1E40AF', '#2D7FF9']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.idCard}
-          >
-            {/* Header Tarjeta */}
-            <View style={styles.cardHeader}>
-              <View style={styles.logoContainer}>
-                <Image source={require('../../assets/IconoBolivia.png')} style={{ width: 100, height: 30, resizeMode: 'contain' }} />
-              </View>
-              <View style={styles.bloodTypeBadge}>
-                <Droplets size={14} color="#EF4444" fill="#EF4444" />
-                <Text style={styles.bloodTypeText}>{patientData.vitals?.blood_type || 'N/D'}</Text>
-              </View>
-            </View>
+          {/* ── TARJETA DIGITAL (APPLE WALLET STYLE PREMIUM) ── */}
+          <AnimatedCard delay={100}>
+            <View style={[styles.cardWrapper, { shadowColor: isDark ? '#3B82F6' : '#1E40AF' }]}>
+              <LinearGradient
+                colors={isDark ? ['#0F172A', '#1E3A8A', '#3B82F6'] : ['#0F2B3D', '#1E40AF', '#3B82F6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.idCard}
+              >
+                {/* Overlay abstracto sutil */}
+                <View style={styles.cardGlowOverlay} />
 
-            {/* Cuerpo Tarjeta */}
-            <View style={styles.cardBody}>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardLabel}>PACIENTE</Text>
-                <Text style={styles.cardName}>{patientData.profile.full_name}</Text>
-
-                <Text style={[styles.cardLabel, { marginTop: 15 }]}>CÉDULA DE IDENTIDAD</Text>
-                <Text style={styles.cardData}>{patientData.profile.cedula_identidad || 'N/D'}</Text>
-
-                <Text style={[styles.cardLabel, { marginTop: 15 }]}>SEGURO MÉDICO</Text>
-                <Text style={styles.cardData}>Sin Seguro Registrado</Text>
-              </View>
-
-              <View style={styles.avatarContainer}>
-                <Image source={{ uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=200&auto=format&fit=crop' }} style={styles.avatarImage} />
-              </View>
-            </View>
-
-            {/* Footer Tarjeta (Wallet) */}
-            <View style={styles.cardFooter}>
-              <View>
-                <Text style={styles.walletLabel}>Blockchain Wallet ID</Text>
-                <Text style={styles.walletIdText}>
-                  {patientData.profile.wallet_address.substring(0, 6)}...{patientData.profile.wallet_address.substring(patientData.profile.wallet_address.length - 4)}
-                </Text>
-              </View>
-              <TouchableOpacity style={styles.copyButton} onPress={handleCopyWallet}>
-                <Copy size={16} color="#FFFFFF" />
-                {copied && <Text style={styles.copiedPopup}>¡Copiado!</Text>}
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-
-        {/* ── CÓDIGO QR DE EMERGENCIA ── */}
-        <View style={[styles.qrContainer, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
-          <Text style={[styles.qrTitle, { color: theme.textPrimary }]}>Acceso Rápido para Emergencias</Text>
-          <Text style={[styles.qrSubtitle, { color: theme.textSecondary }]}>Muestra este código al personal médico para que accedan a tus signos vitales y tipo de sangre.</Text>
-
-          <View style={[styles.qrBox, { backgroundColor: '#FFFFFF', borderColor: theme.border }]}>
-            <Image
-              source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_${patientData.profile.wallet_address}` }}
-              style={styles.qrImage}
-            />
-            <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanLineAnim }] }]} />
-          </View>
-        </View>
-
-        {/* ── ALERGIAS Y CONDICIONES (PILLS) ── */}
-        <View style={[styles.medicalAlertsContainer, { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 }]}>
-          <View style={styles.alertHeader}>
-            <Activity size={20} color="#EF4444" />
-            <Text style={[styles.alertTitle, { color: theme.textPrimary }]}>Alertas Médicas</Text>
-          </View>
-
-          <View style={styles.pillsWrapper}>
-            {patientData.vitals?.allergies ? (
-              patientData.vitals.allergies.split(',').map((alergia, index) => (
-                <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-                  <Text style={[styles.pillDangerText, isDark && { color: '#FCA5A5' }]}>Alergia: {alergia.trim()}</Text>
+                {/* Header Tarjeta */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.logoContainer}>
+                    <Image source={require('../../assets/IconoBolivia.png')} style={{ width: 110, height: 35, resizeMode: 'contain' }} />
+                  </View>
+                  <View style={styles.bloodTypeBadge}>
+                    <Droplets size={14} color="#EF4444" fill="#EF4444" />
+                    <Text style={styles.bloodTypeText}>{patientData.vitals?.blood_type || 'N/D'}</Text>
+                  </View>
                 </View>
-              ))
-            ) : (
-              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No hay alergias registradas.</Text>
-            )}
-            
-            {patientData.vitals?.blood_pressure ? (
-              <View style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
-                <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>Presión: {patientData.vitals.blood_pressure}</Text>
+  
+                {/* Cuerpo Tarjeta */}
+                <View style={styles.cardBody}>
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardLabel}>PACIENTE</Text>
+                    <Text style={styles.cardName}>{patientData.profile.full_name}</Text>
+  
+                    <Text style={[styles.cardLabel, { marginTop: 20 }]}>CÉDULA DE IDENTIDAD</Text>
+                    <Text style={styles.cardData}>{patientData.profile.cedula_identidad || 'N/D'}</Text>
+  
+                    <Text style={[styles.cardLabel, { marginTop: 20 }]}>SEGURO MÉDICO</Text>
+                    <Text style={styles.cardData}>Sin Seguro Registrado</Text>
+                  </View>
+  
+                  {/* Smart Avatar */}
+                  <View style={styles.avatarContainer}>
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.05)']}
+                      style={styles.avatarPlaceholder}
+                    >
+                      <Text style={styles.avatarInitials}>{getInitials(patientData.profile.full_name)}</Text>
+                    </LinearGradient>
+                  </View>
+                </View>
+  
+                {/* Footer Tarjeta (Wallet) */}
+                <View style={styles.cardFooter}>
+                  <View>
+                    <Text style={styles.walletLabel}>Blockchain Wallet ID</Text>
+                    <Text style={styles.walletIdText}>
+                      {patientData.profile.wallet_address.substring(0, 8)}...{patientData.profile.wallet_address.substring(patientData.profile.wallet_address.length - 6)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.copyButton} onPress={handleCopyWallet} activeOpacity={0.7}>
+                    <Copy size={16} color="#FFFFFF" />
+                    {copied && <Text style={styles.copiedPopup}>¡Copiado!</Text>}
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </AnimatedCard>
+  
+          {/* ── CÓDIGO QR DE EMERGENCIA (GLASSMORPHISM) ── */}
+          <AnimatedCard delay={200}>
+            <View style={[styles.qrContainer, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassCardDark]}>
+              <Text style={[styles.qrTitle, { color: theme.textPrimary }]}>Acceso Rápido para Emergencias</Text>
+              <Text style={[styles.qrSubtitle, { color: theme.textSecondary }]}>
+                Muestra este código al personal paramédico para que accedan a tus signos vitales y tipo de sangre en segundos.
+              </Text>
+  
+              <View style={styles.qrBoxWrapper}>
+                <LinearGradient
+                  colors={isDark ? ['rgba(59,130,246,0.3)', 'transparent'] : ['rgba(37,99,235,0.1)', 'transparent']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={[styles.qrBox, { borderColor: isDark ? 'rgba(59,130,246,0.5)' : '#3B82F6' }]}>
+                  <Image
+                    source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HealthID_${patientData.profile.wallet_address}` }}
+                    style={styles.qrImage}
+                  />
+                  <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanLineAnim }] }]} />
+                </View>
               </View>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+            </View>
+          </AnimatedCard>
+  
+          {/* ── ALERGIAS Y CONDICIONES (GLASSMORPHISM PILLS) ── */}
+          <AnimatedCard delay={300}>
+            <View style={[styles.medicalAlertsContainer, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassCardDark]}>
+              <View style={styles.alertHeader}>
+                <View style={styles.alertIconBox}>
+                  <HeartPulse size={20} color="#EF4444" />
+                </View>
+                <Text style={[styles.alertTitle, { color: theme.textPrimary }]}>Alertas Médicas</Text>
+              </View>
+  
+              <View style={styles.pillsWrapper}>
+                {patientData.vitals?.allergies ? (
+                  patientData.vitals.allergies.split(',').map((alergia, index) => (
+                    <View key={index} style={[styles.pillDanger, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                      <Text style={[styles.pillDangerText, isDark && { color: '#FCA5A5' }]}>Alergia: {alergia.trim()}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '500' }}>No hay alergias registradas.</Text>
+                )}
+                
+                {patientData.vitals?.blood_pressure ? (
+                  <View style={[styles.pillWarning, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)', borderColor: 'rgba(234, 88, 12, 0.3)' }]}>
+                    <Text style={[styles.pillWarningText, isDark && { color: '#FDBA74' }]}>Presión: {patientData.vitals.blood_pressure}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </AnimatedCard>
+  
+          <View style={{ height: 100 }} />
+        </ScrollView>
       )}
     </View>
   );
@@ -201,10 +264,10 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingBottom: 20,
   },
   iconButton: {
     width: 44,
@@ -212,66 +275,68 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
     borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
   },
+  
+  glassCardDark: { backgroundColor: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255, 255, 255, 0.05)' },
 
-  // Tarjeta
+  // Tarjeta Apple Wallet Premium
   cardWrapper: {
-    shadowColor: '#2D7FF9',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    marginBottom: 30,
+    marginBottom: 24,
+    borderRadius: 24,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 20,
   },
   idCard: {
-    width: '100%',
     borderRadius: 24,
     padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  cardGlowOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 24,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 25,
+    alignItems: 'flex-start',
+    marginBottom: 32,
+    zIndex: 2,
   },
   logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   bloodTypeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   bloodTypeText: {
-    color: '#FFFFFF',
+    color: '#FCA5A5',
     fontWeight: '800',
     fontSize: 14,
   },
@@ -279,74 +344,92 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 30,
+    marginBottom: 40,
+    zIndex: 2,
   },
   cardInfo: {
     flex: 1,
   },
   cardLabel: {
-    fontSize: 10,
     color: 'rgba(255,255,255,0.6)',
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
     marginBottom: 4,
   },
   cardName: {
-    fontSize: 24,
-    fontWeight: '800',
     color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   cardData: {
-    fontSize: 16,
-    fontWeight: '600',
     color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   avatarContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
-    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  avatarPlaceholder: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  avatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-    paddingTop: 15,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    marginHorizontal: -24,
+    marginBottom: -24,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+    zIndex: 2,
   },
   walletLabel: {
-    fontSize: 10,
     color: 'rgba(255,255,255,0.6)',
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
     marginBottom: 2,
   },
   walletIdText: {
-    fontSize: 12,
     color: '#93C5FD',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: 0.5,
   },
   copyButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 10,
+    borderRadius: 12,
     position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   copiedPopup: {
     position: 'absolute',
-    top: -25,
+    top: -30,
+    right: -10,
     backgroundColor: '#10B981',
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 10,
     fontWeight: '800',
     paddingHorizontal: 8,
@@ -359,33 +442,45 @@ const styles = StyleSheet.create({
   qrContainer: {
     borderRadius: 24,
     padding: 24,
+    marginBottom: 24,
     alignItems: 'center',
-    marginBottom: 20,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 3,
   },
   qrTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     marginBottom: 6,
+    textAlign: 'center',
   },
   qrSubtitle: {
     fontSize: 13,
     textAlign: 'center',
-    marginBottom: 24,
     lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  qrBoxWrapper: {
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
   },
   qrBox: {
     width: 200,
     height: 200,
-    borderRadius: 16,
-    padding: 10,
-    borderWidth: 1,
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 2,
+    borderRadius: 8,
   },
   qrImage: {
     width: '100%',
@@ -393,37 +488,41 @@ const styles = StyleSheet.create({
   },
   scanLine: {
     position: 'absolute',
-    top: 10, // Inicia con el padding de 10
-    left: 10, // Respeta el padding
-    right: 10,
+    width: '100%',
     height: 3,
-    backgroundColor: 'rgba(45, 127, 249, 0.8)',
-    shadowColor: '#2D7FF9',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+    backgroundColor: '#3B82F6',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
     elevation: 5,
   },
 
-  // Alertas Médicas
+  // Alertas
   medicalAlertsContainer: {
     borderRadius: 24,
-    padding: 20,
+    padding: 24,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: 3,
   },
   alertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     marginBottom: 16,
+    gap: 10,
+  },
+  alertIconBox: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center', justifyContent: 'center',
   },
   alertTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '900',
   },
   pillsWrapper: {
     flexDirection: 'row',
@@ -431,29 +530,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pillDanger: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 12,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#FECACA',
   },
   pillDangerText: {
-    color: '#EF4444',
+    color: '#B91C1C',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   pillWarning: {
-    backgroundColor: '#FFF7ED',
-    paddingHorizontal: 12,
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#FED7AA',
   },
   pillWarningText: {
-    color: '#EA580C',
+    color: '#C2410C',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

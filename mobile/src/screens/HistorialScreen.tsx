@@ -1,7 +1,8 @@
 import { Text } from '../components/CustomText';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated, TextInput, useColorScheme, Platform, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Animated, TextInput, useColorScheme, Platform, ActivityIndicator, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   ArrowLeft,
@@ -15,7 +16,8 @@ import {
   Download,
   Building,
   Clock,
-  ClipboardList
+  ClipboardList,
+  SearchX
 } from 'lucide-react-native';
 import { Colors } from '../theme/Colors';
 import { supabase } from '../services/supabase';
@@ -23,8 +25,35 @@ import { getActiveWallet, getPatientData } from '../services/patientService';
 
 const { width } = Dimensions.get('window');
 
-
 const CATEGORIAS = ['Todos', 'Laboratorio', 'Recetas', 'Imágenes'];
+
+const AnimatedCard = ({ children, delay }: { children: React.ReactNode, delay: number }) => {
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: 1,
+      tension: 40,
+      friction: 7,
+      delay,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      opacity: anim,
+      transform: [{
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [50, 0]
+        })
+      }]
+    }}>
+      {children}
+    </Animated.View>
+  );
+};
 
 export default function HistorialScreen({ navigation }: any) {
   const [records, setRecords] = useState<any[]>([]);
@@ -35,9 +64,9 @@ export default function HistorialScreen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? Colors.dark : Colors.light;
 
-  // Animación Fade-In Up
+  // Animación Fade-In Up global
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current; // Matches PermisosScreen
+  const slideAnim = useRef(new Animated.Value(30)).current; 
 
   useEffect(() => {
     Animated.parallel([
@@ -56,26 +85,25 @@ export default function HistorialScreen({ navigation }: any) {
   }, []);
 
   const mapRecordToDemo = (dbItem: any) => {
-    let colorBorde = '#2D7FF9';
+    let colorBorde = '#3B82F6';
     let colorFondo = '#EFF6FF';
-    let colorFondoDark = 'rgba(45, 127, 249, 0.1)';
-    let icono = <Activity size={20} color="#2D7FF9" />;
-    let accionIcono = <Eye size={16} color="#2D7FF9" />;
+    let colorFondoDark = 'rgba(59, 130, 246, 0.1)';
+    let icono = <Activity size={22} color="#3B82F6" />;
+    let accionIcono = <Eye size={16} color="#3B82F6" />;
     let accionTexto = 'Ver Documento Original';
 
-    // Mapear categorías del esquema RNF/Catálogo
     if (dbItem.category === 'Laboratorio') {
       colorBorde = '#14B8A6';
       colorFondo = '#F0FDF9';
-      colorFondoDark = 'rgba(20, 184, 166, 0.1)';
-      icono = <FileText size={20} color="#14B8A6" />;
+      colorFondoDark = 'rgba(20, 184, 166, 0.15)';
+      icono = <FileText size={22} color="#14B8A6" />;
       accionIcono = <Eye size={16} color="#14B8A6" />;
       accionTexto = 'Ver Documento Original';
     } else if (dbItem.category === 'Recetas') {
       colorBorde = '#F97316';
       colorFondo = '#FFF7ED';
-      colorFondoDark = 'rgba(249, 115, 22, 0.1)';
-      icono = <Pill size={20} color="#F97316" />;
+      colorFondoDark = 'rgba(249, 115, 22, 0.15)';
+      icono = <Pill size={22} color="#F97316" />;
       accionIcono = <Download size={16} color="#F97316" />;
       accionTexto = 'Descargar Receta';
     }
@@ -116,7 +144,6 @@ export default function HistorialScreen({ navigation }: any) {
         return;
       }
 
-      // Consulta segura a health_records con JOIN de doctor
       const { data, error } = await supabase
         .from('health_records')
         .select(`
@@ -129,15 +156,34 @@ export default function HistorialScreen({ navigation }: any) {
       if (error) {
         console.error('Error fetching health records:', error.message);
       } else if (data) {
-        const mapped = data.map(mapRecordToDemo);
-        setRecords(mapped);
+        setRecords(data.map(mapRecordToDemo));
+      } else {
+        setRecords([]);
       }
     } catch (err) {
-      console.error('Error loading history:', err);
+      console.error('Error fetching history:', err);
     } finally {
       setIsLoading(false);
     }
   }
+
+  const handleOpenDocument = async (url: string | null) => {
+    if (!url) {
+      Alert.alert('Documento no disponible', 'No hay un documento adjunto para este registro médico.');
+      return;
+    }
+    
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Error', 'No se puede abrir este tipo de documento en el dispositivo.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Hubo un problema al intentar abrir el documento.');
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -166,7 +212,7 @@ export default function HistorialScreen({ navigation }: any) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       
-      {/* ── HEADER BLANCO LIMPIO (ESTILO PERMISOS) ── */}
+      {/* ── HEADER BLANCO LIMPIO ── */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]} 
@@ -195,11 +241,11 @@ export default function HistorialScreen({ navigation }: any) {
           </Text>
         </View>
 
-        {/* ── CONTROLES (Búsqueda y Filtros Fijos al hacer scroll) ── */}
+        {/* ── CONTROLES (Búsqueda y Filtros) ── */}
         <View style={[styles.controlsContainer, { backgroundColor: theme.background }]}>
-          {/* Barra de búsqueda */}
-          <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Search size={18} color={theme.textSecondary} />
+          {/* Barra de búsqueda Premium */}
+          <View style={[styles.searchBar, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassSearchDark]}>
+            <Search size={20} color={theme.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: theme.textPrimary }]}
               placeholder="Buscar diagnóstico, laboratorio..."
@@ -220,7 +266,7 @@ export default function HistorialScreen({ navigation }: any) {
                 style={[
                   styles.chip,
                   { backgroundColor: theme.surface, borderColor: theme.border },
-                  categoriaActiva === cat && { backgroundColor: theme.primary, borderColor: theme.primary }
+                  categoriaActiva === cat && { backgroundColor: theme.primary, borderColor: theme.primary, shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }
                 ]}
                 onPress={() => setCategoriaActiva(cat)}
                 activeOpacity={0.7}
@@ -228,7 +274,7 @@ export default function HistorialScreen({ navigation }: any) {
                 <Text style={[
                   styles.chipText,
                   { color: theme.textSecondary },
-                  categoriaActiva === cat && { color: '#FFFFFF', fontWeight: '700' }
+                  categoriaActiva === cat && { color: '#FFFFFF', fontWeight: '800' }
                 ]}>
                   {cat}
                 </Text>
@@ -237,74 +283,92 @@ export default function HistorialScreen({ navigation }: any) {
           </ScrollView>
         </View>
 
-        {/* ── LISTA DE REGISTROS ── */}
+        {/* ── LISTA DE REGISTROS (STAGGERED) ── */}
         <View style={styles.listContainer}>
           {registrosFiltrados.map((item, index) => (
-            <View key={item.id} style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, borderLeftColor: item.colorBorde, shadowColor: isDark ? '#000' : '#000' }]}>
-              
-              {/* Encabezado: Título y Médico */}
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconBox, { backgroundColor: isDark ? item.colorFondoDark : item.colorFondo }]}>
-                  {item.icono}
+            <AnimatedCard key={`${item.id}-${categoriaActiva}`} delay={index * 100}>
+              <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, borderLeftColor: item.colorBorde, borderLeftWidth: 4 }, isDark && styles.glassCardDark]}>
+                
+                {/* Encabezado: Título y Médico */}
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconBox, { backgroundColor: isDark ? item.colorFondoDark : item.colorFondo }]}>
+                    {item.icono}
+                  </View>
+                  <View style={styles.headerInfo}>
+                    <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.titulo}</Text>
+                    <Text style={[styles.cardDoctor, { color: theme.textSecondary }]}>{item.medico} • {item.fecha}</Text>
+                  </View>
                 </View>
-                <View style={styles.headerInfo}>
-                  <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>{item.titulo}</Text>
-                  <Text style={[styles.cardDoctor, { color: theme.textSecondary }]}>{item.medico} • {item.fecha}</Text>
-                </View>
-              </View>
-
-              {/* Detalles específicos según el tipo */}
-              <View style={[styles.detailsBox, { backgroundColor: isDark ? theme.background : '#F8FAFC' }]}>
-                {item.lugar ? (
-                  <>
-                    <View style={styles.detailCol}>
-                      <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>CENTRO MÉDICO</Text>
-                      <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.lugar}</Text>
-                    </View>
-                    <View style={styles.detailCol}>
-                      <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>ESTADO</Text>
-                      <View style={[styles.badgeSuccess, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                        <Text style={[styles.badgeSuccessText, isDark && { color: '#34D399' }]}>{item.estado}</Text>
+  
+                {/* Detalles específicos según el tipo */}
+                <View style={[styles.detailsBox, { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : '#F8FAFC' }]}>
+                  {item.lugar ? (
+                    <>
+                      <View style={styles.detailCol}>
+                        <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>CENTRO MÉDICO</Text>
+                        <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.lugar}</Text>
                       </View>
-                    </View>
-                  </>
-                ) : null}
-                {item.dosis ? (
-                  <>
-                    <View style={styles.detailCol}>
-                      <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>DOSIS</Text>
-                      <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.dosis}</Text>
-                    </View>
-                    <View style={styles.detailCol}>
-                      <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>DURACIÓN</Text>
-                      <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.duracion}</Text>
-                    </View>
-                  </>
-                ) : null}
-              </View>
-
-              {/* Sello de Blockchain */}
-              <View style={styles.blockchainRow}>
-                <View style={[styles.blockchainBadge, isDark && { backgroundColor: 'rgba(139, 92, 246, 0.15)', borderColor: 'rgba(139, 92, 246, 0.3)' }]}>
-                  <Shield size={12} color={isDark ? '#C4B5FD' : '#8B5CF6'} />
-                  <Text style={[styles.blockchainText, isDark && { color: '#C4B5FD' }]}> Registro Verificado</Text>
+                      <View style={styles.detailCol}>
+                        <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>ESTADO</Text>
+                        <View style={[styles.badgeSuccess, isDark && { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                          <Text style={[styles.badgeSuccessText, isDark && { color: '#34D399' }]}>{item.estado}</Text>
+                        </View>
+                      </View>
+                    </>
+                  ) : null}
+                  {item.dosis ? (
+                    <>
+                      <View style={styles.detailCol}>
+                        <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>DOSIS</Text>
+                        <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.dosis}</Text>
+                      </View>
+                      <View style={styles.detailCol}>
+                        <Text style={[styles.detailLabel, { color: theme.textSecondary }]}>DURACIÓN</Text>
+                        <Text style={[styles.detailValue, { color: theme.textPrimary }]}>{item.duracion}</Text>
+                      </View>
+                    </>
+                  ) : null}
                 </View>
-                <Text style={styles.hashText}>{item.hash}</Text>
+  
+                {/* Sello de Blockchain Glowing */}
+                <View style={styles.blockchainRow}>
+                  <LinearGradient
+                    colors={isDark ? ['rgba(139, 92, 246, 0.3)', 'rgba(139, 92, 246, 0.1)'] : ['rgba(139, 92, 246, 0.15)', 'rgba(139, 92, 246, 0.05)']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={styles.blockchainBadgeGlow}
+                  >
+                    <Shield size={14} color={isDark ? '#C4B5FD' : '#8B5CF6'} />
+                    <Text style={[styles.blockchainText, { color: isDark ? '#C4B5FD' : '#8B5CF6' }]}> Registro Verificado</Text>
+                  </LinearGradient>
+                  <Text style={styles.hashText}>{item.hash}</Text>
+                </View>
+  
+                {/* Botón de Acción Principal */}
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF', borderColor: item.colorBorde }]} 
+                  activeOpacity={0.7}
+                  onPress={() => handleOpenDocument(item.file_url)}
+                >
+                  {item.accionIcono}
+                  <Text style={[styles.actionButtonText, { color: item.colorBorde }]}>  {item.accionTexto}</Text>
+                </TouchableOpacity>
+                
               </View>
-
-              {/* Botón de Acción Principal */}
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: isDark ? 'transparent' : '#FFFFFF', borderColor: item.colorBorde }]} activeOpacity={0.7}>
-                {item.accionIcono}
-                <Text style={[styles.actionButtonText, { color: item.colorBorde }]}>  {item.accionTexto}</Text>
-              </TouchableOpacity>
-              
-            </View>
+            </AnimatedCard>
           ))}
           
           {registrosFiltrados.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No se encontraron registros médicos para "{busqueda}".</Text>
-            </View>
+            <AnimatedCard delay={100}>
+              <View style={[styles.emptyStateCard, { backgroundColor: theme.surface, borderColor: theme.border }, isDark && styles.glassCardDark]}>
+                <View style={[styles.emptyIconCircle, isDark && { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+                  <SearchX size={48} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                </View>
+                <Text style={[styles.emptyStateTitle, { color: theme.textPrimary }]}>Sin resultados</Text>
+                <Text style={styles.emptyStateDesc}>
+                  No pudimos encontrar registros médicos que coincidan con tu búsqueda.
+                </Text>
+              </View>
+            </AnimatedCard>
           )}
 
           <View style={{ height: 60 }} />
@@ -316,240 +380,112 @@ export default function HistorialScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   
-  // Header Limpio (Copiado 1:1 de PermisosScreen)
+  // Header Limpio
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
   },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  headerTitleContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
 
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 0, // Padding goes into sections to allow sticky header full width
+    paddingHorizontal: 0, 
     paddingTop: 10,
     paddingBottom: 40,
   },
 
   // Título de Pantalla
-  titleSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    marginBottom: 8,
-  },
-  pageSubtitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
+  titleSection: { paddingHorizontal: 24, marginBottom: 24 },
+  pageTitle: { fontSize: 30, fontWeight: '900', letterSpacing: -1, marginBottom: 8 },
+  pageSubtitle: { fontSize: 15, fontWeight: '500', lineHeight: 22 },
   
-  // Controles (Búsqueda y Filtros)
-  controlsContainer: {
-    paddingBottom: 16,
-  },
+  // Controles
+  controlsContainer: { paddingBottom: 16 },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 24,
-    marginBottom: 16,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 54,
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: 24, marginBottom: 16,
+    borderRadius: 20, paddingHorizontal: 16, height: 56,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04, shadowRadius: 10, elevation: 3,
   },
-  searchInput: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  filterButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipsScroll: {
-    paddingLeft: 24,
-  },
-  chipsContainer: {
-    paddingRight: 48, // Para que el último chip no quede pegado al borde derecho
-    gap: 8,
-  },
+  glassSearchDark: { backgroundColor: 'rgba(30, 41, 59, 0.6)', borderColor: 'rgba(255, 255, 255, 0.05)' },
+  searchInput: { flex: 1, marginLeft: 12, fontSize: 16, fontWeight: '500' },
+  filterButton: { padding: 4 },
+  
+  chipsScroll: { paddingHorizontal: 24 },
+  chipsContainer: { paddingRight: 48, gap: 10 },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 20, borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02, shadowRadius: 4, elevation: 1,
   },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  
-  // Lista de Tarjetas
-  listContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    gap: 20,
-  },
+  chipText: { fontSize: 14, fontWeight: '600' },
+
+  // Lista
+  listContainer: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 20 },
   card: {
-    borderRadius: 20,
-    padding: 20,
-    borderLeftWidth: 4,
+    borderRadius: 24, padding: 22, marginBottom: 20,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.04,
-    shadowRadius: 15,
-    elevation: 3,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06, shadowRadius: 16, elevation: 4,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    gap: 14,
-    marginBottom: 16,
-  },
+  glassCardDark: { backgroundColor: 'rgba(30, 41, 59, 0.5)', borderColor: 'rgba(255, 255, 255, 0.05)' },
+  
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 14 },
   iconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 52, height: 52, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerInfo: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  cardDoctor: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  
-  // Detalles específicos
+  headerInfo: { flex: 1 },
+  cardTitle: { fontSize: 17, fontWeight: '800', marginBottom: 4 },
+  cardDoctor: { fontSize: 13, fontWeight: '500' },
+
   detailsBox: {
-    flexDirection: 'row',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    flexDirection: 'row', borderRadius: 16, padding: 16,
+    marginBottom: 20, gap: 16,
   },
-  detailCol: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  detailCol: { flex: 1 },
+  detailLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 6 },
+  detailValue: { fontSize: 14, fontWeight: '700' },
   badgeSuccess: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    backgroundColor: '#DCFCE7', alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
   },
-  badgeSuccessText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  
-  // Blockchain Row
+  badgeSuccessText: { color: '#166534', fontSize: 11, fontWeight: '800' },
+
   blockchainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 20,
   },
-  blockchainBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F3FF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EDE9FE',
+  blockchainBadgeGlow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(139, 92, 246, 0.2)',
   },
-  blockchainText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  hashText: {
-    fontSize: 11,
-    color: '#CBD5E1',
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  
-  // Botón de Acción
+  blockchainText: { fontSize: 11, fontWeight: '800', marginLeft: 4 },
+  hashText: { fontSize: 12, color: '#94A3B8', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14, borderRadius: 16, borderWidth: 1,
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
+  actionButtonText: { fontSize: 14, fontWeight: '800' },
+
+  emptyStateCard: {
+    padding: 32, alignItems: 'center', borderRadius: 28, borderWidth: 1, marginTop: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 5,
   },
-  
-  emptyState: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  emptyIconCircle: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyStateTitle: { fontSize: 22, fontWeight: '900', marginBottom: 10, textAlign: 'center' },
+  emptyStateDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
 });

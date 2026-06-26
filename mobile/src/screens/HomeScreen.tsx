@@ -17,7 +17,8 @@ import {
   Phone,
   X,
   FileText,
-  Settings
+  Settings,
+  User
 } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
@@ -186,9 +187,6 @@ export default function HomeScreen({ navigation }: any) {
               <TouchableOpacity style={styles.iconButton}>
                 <Bell size={20} color="#0F2B3D" strokeWidth={2.5} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={() => navigation?.navigate('Configuracion')}>
-                <Settings size={20} color="#0F2B3D" strokeWidth={2.5} />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -204,7 +202,7 @@ export default function HomeScreen({ navigation }: any) {
                 activeOpacity={0.9}
               >
                 <LinearGradient colors={['#EF4444', '#B91C1C']} style={styles.urgentGradient}>
-                  <Activity size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <Activity size={18} color="#FFFFFF" strokeWidth={2.5} />
                   <Text style={styles.urgentCareText}>Atención Urgente</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -222,8 +220,9 @@ export default function HomeScreen({ navigation }: any) {
 
       {/* ─── BOTTOM SHEET ─── */}
       <View style={[styles.bottomSheet, { backgroundColor: theme.background }]}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          
+        
+        {/* Servicios Clínicos (Estático, sin Scroll) */}
+        <View style={{ paddingHorizontal: 24, paddingTop: 32, paddingBottom: 10 }}>
           <Animated.View style={getAnimatedStyle(animCards)}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Servicios Clínicos</Text>
             <View style={styles.servicesGrid}>
@@ -247,10 +246,14 @@ export default function HomeScreen({ navigation }: any) {
                 </LinearGradient>
                 <Text style={[styles.serviceText, { color: theme.textSecondary }]}>Permisos</Text>
               </TouchableOpacity>
+
             </View>
           </Animated.View>
+        </View>
 
-          <Animated.View style={[getAnimatedStyle(animCards), { marginTop: 30 }]}>
+        {/* Próxima Cita (Estático, Sin Scroll) */}
+        <View style={{ paddingHorizontal: 24, paddingBottom: 40, flex: 1 }}>
+          <Animated.View style={[getAnimatedStyle(animCards), { marginTop: 10 }]}>
             <View style={styles.appointmentHeader}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 0 }]}>Próxima Cita</Text>
               <TouchableOpacity onPress={() => navigation?.navigate('MisCitas')}>
@@ -307,7 +310,7 @@ export default function HomeScreen({ navigation }: any) {
           </Animated.View>
           
           <View style={{height: 130}} />
-        </ScrollView>
+        </View>
       </View>
 
       {/* ─── EMERGENCY MODAL ─── */}
@@ -364,22 +367,22 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.95)',
     justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3,
   },
-  welcomeContainer: { marginTop: 30, zIndex: 10, maxWidth: width * 0.65 },
+  welcomeContainer: { marginTop: 30, zIndex: 10, maxWidth: width * 0.55 },
   welcomeText: { fontSize: 32, color: '#FFFFFF', fontWeight: '400', letterSpacing: -0.5 },
   nameText: { fontWeight: '800' },
   subtitleText: { fontSize: 16, color: 'rgba(255,255,255,0.8)', marginTop: 8, fontWeight: '500', lineHeight: 22 },
   
-  urgentCareBtn: { marginTop: 24, borderRadius: 30, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8, alignSelf: 'flex-start' },
-  urgentGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 30, gap: 10 },
-  urgentCareText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  urgentCareBtn: { marginTop: 20, borderRadius: 30, shadowColor: '#EF4444', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8, alignSelf: 'flex-start' },
+  urgentGradient: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 30, gap: 8 },
+  urgentCareText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 0.2 },
   
-  doctorImage: { position: 'absolute', bottom: -10, right: -20, width: width * 0.5, height: width * 0.65, opacity: 0.95, zIndex: 1 },
+  doctorImage: { position: 'absolute', bottom: -10, right: -20, width: width * 0.52, height: width * 0.68, opacity: 0.95, zIndex: 1 },
   bottomSheet: { flex: 1, marginTop: -40, borderTopLeftRadius: 36, borderTopRightRadius: 36, overflow: 'hidden' },
   scrollContent: { paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 },
   sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20, letterSpacing: -0.3 },
   
-  servicesGrid: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 10 },
-  serviceItem: { alignItems: 'center', width: (width - 80) / 3 },
+  servicesGrid: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 0 },
+  serviceItem: { alignItems: 'center', width: '30%' },
   serviceCircle: { width: 64, height: 64, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   serviceText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   

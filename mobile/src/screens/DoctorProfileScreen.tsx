@@ -1,6 +1,6 @@
 import { Text } from '../components/CustomText';
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Modal, Linking, Platform, SafeAreaView, TextInput, FlatList, KeyboardAvoidingView, Switch, useColorScheme } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Image, Dimensions, Animated, ActivityIndicator, Platform, SafeAreaView, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import Toast from 'react-native-toast-message';
 
@@ -8,8 +8,6 @@ import {
   ArrowLeft,
   MapPin,
   MessageCircle,
-  Video,
-  Phone,
   GraduationCap,
   Languages
 } from 'lucide-react-native';
@@ -19,15 +17,14 @@ import { Colors } from '../theme/Colors';
 import { supabase } from '../services/supabase';
 import { getActiveWallet, getPatientData } from '../services/patientService';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const generateNext7Days = () => {
   const days = [];
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
   const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
   
-  const today = new Date(); // Or specify a fixed current date if needed, but new Date() is dynamic
-  // Note: the system is in 2026-06-23
+  const today = new Date();
   
   for (let i = 0; i < 7; i++) {
     const d = new Date(today);
@@ -65,7 +62,21 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
 
-  // Fallback si no hay doctor (por error de navegación)
+  // Animations
+  const animHeader = useRef(new Animated.Value(0)).current;
+  const animCards = useRef(new Animated.Value(0)).current;
+  const animDates = useRef(new Animated.Value(0)).current;
+  const animTimes = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.stagger(120, [
+      Animated.spring(animHeader, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+      Animated.spring(animCards, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+      Animated.spring(animDates, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+      Animated.spring(animTimes, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
   if (!doctor) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -77,7 +88,6 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
     );
   }
 
-  // Cargar sucursal del doctor
   useEffect(() => {
     async function loadDoctorBranch() {
       try {
@@ -105,7 +115,6 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
     loadDoctorBranch();
   }, [doctor.id]);
 
-  // Cargar píldoras de turnos libres usando RPC de Supabase (get_available_slots)
   const fetchSlots = async (dateStr: string) => {
     if (!selectedBranchId) return;
     try {
@@ -147,11 +156,7 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
   const handleBookAppointment = async () => {
     if (!selectedTime) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Toast.show({
-        type: 'error',
-        text1: 'Atención',
-        text2: 'Por favor selecciona un horario disponible.'
-      });
+      Toast.show({ type: 'error', text1: 'Atención', text2: 'Por favor selecciona un horario disponible.' });
       return;
     }
     try {
@@ -160,19 +165,14 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
       const patientData = await getPatientData(wallet);
       const patientId = patientData.profile?.id;
 
-      if (!patientData.profile?.id) {
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'No se pudo identificar al paciente.'
-        });
+      if (!patientId) {
+        Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo identificar al paciente.' });
         return;
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('appointments')
-        .insert([
-          {
+        .insert([{
             patient_id: patientId,
             doctor_id: doctor.id,
             doctor_name: doctor.name,
@@ -183,119 +183,104 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
             status: 'scheduled',
             type: 'presencial',
             priority: 'normal'
-          }
-        ])
+        }])
         .select()
         .single();
 
       if (error) {
-        Toast.show({
-          type: 'error',
-          text1: 'Error al reservar',
-          text2: error.message
-        });
+        Toast.show({ type: 'error', text1: 'Error al reservar', text2: error.message });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Toast.show({
-          type: 'success',
-          text1: '¡Cita Reservada!',
-          text2: 'Tu cita ha sido guardada con éxito.'
-        });
+        Toast.show({ type: 'success', text1: '¡Cita Reservada!', text2: 'Tu cita ha sido guardada con éxito.' });
         navigation.navigate('MainTabs', { screen: 'MisCitas' });
       }
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Error de conexión.'
-      });
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Error de conexión.' });
     } finally {
       setIsBooking(false);
     }
   };
 
+  const getAnimatedStyle = (anim: Animated.Value) => ({
+    opacity: anim,
+    transform: [{
+      translateY: anim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [30, 0]
+      })
+    }]
+  });
+
+  const doctorInitials = doctor.name ? doctor.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('') : 'DR';
+  const hasValidImage = doctor.image || doctor.avatar_url;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* ── HERO IMAGE SECTION ── */}
-      <View style={styles.heroContainer}>
-        {/* Usamos el gradiente corporativo */}
-        <LinearGradient
-          colors={isDark ? ['#081720', '#1C4A9E'] : ['#0F2B3D', '#2D7FF9']}
-          style={StyleSheet.absoluteFillObject}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        
-        <Image 
-          source={{ uri: doctor.image }} 
-          style={styles.heroImage} 
-          resizeMode="cover"
-        />
-
-        {/* Top Header Buttons */}
-        <SafeAreaView style={styles.heroSafeArea}>
-          <View style={styles.topBar}>
-            <TouchableOpacity 
-              style={styles.glassButtonRound} 
-              onPress={() => navigation.goBack()}
-            >
-              <ArrowLeft size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            
-            <View style={styles.topRightActions}>
-              <TouchableOpacity style={styles.glassButtonRound}>
-                <MessageCircle size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Glassmorphism Pills overlaid on image */}
-          <View style={styles.pillsContainer}>
-            <View style={styles.glassPill}>
-              <GraduationCap size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.glassPillText}>{doctor.university}</Text>
-            </View>
-            <View style={styles.glassPill}>
-              <Text style={styles.glassPillText}>Bs. 150 /consulta</Text>
-            </View>
-          </View>
-        </SafeAreaView>
+      
+      {/* ── TOP BAR (FLAT) ── */}
+      <View style={[styles.topBar, { paddingTop: Platform.OS === 'android' ? insets.top + 10 : insets.top }]}>
+        <TouchableOpacity style={[styles.navButton, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <ArrowLeft size={24} color={theme.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.navButton, { backgroundColor: theme.surface, borderColor: theme.border }]} activeOpacity={0.7}>
+          <MessageCircle size={20} color={theme.textPrimary} />
+        </TouchableOpacity>
       </View>
 
-      {/* ── BOTTOM SHEET SECTION ── */}
-      <View style={[styles.bottomSheet, { backgroundColor: theme.background }]}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* ── AVATAR Y CABECERA ── */}
+        <Animated.View style={[styles.profileHeader, getAnimatedStyle(animHeader)]}>
+          <View style={styles.avatarContainer}>
+            {hasValidImage ? (
+              <Image source={{ uri: doctor.image || doctor.avatar_url }} style={styles.avatarImage} />
+            ) : (
+              <LinearGradient
+                colors={isDark ? ['#1E3A8A', '#3B82F6'] : ['#3B82F6', '#60A5FA']}
+                style={styles.avatarGradient}
+              >
+                <Text style={styles.avatarInitials}>{doctorInitials}</Text>
+              </LinearGradient>
+            )}
+          </View>
           
-          {/* Doctor Info */}
-          <View style={styles.headerInfoRow}>
-            <View>
-              <Text style={styles.doctorName}>{doctor.name}</Text>
-              <Text style={styles.specialtyText}>{doctor.specialty}</Text>
+          <Text style={[styles.doctorName, { color: theme.textPrimary }]}>{doctor.name}</Text>
+          <Text style={styles.specialtyText}>{doctor.specialty}</Text>
+
+          <View style={styles.pillsContainer}>
+            <View style={[styles.infoPill, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <GraduationCap size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
+              <Text style={[styles.infoPillText, { color: theme.textSecondary }]}>{doctor.university || 'Especialista'}</Text>
+            </View>
+            <View style={[styles.infoPill, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Text style={[styles.infoPillText, { color: theme.textSecondary }]}>Bs. 150 /consulta</Text>
             </View>
           </View>
+        </Animated.View>
 
-          {/* Summary Cards */}
-          <View style={styles.summaryCardsRow}>
-            <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: isDark ? theme.background : '#FFFFFF' }]}>
-                <MapPin size={20} color={theme.primary} />
-              </View>
-              <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Sucursal</Text>
-              <Text style={styles.summaryCardValue}>{doctor.branch}</Text>
+        {/* ── SUMMARY CARDS ── */}
+        <Animated.View style={[styles.summaryCardsRow, getAnimatedStyle(animCards)]}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+            <View style={[styles.summaryIconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
+              <MapPin size={20} color="#3B82F6" />
             </View>
-
-            <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={[styles.summaryIconContainer, { backgroundColor: isDark ? theme.background : '#FFFFFF' }]}>
-                <Languages size={20} color={theme.primary} />
-              </View>
-              <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Idiomas</Text>
-              <Text style={styles.summaryCardValue}>{doctor.languages}</Text>
-            </View>
+            <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Sucursal</Text>
+            <Text style={[styles.summaryCardValue, { color: theme.textPrimary }]}>{sucursal?.name || doctor.branch}</Text>
           </View>
 
-          {/* Date Selector */}
+          <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+            <View style={[styles.summaryIconContainer, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+              <Languages size={20} color="#10B981" />
+            </View>
+            <Text style={[styles.summaryCardLabel, { color: theme.textSecondary }]}>Idiomas</Text>
+            <Text style={[styles.summaryCardValue, { color: theme.textPrimary }]}>{doctor.languages || 'Español'}</Text>
+          </View>
+        </Animated.View>
+
+        {/* ── DATES SELECTOR ── */}
+        <Animated.View style={getAnimatedStyle(animDates)}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Selecciona fecha y hora</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Selecciona fecha</Text>
             <Text style={[styles.monthText, { color: theme.textSecondary }]}>{DATES_DYNAMIC.find(d => d.fullDate === selectedDate)?.monthName} ▾</Text>
           </View>
           
@@ -305,28 +290,35 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
               return (
                 <TouchableOpacity
                   key={item.id}
-                  style={[
-                    styles.dateItem,
-                    { backgroundColor: theme.surface },
-                    isSelected && [styles.dateItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
-                  ]}
-                  onPress={() => setSelectedDate(item.fullDate)}
+                  activeOpacity={0.8}
+                  style={[styles.dateItem, { backgroundColor: isSelected ? 'transparent' : theme.surface, borderColor: isDark ? '#1E293B' : '#E2E8F0', borderWidth: isSelected ? 0 : 1 }]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedDate(item.fullDate);
+                  }}
                 >
-                  <Text style={[styles.dateDayText, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.day}</Text>
-                  <Text style={[styles.dateDayNameText, { color: theme.textSecondary }, isSelected && [styles.dateTextActive, isDark && { color: '#F97316' }]]}>{item.dayName}</Text>
+                  {isSelected && <LinearGradient colors={['#F97316', '#EA580C']} style={[StyleSheet.absoluteFillObject, { borderRadius: 20 }]} />}
+                  <Text style={[styles.dateDayText, { color: isSelected ? '#FFF' : theme.textPrimary }]}>{item.day}</Text>
+                  <Text style={[styles.dateDayNameText, { color: isSelected ? 'rgba(255,255,255,0.8)' : theme.textSecondary }]}>{item.dayName}</Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
+        </Animated.View>
 
-          {/* Time Selector */}
+        {/* ── TIMES SELECTOR ── */}
+        <Animated.View style={getAnimatedStyle(animTimes)}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Horarios Disponibles</Text>
+          </View>
+
           {isLoadingSlots ? (
-            <View style={{ paddingVertical: 10, paddingLeft: 20 }}>
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
               <ActivityIndicator size="small" color={theme.primary} />
             </View>
           ) : availableSlots.length === 0 ? (
-            <View style={{ paddingVertical: 10, paddingLeft: 20 }}>
-              <Text style={{ color: theme.textSecondary, fontSize: 13 }}>No hay turnos disponibles para este día.</Text>
+            <View style={{ paddingVertical: 20, alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderRadius: 16 }}>
+              <Text style={{ color: theme.textSecondary, fontSize: 14, fontWeight: '500' }}>No hay turnos disponibles para este día.</Text>
             </View>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeCarousel}>
@@ -335,262 +327,91 @@ export default function DoctorProfileScreen({ route, navigation }: any) {
                 return (
                   <TouchableOpacity
                     key={index}
-                    style={[
-                      styles.timeItem,
-                      { backgroundColor: theme.surface },
-                      isSelected && [styles.timeItemActive, isDark && { backgroundColor: 'rgba(234, 88, 12, 0.15)' }]
-                    ]}
-                    onPress={() => setSelectedTime(time)}
+                    activeOpacity={0.8}
+                    style={[styles.timeItem, { backgroundColor: isSelected ? 'transparent' : theme.surface, borderColor: isDark ? '#1E293B' : '#E2E8F0', borderWidth: isSelected ? 0 : 1 }]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedTime(time);
+                    }}
                   >
-                    <Text style={[styles.timeText, isSelected && [styles.timeTextActive, isDark && { color: '#F97316' }]]}>{time}</Text>
+                    {isSelected && <LinearGradient colors={['#F97316', '#EA580C']} style={[StyleSheet.absoluteFillObject, { borderRadius: 16 }]} />}
+                    <Text style={[styles.timeText, { color: isSelected ? '#FFF' : theme.textPrimary }]}>{time}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
           )}
+        </Animated.View>
 
-          {/* Spacer for bottom button */}
-          <View style={{ height: 100 }} />
-        </ScrollView>
-      </View>
+        {/* ── BOTTOM BUTTON (Integrated in ScrollView) ── */}
+        <Animated.View style={[styles.buttonWrapper, getAnimatedStyle(animTimes)]}>
+          <TouchableOpacity 
+            activeOpacity={0.9}
+            style={[styles.bookButton, isBooking && { opacity: 0.7 }]}
+            disabled={isBooking}
+            onPress={handleBookAppointment}
+          >
+            <LinearGradient
+              colors={['#2563EB', '#1D4ED8']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.bookButtonGradient}
+            >
+              {isBooking ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.bookButtonText}>Confirmar Cita</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
 
-      {/* ── BOTTOM FIXED BUTTON ── */}
-      <View style={[styles.bottomButtonContainer, { backgroundColor: theme.background, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <TouchableOpacity 
-          style={[styles.bookButton, isBooking && { opacity: 0.7 }]}
-          disabled={isBooking}
-          onPress={handleBookAppointment}
-        >
-          {isBooking ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.bookButtonText}>Confirmar Cita</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  heroContainer: {
-    height: height * 0.45,
-    width: '100%',
-    position: 'relative',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-    opacity: 0.9, 
-  },
-  heroSafeArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'space-between',
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 40 : 10,
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  glassButtonRound: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  pillsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  glassPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  glassPillText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-
-  // Bottom Sheet
-  bottomSheet: {
-    flex: 1,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    marginTop: -30, 
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  scrollContent: {
-    padding: 24,
-  },
-  headerInfoRow: {
-    marginBottom: 24,
-  },
-  doctorName: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  specialtyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-  },
+  container: { flex: 1 },
   
-  // Summary Cards
-  summaryCardsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginBottom: 32,
-  },
-  summaryCard: {
-    flex: 1,
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-  },
-  summaryIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  summaryCardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  summaryCardValue: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-
-  // Selectors
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  monthText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 10 },
+  navButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
   
-  // Dates
-  dateCarousel: {
-    marginBottom: 24,
-  },
-  dateItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 12,
-    borderRadius: 16,
-  },
-  dateItemActive: {
-    backgroundColor: '#FFF7ED', 
-  },
-  dateDayText: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  dateDayNameText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dateTextActive: {
-    color: '#EA580C', 
-  },
+  scrollContent: { padding: 24, paddingBottom: 60 },
+  
+  profileHeader: { alignItems: 'center', marginBottom: 32 },
+  avatarContainer: { width: 110, height: 110, borderRadius: 55, marginBottom: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+  avatarImage: { width: '100%', height: '100%' },
+  avatarGradient: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+  avatarInitials: { color: '#FFFFFF', fontSize: 36, fontWeight: '800', letterSpacing: 1 },
+  
+  doctorName: { fontSize: 26, fontWeight: '800', marginBottom: 4, letterSpacing: -0.5, textAlign: 'center' },
+  specialtyText: { fontSize: 15, fontWeight: '700', color: '#3B82F6', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, textAlign: 'center' },
+  
+  pillsContainer: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
+  infoPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  infoPillText: { fontSize: 13, fontWeight: '700' },
+  
+  summaryCardsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 16, marginBottom: 36 },
+  summaryCard: { flex: 1, borderRadius: 24, padding: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  summaryIconContainer: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  summaryCardLabel: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
+  summaryCardValue: { fontSize: 16, fontWeight: '800' },
 
-  // Times
-  timeCarousel: {
-    marginBottom: 20,
-  },
-  timeItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  timeItemActive: {
-    backgroundColor: '#FFF7ED',
-  },
-  timeText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  timeTextActive: {
-    color: '#EA580C',
-  },
-
-  // Bottom Fixed Button
-  bottomButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
-  },
-  bookButton: {
-    backgroundColor: '#2D7FF9',
-    borderRadius: 100,
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2D7FF9',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  bookButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  monthText: { fontSize: 15, fontWeight: '700' },
+  
+  dateCarousel: { marginBottom: 32 },
+  dateItem: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, width: 72, marginRight: 12, borderRadius: 20 },
+  dateDayText: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+  dateDayNameText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  
+  timeCarousel: { marginBottom: 20 },
+  timeItem: { paddingVertical: 14, paddingHorizontal: 24, borderRadius: 16, marginRight: 12 },
+  timeText: { fontSize: 15, fontWeight: '800' },
+  
+  buttonWrapper: { marginTop: 24 },
+  bookButton: { borderRadius: 100, overflow: 'hidden', shadowColor: '#2563EB', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10 },
+  bookButtonGradient: { alignItems: 'center', justifyContent: 'center', paddingVertical: 18 },
+  bookButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
 });
